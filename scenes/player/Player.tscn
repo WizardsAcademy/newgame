@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/textures/player_placeholder.png" id="2_sheet"]
@@ -13,6 +13,14 @@ region = Rect2(0, 0, 16, 16)
 [sub_resource type="AtlasTexture" id="AtlasTexture_frame1"]
 atlas = ExtResource("2_sheet")
 region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(32, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(48, 0, 16, 16)
 
 [sub_resource type="Animation" id="Animation_idle"]
 resource_name = "idle"
@@ -45,7 +53,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.1),
 "transitions": PackedFloat32Array(1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame0"), SubResource("AtlasTexture_frame1")]
+"values": [SubResource("AtlasTexture_frame1"), SubResource("AtlasTexture_frame2")]
 }
 
 [sub_resource type="Animation" id="Animation_attack"]
@@ -58,22 +66,10 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.05, 0.1),
+"times": PackedFloat32Array(0, 0.05, 0.15),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame0"), SubResource("AtlasTexture_frame1"), SubResource("AtlasTexture_frame0")]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Visuals/PunchFx:visible")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0, 0.05, 0.1),
-"transitions": PackedFloat32Array(1, 1, 1),
-"update": 1,
-"values": [false, true, false]
+"values": [SubResource("AtlasTexture_frame0"), SubResource("AtlasTexture_frame3"), SubResource("AtlasTexture_frame0")]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]
@@ -98,12 +94,6 @@ shape = SubResource("RectangleShape2D_body")
 
 [node name="Visuals" type="Sprite2D" parent="."]
 texture = SubResource("AtlasTexture_frame0")
-
-[node name="PunchFx" type="Sprite2D" parent="Visuals"]
-visible = false
-position = Vector2(10, 0)
-texture = SubResource("AtlasTexture_frame1")
-modulate = Color(1, 0.85, 0.3, 1)
 
 [node name="AnimPlayer" type="AnimationPlayer" parent="."]
 libraries = {

@@ -64,7 +64,7 @@ signal attack_hit(enemy)
 
 ## Delay between "attack pressed" and "hitbox turns on", in seconds.
 ## This is the wind-up: the punch is only dangerous once the arm is out
-## (animation frame 1 at 0.05 s).
+## (punch pose in animation frame 3 at 0.05 s).
 @export var attack_windup: float = 0.05
 
 ## How long the hitbox stays switched on, in seconds (0.1 s = 6 physics
@@ -102,18 +102,17 @@ var _enemies_hit_this_swing: Dictionary = {}
 # @onready waits until the node (and its children) are inside the
 # SceneTree before running the $ lookups, so the paths are valid.
 
-@onready var visuals: Sprite2D = $Visuals                   # sprite we flip + animate
+@onready var visuals: Sprite2D = $Visuals                   # single character sprite we flip + animate
 @onready var anim_player: AnimationPlayer = $AnimPlayer     # plays "idle" / "walk" / "attack"
 @onready var attack_point: Marker2D = $AttackPoint          # local point in front of the player
 @onready var hitbox: Area2D = $Hitbox                       # the damaging sensor
 @onready var hitbox_shape: CollisionShape2D = $Hitbox/CollisionShape2D
-@onready var punch_fx: Sprite2D = $Visuals/PunchFx          # "extended punch" frame helper
 
 ## Local offset of the AttackPoint marker when facing right.
 ## It gets mirrored on the X axis whenever the player faces left.
 const ATTACK_POINT_OFFSET := Vector2(12.0, 0.0)
 
-## Small white "hit spark" spawned wherever a punch lands.
+## Small 6x6 fist-colored impact spark spawned ONLY when a punch lands on an enemy.
 const HIT_SPARK_SCENE := preload("res://scenes/fx/HitSpark.tscn")
 
 
@@ -178,8 +177,9 @@ func _handle_movement() -> void:
 	elif velocity.x < 0.0:
 		facing = -1.0
 
-	# Flip the sprite horizontally: a negative scale.x mirrors it.
-	# PunchFx is a CHILD of Visuals, so it is mirrored for free.
+	# Flip the single character sprite horizontally: a negative scale.x
+	# mirrors Visuals around its centre, so the right-facing extended fist
+	# in frame 3 automatically punches left when facing == -1.0.
 	visuals.scale.x = facing
 
 	# Keep the melee marker AND the hitbox in front of the player, so the
@@ -193,11 +193,27 @@ func _handle_movement() -> void:
 # =====================================================================
 
 # ANIMATION NOTES (for beginner devs):
-# 1. Track paths inside the .tscn ("Visuals:texture") are resolved relative
+# 1. HOW THE 4-FRAME SPRITE SHEET WORKS (`assets/textures/player_placeholder.png`):
+#    The sheet is 64x16 pixels = four 16x16 frames side by side (left to right):
+#      - Frame 0 (`Rect2( 0, 0, 16, 16)`): idle (neutral standing body)
+#      - Frame 1 (`Rect2(16, 0, 16, 16)`): walk step A (left foot down)
+#      - Frame 2 (`Rect2(32, 0, 16, 16)`): walk step B (right foot down + 1px bob)
+#      - Frame 3 (`Rect2(48, 0, 16, 16)`): punch pose (lunged forward + extended fist)
+#    In `Player.tscn`, each 16x16 slice is wrapped in an `AtlasTexture`
+#    sub-resource (`AtlasTexture_frame0` .. `AtlasTexture_frame3`), and the
+#    `AnimationPlayer` swaps `Visuals:texture` between them using discrete
+#    keyframes (`update = 1`, meaning instant snap instead of blending).
+# 2. WHY FRAME-BASED ATTACK BEATS AN OVERLAY SPRITE:
+#    Drawing a second sprite at `AttackPoint` makes the player look doubled
+#    ("twin bodies" side by side). Swapping `Visuals:texture` to Frame 3
+#    replaces the ONE character sprite with a pose that already has the
+#    lunging body and extended arm/fist drawn in, so there is ever only a
+#    single character body on screen.
+# 3. Track paths inside the .tscn ("Visuals:texture") are resolved relative
 #    to the AnimationPlayer's *root node*, which defaults to its parent -
 #    the Player root here. So "Visuals:texture" is correct; "../Visuals"
 #    would NOT resolve (the mixer prints a "couldn't resolve track" warning).
-# 2. If the sprite ever looks "frozen" again, check the Output dock for the
+# 4. If the sprite ever looks "frozen" again, check the Output dock for the
 #    debug print below: if "Playing: walk" shows but the picture never
 #    changes, the track path or the animation's keys are the problem -
 #    NOT this script.
@@ -236,8 +252,11 @@ func _start_attack() -> void:
 	# punch from damaging the same slime several times.
 	_enemies_hit_this_swing.clear()
 
-	# Frame 0 of "attack" = normal pose; frame 1 (0.05 s) = punch
-	# extended; frame 2 (0.1 s) = back to normal. Length 0.2 s, no loop.
+	# Play the non-looping 0.2 s "attack" animation on `Visuals:texture`:
+	#   0.00 s -> Frame 0 (idle wind-up)
+	#   0.05 s -> Frame 3 (lunged punch pose, synced with Hitbox ON)
+	#   0.15 s -> Frame 0 (retract to idle, synced with Hitbox OFF)
+	# Movement unlocks at 0.20 s once recovery finishes.
 	anim_player.play("attack")
 
 	# --- 1. Wind-up ----------------------------------------------------
@@ -355,9 +374,10 @@ func _find_damageable(node: Node) -> Node:
 	return null
 
 
-## A tiny white square that pops, expands and fades in ~0.15 s.
-## It is added to the level root (our parent) so it stays behind after we
-## move, and frees itself when done.
+## Spawns a tiny 6x6 fist-colored spark ONLY when `_try_hit()` confirms an
+## enemy was struck (never on an empty swing, and never a body sprite copy).
+## Added to the level root (our parent) so it stays at the impact spot even
+## after the player moves, and frees itself after ~0.15 s.
 func _spawn_hit_spark() -> void:
 	var spark := HIT_SPARK_SCENE.instantiate()
 	var parent := get_parent()
