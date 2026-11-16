@@ -8,3 +8,5 @@ script = ExtResource("1_spark_script")
 
 [node name="Visual" type="Sprite2D" parent="."]
 texture = ExtResource("2_white")
+region_enabled = true
+region_rect = Rect2(0, 0, 6, 6)

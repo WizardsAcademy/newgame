@@ -99,6 +99,31 @@ func _run() -> void:
 	_check_eq("Hitbox sits at the AttackPoint offset (12, 0)", hitbox.position, Vector2(12, 0))
 	_check_eq("Player attack_damage is 10", player.attack_damage, 10)
 	_check("Player is in the \"player\" group", player.is_in_group("player"))
+	_check("PunchFx full-body overlay sprite removed", not player.has_node("Visuals/PunchFx"))
+
+	var sheet_tex: Texture2D = (player.get_node("Visuals").texture as AtlasTexture).atlas
+	_check_eq("Player placeholder sprite sheet is 64x16 (4 frames)",
+		sheet_tex.get_size(), Vector2(64, 16))
+
+	var anim_player: AnimationPlayer = player.get_node("AnimPlayer")
+	var idle_anim: Animation = anim_player.get_animation("idle")
+	var walk_anim: Animation = anim_player.get_animation("walk")
+	var attack_anim: Animation = anim_player.get_animation("attack")
+	_check_eq("Idle animation uses frame 0 (0,0,16,16)",
+		(idle_anim.track_get_key_value(0, 0) as AtlasTexture).region, Rect2(0, 0, 16, 16))
+	_check("Walk animation uses frames 1 and 2",
+		walk_anim.track_get_key_count(0) == 2
+		and (walk_anim.track_get_key_value(0, 0) as AtlasTexture).region == Rect2(16, 0, 16, 16)
+		and (walk_anim.track_get_key_value(0, 1) as AtlasTexture).region == Rect2(32, 0, 16, 16))
+	_check_eq("Attack animation has loop disabled", attack_anim.loop_mode, Animation.LOOP_NONE)
+	_check("Attack animation keys: frame 0 @ 0.0s, frame 3 @ 0.05s, frame 0 @ 0.15s",
+		attack_anim.track_get_key_count(0) == 3
+		and is_equal_approx(attack_anim.track_get_key_time(0, 0), 0.0)
+		and is_equal_approx(attack_anim.track_get_key_time(0, 1), 0.05)
+		and is_equal_approx(attack_anim.track_get_key_time(0, 2), 0.15)
+		and (attack_anim.track_get_key_value(0, 0) as AtlasTexture).region == Rect2(0, 0, 16, 16)
+		and (attack_anim.track_get_key_value(0, 1) as AtlasTexture).region == Rect2(48, 0, 16, 16)
+		and (attack_anim.track_get_key_value(0, 2) as AtlasTexture).region == Rect2(0, 0, 16, 16))
 
 	var slimes := _slimes(main)
 	_check_eq("Main scene spawns 3 slimes", slimes.size(), 3)
@@ -135,17 +160,21 @@ func _run() -> void:
 	_check_eq("Attack animation is playing", player.get_node("AnimPlayer").current_animation, "attack")
 	_check("Hitbox still OFF during the wind-up", hitbox.monitoring == false)
 
-	# Wait past the 0.05 s wind-up: the hitbox must be ON now.
+	# Wait past the 0.05 s wind-up: the hitbox must be ON now, and the
+	# single Visuals sprite must show frame 3 (the punch pose) with NO
+	# second full-body sprite node visible anywhere on the player.
 	await _wait(0.07)
 	_check("Hitbox ON ~0.05 s into the swing", hitbox.monitoring == true)
 
-	# ... and the punch pose (animation frame 1) must be on screen.
-	var punch_fx: Sprite2D = player.get_node("Visuals/PunchFx")
-	var frame_one: AtlasTexture = punch_fx.texture as AtlasTexture
-	_check("Punch pose is visible during the hit window", punch_fx.visible == true)
-	_check("Sprite switched to animation frame 1",
-		(player.get_node("Visuals").texture as AtlasTexture).region == Rect2(16, 0, 16, 16),
-		str((player.get_node("Visuals").texture as AtlasTexture).region))
+	var active_region: Rect2 = (player.get_node("Visuals").texture as AtlasTexture).region
+	_check_eq("Visuals texture region equals punch frame region (frame 3) during attack",
+		active_region, Rect2(48, 0, 16, 16))
+
+	var visible_player_sprites := _visible_sprites(player)
+	_check("No second full-body sprite node is visible during attack",
+		visible_player_sprites.size() == 1 and visible_player_sprites[0] == player.get_node("Visuals"),
+		"visible sprites on player: %d" % visible_player_sprites.size())
+	_check_eq("No impact spark spawned during empty-air swing", _count_hit_sparks(main), 0)
 
 	# Movement lock: hold "move_right" during the swing, the player
 	# must not move.
@@ -156,14 +185,11 @@ func _run() -> void:
 	Input.action_release("move_right")
 	_check("Movement locked while attacking", moved < 0.5, "moved %.2f px" % moved)
 
-	# After 0.15 s the hitbox must be off again, and the punch pose gone.
+	# After 0.15 s the hitbox must be off again, and Visuals back to frame 0.
 	await _wait(0.14)
 	_check("Hitbox OFF after ~0.1 s active window", hitbox.monitoring == false)
-	_check("Punch pose is hidden again after 0.1 s", punch_fx.visible == false,
-		"played on %s" % str(frame_one.atlas.resource_path))
-	_check("Sprite is back to animation frame 0",
-		(player.get_node("Visuals").texture as AtlasTexture).region == Rect2(0, 0, 16, 16),
-		str((player.get_node("Visuals").texture as AtlasTexture).region))
+	_check_eq("Sprite is back to animation frame 0",
+		(player.get_node("Visuals").texture as AtlasTexture).region, Rect2(0, 0, 16, 16))
 
 	# And after the full 0.2 s swing the lock is released.
 	await _wait(0.1)
@@ -198,6 +224,12 @@ func _run() -> void:
 		target.get_node("Visuals").self_modulate == Color(1, 1, 1, 1),
 		str(target.get_node("Visuals").self_modulate))
 	_check("A hit spark was spawned", _count_hit_sparks(main) >= 1)
+	var spark_node: Node2D = _first_hit_spark(main)
+	if spark_node != null:
+		var spark_vis: Sprite2D = spark_node.get_node("Visual")
+		_check("Hit spark uses a 6x6 region (not a body copy)",
+			spark_vis.region_enabled and spark_vis.region_rect == Rect2(0, 0, 6, 6),
+			str(spark_vis.region_rect))
 
 	# The flash must wear off again (back to the slime's own green).
 	await _wait(player.attack_duration)
@@ -311,12 +343,16 @@ func _run() -> void:
 	var walk_start: Vector2 = player.global_position
 	Input.action_press("move_right")
 	await _tick(10)
+	var walk_region: Rect2 = (player.get_node("Visuals").texture as AtlasTexture).region
 	Input.action_release("move_right")
 	_check("Player still walks (Phase 1 movement intact)",
 		player.global_position.x > walk_start.x + 5.0,
 		"moved %.2f px" % (player.global_position.x - walk_start.x))
 	_check("Walk animation still switches",
 		player.get_node("AnimPlayer").current_animation != "attack")
+	_check("Walk animation displays frame 1 or frame 2",
+		walk_region == Rect2(16, 0, 16, 16) or walk_region == Rect2(32, 0, 16, 16),
+		str(walk_region))
 
 	# ---------------------------------------------------------------
 	# SUMMARY
@@ -353,6 +389,24 @@ func _count_hit_sparks(root: Node) -> int:
 		if child.name.begins_with("HitSpark") or child.get_script() == preload("res://scripts/fx/hit_spark.gd"):
 			count += 1
 	return count
+
+
+func _first_hit_spark(root: Node) -> Node2D:
+	for child in root.get_children():
+		if child.name.begins_with("HitSpark") or child.get_script() == preload("res://scripts/fx/hit_spark.gd"):
+			return child as Node2D
+	return null
+
+
+## Collect every visible Sprite2D inside `subtree` so tests can guarantee
+## no duplicate full-body overlay sprite appears during an attack.
+func _visible_sprites(subtree: Node) -> Array[Sprite2D]:
+	var result: Array[Sprite2D] = []
+	if subtree is Sprite2D and (subtree as Sprite2D).is_visible_in_tree():
+		result.append(subtree as Sprite2D)
+	for child in subtree.get_children():
+		result.append_array(_visible_sprites(child))
+	return result
 
 
 ## Put the player 18 px to the LEFT of the slime, facing right, so the

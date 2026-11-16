@@ -15,7 +15,7 @@ plus the places you will want to touch when you add the next enemy.
 | `scenes/fx/HitSpark.tscn` | One-shot impact spark |
 | `scenes/main.tscn` | Arena + 3 slimes at (200,200), (600,400), (1000,300) |
 | `scripts/main.gd` | Level wiring: HUD stats, floating damage numbers |
-| `tests/combat_test.gd` + `.tscn` | Headless verification suite (60 checks) |
+| `tests/combat_test.gd` + `.tscn` | Headless verification suite (68 checks) |
 
 ## One punch, step by step
 
@@ -23,11 +23,11 @@ plus the places you will want to touch when you add the next enemy.
 Space / left click
    └─ Player._unhandled_input()          "attack" action pressed
        └─ Player._start_attack()         is_attacking = true  (movement locks)
-           ├─ AnimPlayer.play("attack")  0.0 s normal, 0.05 s punch, 0.1 s normal
+           ├─ AnimPlayer.play("attack")  0.0 s frame 0, 0.05 s frame 3 (punch), 0.15 s frame 0
            ├─ await 0.05 s               wind-up (attack_windup)
            ├─ Hitbox.monitoring = true   the fist is live ...
            ├─ await 0.1 s                ... for 6 physics frames (hitbox_active_time)
-           └─ Hitbox.monitoring = false  fist off, movement unlocks at 0.2 s
+           └─ Hitbox.monitoring = false  fist off at 0.15 s, movement unlocks at 0.2 s
 
    meanwhile, while the fist is live:
    physics engine → Hitbox.area_entered(enemy Hurtbox)
@@ -38,7 +38,7 @@ Space / left click
            │     ├─ HealthBar.set_health()
            │     ├─ flash_white(0.1)          sprite turns white, then back
            │     └─ current_health <= 0 → die() → tween → queue_free()
-           ├─ spawn HitSpark
+           ├─ spawn 6x6 fist-colored HitSpark (only on hit)
            └─ emit attack_hit(enemy)          anyone can listen
 ```
 
@@ -134,17 +134,20 @@ kill counter, all fed by signals - see `scripts/main.gd`.
 godot --headless --path . tests/combat_test.tscn
 ```
 
-Exit code 0 = every check passed (60 checks). The suite loads the real
+Exit code 0 = every check passed (68 checks). The suite loads the real
 `main.tscn` and covers:
 
-- scene wiring: 20x16 hitbox at (12,0), disabled by default, 3 slimes at
-  (200,200) / (600,400) / (1000,300), every slime at 30 HP
+- scene wiring: 64x16 4-frame sprite sheet, no `PunchFx` body overlay,
+  20x16 hitbox at (12,0) disabled by default, 3 slimes at (200,200) /
+  (600,400) / (1000,300), every slime at 30 HP
 - attack flow from a real `InputEventAction("attack")`: attack animation,
-  hitbox off → on at 0.05 s → off at 0.15 s, punch pose visible only
-  during that window, movement locked for 0.2 s
+  hitbox off → on at 0.05 s → off at 0.15 s, `Visuals` region switches to
+  frame 3 (`Rect2(48, 0, 16, 16)`) during the attack window with only one
+  visible player sprite node, movement locked for 0.2 s
 - damage: 30 → 20 → 10 → 0 HP in exactly 3 hits, health bar follows
-- feedback: white flash for 0.1 s then back to green, hit spark spawns
-  and cleans itself up, `attack_hit(enemy)` payload, HUD counters
+- feedback: white flash for 0.1 s then back to green, 6x6 fist-colored hit
+  spark spawns only on impact and cleans itself up, `attack_hit(enemy)`
+  payload, HUD counters
 - no multi-hit: one full swing removes exactly 10 HP
 - AI: idle beyond 200 px, ~40 px/s chase inside 200 px, stops at 24 px
 - death: `died` signal, still valid during the 0.3 s fade, freed after
