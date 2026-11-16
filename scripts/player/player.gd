@@ -71,6 +71,9 @@ signal attack_hit(enemy)
 ## frames at 60 Hz). Keep it short, otherwise one swing hits twice.
 @export var hitbox_active_time: float = 0.1
 
+## Seconds between footstep ticks while the player is walking.
+@export var footstep_interval: float = 0.25
+
 
 # =====================================================================
 # STATE
@@ -95,6 +98,9 @@ var facing: float = 1.0
 ## It is cleared at the start of every new attack.
 var _enemies_hit_this_swing: Dictionary = {}
 
+## Countdown until the next footstep sound while walking.
+var _footstep_timer: float = 0.0
+
 
 # =====================================================================
 # NODE REFERENCES
@@ -107,6 +113,8 @@ var _enemies_hit_this_swing: Dictionary = {}
 @onready var attack_point: Marker2D = $AttackPoint          # local point in front of the player
 @onready var hitbox: Area2D = $Hitbox                       # the damaging sensor
 @onready var hitbox_shape: CollisionShape2D = $Hitbox/CollisionShape2D
+@onready var punch_sfx: AudioStreamPlayer = $PunchSFX       # swing / whiff sound
+@onready var footstep_sfx: AudioStreamPlayer = $FootstepSFX # subtle walking tick
 
 ## Local offset of the AttackPoint marker when facing right.
 ## It gets mirrored on the X axis whenever the player faces left.
@@ -125,6 +133,11 @@ func _ready() -> void:
 	# attack feel like a deliberate punch instead of a permanent aura.
 	_disable_hitbox()
 
+	# Synthesize procedural placeholder waveforms once and route through the
+	# "SFX" audio bus (see scripts/audio/sfx_generator.gd).
+	punch_sfx.stream = SFXGenerator.create_punch_sfx()
+	footstep_sfx.stream = SFXGenerator.create_footstep_sfx()
+
 	# Signals are connected here in code so you can see, in one place,
 	# exactly which events this script listens to.
 	hitbox.area_entered.connect(_on_hitbox_area_entered)
@@ -135,11 +148,12 @@ func _ready() -> void:
 # MAIN LOOP
 # =====================================================================
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	# Movement must run in _physics_process: CharacterBody2D's
 	# move_and_slide() is designed to be called once per physics tick.
 	_handle_movement()
 	_update_animation()
+	_update_footsteps(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -237,6 +251,31 @@ func _update_animation() -> void:
 		print("Playing: ", anim_player.current_animation)
 
 
+## WHY FOOTSTEP SOUNDS NEED WALK-STATE CHECKING (beginner-friendly):
+## `_physics_process()` runs 60 times every second whether the player is
+## moving or standing completely still. Two mistakes happen if you do not
+## gate footsteps on BOTH walk state AND a cadence timer:
+##   1. Without checking `velocity.length() > 0.0` (and `not is_attacking`),
+##      footsteps keep ticking while the character is idle or frozen mid-punch.
+##   2. Without `_footstep_timer`, `play()` restarts the clip 60 times per
+##      second, turning a soft tap into a harsh buzz.
+## When the player stops walking, we reset `_footstep_timer = 0.0` (so the
+## next step feels instant when they move again) and stop any leftover tick.
+func _update_footsteps(delta: float) -> void:
+	var is_walking := (not is_attacking) and velocity.length() > 0.0
+	if not is_walking:
+		_footstep_timer = 0.0
+		if footstep_sfx.playing:
+			footstep_sfx.stop()
+		return
+
+	if _footstep_timer <= 0.0:
+		footstep_sfx.play()
+		_footstep_timer = footstep_interval
+	else:
+		_footstep_timer -= delta
+
+
 # =====================================================================
 # COMBAT - THE SWING
 # =====================================================================
@@ -258,6 +297,11 @@ func _start_attack() -> void:
 	#   0.15 s -> Frame 0 (retract to idle, synced with Hitbox OFF)
 	# Movement unlocks at 0.20 s once recovery finishes.
 	anim_player.play("attack")
+
+	# Play the low "whoosh-thump" swing sound immediately on attack start,
+	# even if the punch whiffs empty air. If the fist actually connects with
+	# an enemy later, the enemy plays its own higher-pitched `HitSFX` on top.
+	punch_sfx.play()
 
 	# --- 1. Wind-up ----------------------------------------------------
 	# get_tree().create_timer() returns a SceneTreeTimer; `await` pauses
@@ -305,6 +349,8 @@ func _enable_hitbox() -> void:
 	# monitorable = false forever.
 	hitbox.monitoring = true
 	hitbox.monitorable = false
+	# Subtle camera nudge right as the fist snaps out at 0.05 s.
+	ScreenShake.shake(2.0, 0.1)
 	# Debug lines so you can watch the 0.1 s window in the Output dock.
 	print("[Combat] Hitbox ON")
 
@@ -345,6 +391,12 @@ func _try_hit(touched: Node) -> void:
 	if _enemies_hit_this_swing.has(enemy_id):
 		return
 	_enemies_hit_this_swing[enemy_id] = true
+
+	# Phase 3 combat juice on confirmed impact:
+	#  - 50 ms hit-stop freeze gives the punch physical weight,
+	#  - stronger 3.0 px / 0.15 s camera shake stacks onto the swing nudge.
+	HitStop.freeze(0.05)
+	ScreenShake.shake(3.0, 0.15)
 
 	# Deal the damage. `take_damage` is the one method every enemy must
 	# implement - that "duck-typed contract" keeps the player from having

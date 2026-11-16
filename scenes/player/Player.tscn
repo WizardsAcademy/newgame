@@ -123,3 +123,9 @@ limit_left = 0
 limit_top = 0
 limit_right = 1280
 limit_bottom = 720
+
+[node name="PunchSFX" type="AudioStreamPlayer" parent="."]
+bus = &"SFX"
+
+[node name="FootstepSFX" type="AudioStreamPlayer" parent="."]
+bus = &"SFX"
