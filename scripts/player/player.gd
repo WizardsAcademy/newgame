@@ -3,12 +3,49 @@ extends CharacterBody2D
 ##
 ## Handles:
 ##  - 8-directional top-down movement (WASD / arrow keys),
-##  - idle/walk animation switching + horizontal sprite flipping,
-##  - a minimal "attack in progress" flag that the real combat code
-##    can build on later.
+##  - idle/walk/attack animation switching + horizontal sprite flipping,
+##  - a melee attack (Space / left click) that damages enemies in front of
+##    the player through the `Hitbox` Area2D.
 ##
 ## Only Godot 4.x APIs are used (CharacterBody2D + move_and_slide(),
-## Input.get_vector(), AnimationPlayer, SceneTreeTimer, ...).
+## Input.get_vector(), AnimationPlayer, Area2D signals, SceneTreeTimer, ...).
+##
+## =========================================================================
+## HOW THE MELEE COMBAT WORKS (beginner-friendly overview)
+## =========================================================================
+## 1. PRESS  -> _unhandled_input() sees the "attack" action and calls
+##              _start_attack().
+## 2. SWING  -> is_attacking becomes true (movement locks), the "attack"
+##              animation plays, and after a tiny wind-up the `Hitbox`
+##              Area2D is switched on for a few frames.
+## 3. TOUCH  -> While the Hitbox is on, the physics engine reports every
+##              Area2D / body that overlaps it (`area_entered`). We turn
+##              that overlap into "this enemy was hit".
+## 4. DAMAGE -> We call enemy.take_damage(attack_damage) and emit the
+##              `attack_hit(enemy)` signal, so other nodes (UI, sound,
+##              camera shake, ...) can react WITHOUT the player script
+##              needing to know they exist. That is the "signal-based"
+##              part: the player broadcasts facts, other nodes listen.
+##
+## Areas vs bodies: `Hitbox` is an Area2D, a sensor - it does not push
+## anything, it only reports overlaps. Enemies expose their own `Hurtbox`
+## Area2D, so the fist only ever sees hurtboxes and never walls:
+##
+##   Player/Hitbox  collision_layer = 8   collision_mask = 16   (layer 4 -> 5)
+##   Slime/Hurtbox  collision_layer = 16  collision_mask = 8    (layer 5 -> 4)
+##
+## See slime.gd for the other half of the story and a full layer table.
+
+
+# =====================================================================
+# SIGNALS
+# =====================================================================
+# Emitted once per enemy per swing, right after the damage has been
+# applied. `enemy` is the node that received the hit (e.g. a Slime).
+#
+# Anyone can listen to it:
+#     player.attack_hit.connect(_on_player_attack_hit)
+signal attack_hit(enemy)
 
 
 # =====================================================================
@@ -18,8 +55,21 @@ extends CharacterBody2D
 ## How fast the player moves, in pixels per second.
 @export var move_speed: float = 120.0
 
-## How long an attack lasts, in seconds (0.2 s = 200 ms).
+## How long an attack lasts, in seconds (0.2 s = 200 ms). Movement is
+## locked for this long, and it matches the "attack" animation length.
 @export var attack_duration: float = 0.2
+
+## How much health an enemy loses per hit.
+@export var attack_damage: int = 10
+
+## Delay between "attack pressed" and "hitbox turns on", in seconds.
+## This is the wind-up: the punch is only dangerous once the arm is out
+## (animation frame 1 at 0.05 s).
+@export var attack_windup: float = 0.05
+
+## How long the hitbox stays switched on, in seconds (0.1 s = 6 physics
+## frames at 60 Hz). Keep it short, otherwise one swing hits twice.
+@export var hitbox_active_time: float = 0.1
 
 
 # =====================================================================
@@ -27,14 +77,23 @@ extends CharacterBody2D
 # =====================================================================
 
 ## True while the player is mid-swing. Movement is locked while this is
-## true so attacks feel deliberate. Later you can also use it to enable
-## the melee hitbox or play an "attack" animation.
+## true so attacks feel deliberate.
 var is_attacking: bool = false
 
 ## Horizontal facing direction: 1.0 = right, -1.0 = left.
 ## Stored separately from velocity so the player keeps looking the way
 ## they last walked while standing still.
 var facing: float = 1.0
+
+## Enemies already damaged by the CURRENT swing.
+## Key = enemy instance id, value = true.
+##
+## WHY: Area2D reports the overlap once, but the enemy can stay inside
+## the hitbox for several physics frames, and it is also possible for
+## both its Hurtbox AND its body to be reported. Without this guard a
+## single punch would deal 20-30 damage instead of 10.
+## It is cleared at the start of every new attack.
+var _enemies_hit_this_swing: Dictionary = {}
 
 
 # =====================================================================
@@ -43,13 +102,34 @@ var facing: float = 1.0
 # @onready waits until the node (and its children) are inside the
 # SceneTree before running the $ lookups, so the paths are valid.
 
-@onready var visuals: Sprite2D = $Visuals                 # sprite we flip + animate
-@onready var anim_player: AnimationPlayer = $AnimPlayer   # plays "idle" / "walk"
-@onready var attack_point: Marker2D = $AttackPoint        # where melee hits will spawn
+@onready var visuals: Sprite2D = $Visuals                   # sprite we flip + animate
+@onready var anim_player: AnimationPlayer = $AnimPlayer     # plays "idle" / "walk" / "attack"
+@onready var attack_point: Marker2D = $AttackPoint          # local point in front of the player
+@onready var hitbox: Area2D = $Hitbox                       # the damaging sensor
+@onready var hitbox_shape: CollisionShape2D = $Hitbox/CollisionShape2D
+@onready var punch_fx: Sprite2D = $Visuals/PunchFx          # "extended punch" frame helper
 
 ## Local offset of the AttackPoint marker when facing right.
 ## It gets mirrored on the X axis whenever the player faces left.
 const ATTACK_POINT_OFFSET := Vector2(12.0, 0.0)
+
+## Small white "hit spark" spawned wherever a punch lands.
+const HIT_SPARK_SCENE := preload("res://scenes/fx/HitSpark.tscn")
+
+
+# =====================================================================
+# SETUP
+# =====================================================================
+
+func _ready() -> void:
+	# The hitbox is OFF until a swing happens. This is what makes the
+	# attack feel like a deliberate punch instead of a permanent aura.
+	_disable_hitbox()
+
+	# Signals are connected here in code so you can see, in one place,
+	# exactly which events this script listens to.
+	hitbox.area_entered.connect(_on_hitbox_area_entered)
+	hitbox.body_entered.connect(_on_hitbox_body_entered)
 
 
 # =====================================================================
@@ -64,9 +144,10 @@ func _physics_process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Temporary test binding: Space or left mouse starts an attack.
+	# Space or left mouse (both bound to the "attack" action in
+	# Project Settings > Input Map) starts an attack.
 	# _unhandled_input (instead of _input) lets UI elements consume
-	# clicks first. Replace with your real combat system later.
+	# clicks first.
 	if event.is_action_pressed("attack"):
 		_start_attack()
 
@@ -98,11 +179,13 @@ func _handle_movement() -> void:
 		facing = -1.0
 
 	# Flip the sprite horizontally: a negative scale.x mirrors it.
+	# PunchFx is a CHILD of Visuals, so it is mirrored for free.
 	visuals.scale.x = facing
 
-	# Keep the melee marker in front of the player too, so future
-	# attacks spawn on the side we are looking at.
+	# Keep the melee marker AND the hitbox in front of the player, so the
+	# attack always lands on the side we are looking at.
 	attack_point.position.x = ATTACK_POINT_OFFSET.x * facing
+	hitbox.position.x = ATTACK_POINT_OFFSET.x * facing
 
 
 # =====================================================================
@@ -119,6 +202,12 @@ func _handle_movement() -> void:
 #    changes, the track path or the animation's keys are the problem -
 #    NOT this script.
 func _update_animation() -> void:
+	# While swinging, the "attack" animation owns the sprite. If we did
+	# not bail out here, the next physics frame would immediately ask for
+	# "idle" (the player is standing still) and cancel the punch.
+	if is_attacking:
+		return
+
 	# Pick the animation we WANT: walk while moving, idle while stopped.
 	var desired := "walk" if velocity.length() > 0.0 else "idle"
 
@@ -133,7 +222,7 @@ func _update_animation() -> void:
 
 
 # =====================================================================
-# COMBAT (placeholder)
+# COMBAT - THE SWING
 # =====================================================================
 
 func _start_attack() -> void:
@@ -143,13 +232,138 @@ func _start_attack() -> void:
 
 	is_attacking = true
 
-	# TODO (combat pass): play an "attack" animation here and enable an
-	# Area2D hitbox positioned at attack_point.global_position.
+	# Fresh swing -> fresh "already hit" list. This is what stops one
+	# punch from damaging the same slime several times.
+	_enemies_hit_this_swing.clear()
 
-	# Wait attack_duration seconds without freezing the game.
+	# Frame 0 of "attack" = normal pose; frame 1 (0.05 s) = punch
+	# extended; frame 2 (0.1 s) = back to normal. Length 0.2 s, no loop.
+	anim_player.play("attack")
+
+	# --- 1. Wind-up ----------------------------------------------------
 	# get_tree().create_timer() returns a SceneTreeTimer; `await` pauses
-	# only THIS function until the timer's timeout signal fires.
-	# (Alternatives: a Timer node with `await timer.timeout`, or a Tween.)
-	await get_tree().create_timer(attack_duration).timeout
+	# only THIS function until the timer's timeout signal fires, without
+	# freezing the game.
+	await get_tree().create_timer(attack_windup).timeout
+
+	# --- 2. The punch is out: hitbox live ------------------------------
+	_enable_hitbox()
+
+	# Some physics setups report a newly enabled Area2D one frame late,
+	# so we wait a beat and then also ask directly who is inside. That
+	# catches enemies that were already touching us before the swing.
+	# _try_hit() de-duplicates, so this can never double-damage.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	for area in hitbox.get_overlapping_areas():
+		_try_hit(area)
+	for body in hitbox.get_overlapping_bodies():
+		_try_hit(body)
+
+	await get_tree().create_timer(hitbox_active_time).timeout
+
+	# --- 3. Recovery ---------------------------------------------------
+	_disable_hitbox()
+
+	# Wait out the rest of the swing so movement stays locked until the
+	# animation has fully finished. The timers above can overshoot
+	# slightly, so this is clamped to "never negative".
+	var remaining := attack_duration - attack_windup - hitbox_active_time
+	remaining = maxf(remaining, 0.0)
+	await get_tree().create_timer(remaining).timeout
 
 	is_attacking = false
+
+
+# =====================================================================
+# COMBAT - THE HITBOX
+# =====================================================================
+
+func _enable_hitbox() -> void:
+	# `monitoring` = "do I look for other areas/bodies?"
+	# `monitorable` = "can others find ME?"
+	# The hitbox only needs to look, never to be found, so it stays
+	# monitorable = false forever.
+	hitbox.monitoring = true
+	hitbox.monitorable = false
+	# Debug lines so you can watch the 0.1 s window in the Output dock.
+	print("[Combat] Hitbox ON")
+
+
+func _disable_hitbox() -> void:
+	hitbox.monitoring = false
+	hitbox.monitorable = false
+	print("[Combat] Hitbox OFF")
+
+
+## Called by the physics engine for every Area2D that enters the hitbox.
+## This is how the enemy's `Hurtbox` reaches us.
+func _on_hitbox_area_entered(area: Area2D) -> void:
+	_try_hit(area)
+
+
+## Called for every physics BODY (CharacterBody2D/StaticBody2D/...) that
+## enters the hitbox. Enemy bodies are on the same layer as their
+## Hurtbox, so this is a second way to notice a hit; _try_hit() makes
+## sure the enemy is still only damaged once per swing.
+func _on_hitbox_body_entered(body: Node2D) -> void:
+	_try_hit(body)
+
+
+## Resolve "whatever the hitbox touched" into "an enemy that can take
+## damage", apply the damage, and emit the signal. Safe to call several
+## times per swing for the same enemy.
+func _try_hit(touched: Node) -> void:
+	if not is_attacking:
+		return
+
+	var enemy := _find_damageable(touched)
+	if enemy == null:
+		return  # a wall, or something that is not an enemy
+
+	# Already punched this enemy during this swing? Ignore.
+	var enemy_id := enemy.get_instance_id()
+	if _enemies_hit_this_swing.has(enemy_id):
+		return
+	_enemies_hit_this_swing[enemy_id] = true
+
+	# Deal the damage. `take_damage` is the one method every enemy must
+	# implement - that "duck-typed contract" keeps the player from having
+	# to know about Slime, Bat, Boss, ... individually.
+	enemy.take_damage(attack_damage)
+	print("[Combat] Hit ", enemy.name, " for ", attack_damage, " damage")
+
+	# Visual feedback at the point of impact.
+	_spawn_hit_spark()
+
+	# Broadcast the event. UI / audio / achievements can listen to this
+	# without the player knowing anything about them.
+	attack_hit.emit(enemy)
+
+
+## Walk up from the node the hitbox touched until we find something that
+## implements take_damage(). For a Slime the chain is
+## Hurtbox (Area2D) -> Slime (CharacterBody2D).
+func _find_damageable(node: Node) -> Node:
+	var current: Node = node
+	var guard := 4  # never walk further than a few parents up
+	while current != null and guard > 0:
+		if current.has_method("take_damage"):
+			return current
+		current = current.get_parent()
+		guard -= 1
+	return null
+
+
+## A tiny white square that pops, expands and fades in ~0.15 s.
+## It is added to the level root (our parent) so it stays behind after we
+## move, and frees itself when done.
+func _spawn_hit_spark() -> void:
+	var spark := HIT_SPARK_SCENE.instantiate()
+	var parent := get_parent()
+	if parent == null:
+		spark.queue_free()
+		return
+	parent.add_child(spark)
+	# A little in front of the player, at the centre of the hitbox.
+	spark.global_position = hitbox.global_position
