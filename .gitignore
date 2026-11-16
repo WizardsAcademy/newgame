@@ -1,0 +1,18 @@
+# Godot 4+ cache (regenerates automatically)
+.godot/
+
+# Godot 3 legacy cache (harmless, just in case)
+.import/
+
+# Exported builds (when we export the game later)
+export/
+build/
+
+# OS junk files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor backup files
+*.tmp
+*.bak
