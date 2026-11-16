@@ -29,7 +29,7 @@ var main: Node = null
 
 
 func _ready() -> void:
-	print("=== Phase 2 headless combat verification ===")
+	print("=== Phase 2 & 3 headless combat verification ===")
 	_run()
 
 
@@ -80,6 +80,7 @@ func _run() -> void:
 		spawn_positions.append(child.position)
 
 	add_child(main)
+	await get_tree().process_frame
 	await _tick(3)
 
 	var player: CharacterBody2D = main.get_node("Player")
@@ -134,6 +135,34 @@ func _run() -> void:
 		_check(s.name + " starts at 30/30 HP", s.current_health == 30 and s.max_health == 30)
 		_check(s.name + " has a Hurtbox Area2D", s.has_node("Hurtbox"))
 		_check(s.name + " has a HealthBar", s.has_node("HealthBar"))
+		_check(s.name + " has HitSFX and DeathSFX AudioStreamPlayers on SFX bus",
+			s.has_node("HitSFX") and s.has_node("DeathSFX")
+			and (s.get_node("HitSFX") as AudioStreamPlayer).bus == &"SFX"
+			and (s.get_node("DeathSFX") as AudioStreamPlayer).bus == &"SFX"
+			and (s.get_node("HitSFX") as AudioStreamPlayer).stream is AudioStreamWAV
+			and (s.get_node("DeathSFX") as AudioStreamPlayer).stream is AudioStreamWAV)
+
+	# ---------------------------------------------------------------
+	# 1b. PHASE 3 WIRING: Autoloads, SFX bus, Player AudioStreamPlayers
+	# ---------------------------------------------------------------
+	print("\n--- 1b. Phase 3 wiring (ScreenShake, HitStop, SFX) ---")
+	var root_vp := get_tree().root
+	_check("ScreenShake autoload singleton exists and is registered",
+		root_vp.has_node("ScreenShake") and ScreenShake != null)
+	_check("ScreenShake exposes max_intensity and decay_rate",
+		is_equal_approx(ScreenShake.max_intensity, 8.0) and is_equal_approx(ScreenShake.decay_rate, 4.0))
+	_check("HitStop autoload singleton exists and is registered",
+		root_vp.has_node("HitStop") and HitStop != null)
+	var sfx_bus_idx := AudioServer.get_bus_index("SFX")
+	_check("Audio bus \"SFX\" exists in AudioServer", sfx_bus_idx >= 1, "bus index %d" % sfx_bus_idx)
+	_check("Player has PunchSFX AudioStreamPlayer on SFX bus",
+		player.has_node("PunchSFX")
+		and (player.get_node("PunchSFX") as AudioStreamPlayer).bus == &"SFX"
+		and (player.get_node("PunchSFX") as AudioStreamPlayer).stream is AudioStreamWAV)
+	_check("Player has FootstepSFX AudioStreamPlayer on SFX bus",
+		player.has_node("FootstepSFX")
+		and (player.get_node("FootstepSFX") as AudioStreamPlayer).bus == &"SFX"
+		and (player.get_node("FootstepSFX") as AudioStreamPlayer).stream is AudioStreamWAV)
 
 	# ---------------------------------------------------------------
 	# 2. ATTACK FLOW: input -> hitbox on -> hitbox off, movement locked
@@ -159,12 +188,22 @@ func _run() -> void:
 	_check_eq("Attack started by \"attack\" input", player.is_attacking, true)
 	_check_eq("Attack animation is playing", player.get_node("AnimPlayer").current_animation, "attack")
 	_check("Hitbox still OFF during the wind-up", hitbox.monitoring == false)
+	var punch_sfx: AudioStreamPlayer = player.get_node("PunchSFX")
+	var slime1_check: CharacterBody2D = _slime_named(main, "Slime1")
+	_check("Punch SFX plays immediately on attack start", punch_sfx.playing == true)
+	_check("Hit SFX does NOT play on empty-air swing",
+		(slime1_check.get_node("HitSFX") as AudioStreamPlayer).playing == false)
+	_check("Death SFX does NOT play on empty-air swing",
+		(slime1_check.get_node("DeathSFX") as AudioStreamPlayer).playing == false)
 
 	# Wait past the 0.05 s wind-up: the hitbox must be ON now, and the
 	# single Visuals sprite must show frame 3 (the punch pose) with NO
 	# second full-body sprite node visible anywhere on the player.
 	await _wait(0.07)
 	_check("Hitbox ON ~0.05 s into the swing", hitbox.monitoring == true)
+	var cam: Camera2D = player.get_node("Camera2D")
+	_check("Camera2D offset is non-zero during attack shake window",
+		cam.offset.length() > 0.01, str(cam.offset))
 
 	var active_region: Rect2 = (player.get_node("Visuals").texture as AtlasTexture).region
 	_check_eq("Visuals texture region equals punch frame region (frame 3) during attack",
@@ -191,9 +230,24 @@ func _run() -> void:
 	_check_eq("Sprite is back to animation frame 0",
 		(player.get_node("Visuals").texture as AtlasTexture).region, Rect2(0, 0, 16, 16))
 
-	# And after the full 0.2 s swing the lock is released.
+	# And after the full 0.2 s swing the lock is released and camera settles.
 	await _wait(0.1)
 	_check_eq("Attack lock released after 0.2 s", player.is_attacking, false)
+	_check_eq("Camera2D offset settles back to zero after shake", cam.offset, Vector2.ZERO)
+
+	# Verify ScreenShake additive stacking + max_intensity clamp directly.
+	ScreenShake.shake(2.0, 0.06)
+	var single_amp := ScreenShake.get_current_intensity()
+	ScreenShake.shake(3.0, 0.06)
+	var stacked_amp := ScreenShake.get_current_intensity()
+	_check("ScreenShake stacks overlapping shakes additively",
+		stacked_amp > single_amp + 2.0,
+		"single=%.2f stacked=%.2f" % [single_amp, stacked_amp])
+	ScreenShake.shake(20.0, 0.06)
+	_check("ScreenShake clamps stacked intensity to max_intensity",
+		ScreenShake.get_current_intensity() <= ScreenShake.max_intensity + 0.001)
+	await _wait(0.1)
+	_check_eq("Camera2D offset resets to zero after stacked shake", cam.offset, Vector2.ZERO)
 
 	# ---------------------------------------------------------------
 	# 3. DAMAGE MATH: 3 hits of 10 damage kill a 30 HP slime
@@ -209,7 +263,20 @@ func _run() -> void:
 	await _tick(2)
 
 	var hit_signal_payload: Array = []
-	player.attack_hit.connect(func(enemy): hit_signal_payload.append(enemy))
+	var hit_moment_samples := {
+		"time_scale": 1.0,
+		"cam_offset": Vector2.ZERO,
+		"hit_sfx_playing": false,
+		"death_sfx_playing": false,
+	}
+	player.attack_hit.connect(func(enemy):
+		hit_signal_payload.append(enemy)
+		if hit_signal_payload.size() == 1:
+			hit_moment_samples["time_scale"] = Engine.time_scale
+			hit_moment_samples["cam_offset"] = cam.offset
+			hit_moment_samples["hit_sfx_playing"] = (enemy.get_node("HitSFX") as AudioStreamPlayer).playing
+			hit_moment_samples["death_sfx_playing"] = (enemy.get_node("DeathSFX") as AudioStreamPlayer).playing
+	)
 
 	# Start the swing and sample the feedback while it is still on screen:
 	# the flash lasts 0.1 s and the spark 0.15 s, both starting ~0.08 s in.
@@ -220,6 +287,19 @@ func _run() -> void:
 	_check("attack_hit signal fired once", hit_signal_payload.size() == 1)
 	if hit_signal_payload.size() == 1:
 		_check("attack_hit carries the enemy that was hit", hit_signal_payload[0] == target)
+	_check("Engine.time_scale drops during HitStop freeze on hit",
+		float(hit_moment_samples["time_scale"]) < 0.2,
+		"time_scale=%.3f" % float(hit_moment_samples["time_scale"]))
+	_check("Camera2D offset is non-zero during hit screen shake",
+		(hit_moment_samples["cam_offset"] as Vector2).length() > 0.01,
+		str(hit_moment_samples["cam_offset"]))
+	_check("Hit SFX plays on successful enemy hit",
+		bool(hit_moment_samples["hit_sfx_playing"]) == true)
+	_check("Death SFX does NOT play on non-lethal hit",
+		bool(hit_moment_samples["death_sfx_playing"]) == false)
+	_check("Engine.time_scale restores to 1.0 after 50 ms HitStop",
+		is_equal_approx(Engine.time_scale, 1.0),
+		"time_scale=%.3f" % Engine.time_scale)
 	_check("Slime flashed white after the hit",
 		target.get_node("Visuals").self_modulate == Color(1, 1, 1, 1),
 		str(target.get_node("Visuals").self_modulate))
@@ -247,10 +327,15 @@ func _run() -> void:
 	# Slime1 cannot fight back, but it DOES chase: while we line up the
 	# next punch it may wander back into range on its own. Read the result
 	# before the corpse frees itself (0.3 s after the killing blow).
+	var death_sfx_played_on_kill := [false]
+	target.died.connect(func():
+		death_sfx_played_on_kill[0] = (target.get_node("DeathSFX") as AudioStreamPlayer).playing
+	)
 	player._start_attack()
 	await _wait(player.attack_windup + 0.08)
 	_check_eq("After hit 3: 10 - 10 = 0 HP", target.current_health, 0)
 	_check("Slime is dead after 3 hits", target.is_dead == true)
+	_check("Death SFX plays when slime health reaches 0", death_sfx_played_on_kill[0] == true)
 	await _wait(player.attack_duration)
 
 	# ---------------------------------------------------------------
@@ -336,23 +421,33 @@ func _run() -> void:
 		stats_label.text)
 
 	# ---------------------------------------------------------------
-	# 7. Regression: Phase 1 still works
+	# 7. Regression: Phase 1 movement + Phase 3 footsteps
 	# ---------------------------------------------------------------
-	print("\n--- 7. Phase 1 regression ---")
+	print("\n--- 7. Phase 1 regression & footsteps ---")
 	player.is_attacking = false
+	await _tick(2)
+	var footstep_sfx: AudioStreamPlayer = player.get_node("FootstepSFX")
+	_check("Footstep SFX is silent while idle", footstep_sfx.playing == false)
 	var walk_start: Vector2 = player.global_position
 	Input.action_press("move_right")
-	await _tick(10)
+	await _tick(1)
+	var footstep_played_moving: bool = footstep_sfx.playing
+	await _tick(9)
 	var walk_region: Rect2 = (player.get_node("Visuals").texture as AtlasTexture).region
+	var walk_anim_name: String = player.get_node("AnimPlayer").current_animation
 	Input.action_release("move_right")
+	await _tick(2)
 	_check("Player still walks (Phase 1 movement intact)",
 		player.global_position.x > walk_start.x + 5.0,
 		"moved %.2f px" % (player.global_position.x - walk_start.x))
 	_check("Walk animation still switches",
-		player.get_node("AnimPlayer").current_animation != "attack")
+		walk_anim_name == "walk",
+		walk_anim_name)
 	_check("Walk animation displays frame 1 or frame 2",
 		walk_region == Rect2(16, 0, 16, 16) or walk_region == Rect2(32, 0, 16, 16),
 		str(walk_region))
+	_check("Footstep SFX plays during movement", footstep_played_moving == true)
+	_check("Footstep SFX stops immediately when idle", footstep_sfx.playing == false)
 
 	# ---------------------------------------------------------------
 	# SUMMARY

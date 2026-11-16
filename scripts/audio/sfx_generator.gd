@@ -1,0 +1,185 @@
+extends RefCounted
+class_name SFXGenerator
+## Procedural retro sound-effect generator using `AudioStreamWAV`.
+##
+## Instead of shipping external `.wav` / `.ogg` files for early prototyping,
+## this script synthesizes tiny 16-bit PCM waveforms in memory at startup.
+##
+## =========================================================================
+## PUNCH SOUND vs HIT SOUND - WHY SEPARATE THEM? (beginner-friendly)
+## =========================================================================
+## Beginners often attach one sound to the attack button and call it done.
+## Splitting melee audio into TWO distinct layers makes combat feel 10x
+## clearer to the player:
+##
+##   1. PUNCH SFX ("swing / whiff", on the Player):
+##      Plays the instant you press Attack, whether anything is in front of
+##      you or not. Low-pitched airy burst (0.10 s) -> tells the player
+##      "your input worked; the fist is swinging through the air".
+##
+##   2. HIT SFX ("impact / confirm", on the Enemy):
+##      Plays ONLY when the hitbox actually overlaps an enemy's Hurtbox.
+##      Snappier, slightly higher-pitched pop (0.08 s) -> gives instant audio
+##      confirmation that damage landed, even if visual effects overlap.
+##      Living on the enemy scene also means a Slime, Skeleton, or Metal Golem
+##      can each have its own material impact sound later without changing
+##      `player.gd`!
+##
+## =========================================================================
+## HOW `AudioStreamWAV` SYNTHESIS WORKS
+## =========================================================================
+## Digital audio is just a list of air-pressure numbers ("samples") played back
+## `MIX_RATE` times per second (11,025 Hz here). For each sample `i`:
+##   - `t` is the time in seconds (`i / 11025.0`),
+##   - a sine wave `sin(phase)` produces a pure musical pitch,
+##   - random numbers in `-1..1` produce percussive white noise,
+##   - multiplying by a decaying `envelope` fades the sound smoothly to silence
+##     so it does not click at the end,
+##   - finally we pack each `-1.0 .. 1.0` float into a signed 16-bit integer
+##     (`-32767 .. 32767`, 2 bytes little-endian) inside a `PackedByteArray`.
+
+const MIX_RATE: int = 11025
+
+# Cache generated streams so spawning 50 enemies reuses the same tiny buffer
+# instead of re-synthesizing waveforms every time.
+static var _punch_cache: AudioStreamWAV = null
+static var _hit_cache: AudioStreamWAV = null
+static var _death_cache: AudioStreamWAV = null
+static var _footstep_cache: AudioStreamWAV = null
+
+
+## Short aggressive swing burst (0.10 s): low-frequency thump + airy noise.
+static func create_punch_sfx() -> AudioStreamWAV:
+	if _punch_cache != null:
+		return _punch_cache
+
+	var duration := 0.10
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 101  # fixed seed = consistent sound every run
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	var noise_lp := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		# Pitch drops fast from 165 Hz -> 60 Hz for a weighty "whoosh-thump".
+		var freq := lerpf(165.0, 60.0, progress)
+		phase += TAU * freq / float(MIX_RATE)
+
+		# Simple one-pole low-pass filter on white noise so it sounds punchy
+		# rather than hissy.
+		var raw_noise := rng.randf_range(-1.0, 1.0)
+		noise_lp = lerpf(noise_lp, raw_noise, 0.35)
+
+		var envelope := pow(1.0 - progress, 2.0)
+		var sample := (sin(phase) * 0.65 + noise_lp * 0.55) * envelope * 0.7
+		samples[i] = sample
+
+	_punch_cache = _build_wav(samples)
+	return _punch_cache
+
+
+## Crisp enemy impact (0.08 s): higher pitch than punch + sharp transient snap.
+static func create_hit_sfx() -> AudioStreamWAV:
+	if _hit_cache != null:
+		return _hit_cache
+
+	var duration := 0.08
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 202
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		# Higher pitch than the swing (340 Hz -> 145 Hz) so the impact cuts
+		# clearly through the lower punch sound when a hit connects.
+		var freq := lerpf(340.0, 145.0, progress)
+		phase += TAU * freq / float(MIX_RATE)
+
+		# Short noise snap in the first 20 % of the sound for "slap" attack.
+		var snap := rng.randf_range(-1.0, 1.0) * maxf(0.0, 1.0 - progress * 5.0)
+		var envelope := pow(1.0 - progress, 1.8)
+		var sample := (sin(phase) * 0.75 + snap * 0.45) * envelope * 0.75
+		samples[i] = sample
+
+	_hit_cache = _build_wav(samples)
+	return _hit_cache
+
+
+## Slime defeat sound (0.30 s): classic retro descending pitch slide.
+static func create_death_sfx() -> AudioStreamWAV:
+	if _death_cache != null:
+		return _death_cache
+
+	var duration := 0.30
+	var count := int(MIX_RATE * duration)
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		# Smoothly slide downward from 440 Hz (A4) down to 95 Hz as the slime
+		# squashes and dissolves.
+		var freq := lerpf(440.0, 95.0, pow(progress, 0.85))
+		phase += TAU * freq / float(MIX_RATE)
+
+		# Fundamental + soft second harmonic for a bubbly retro character.
+		var tone := sin(phase) * 0.75 + sin(phase * 2.0) * 0.25
+		var envelope := (1.0 - progress) * minf(1.0, progress * 25.0)
+		samples[i] = tone * envelope * 0.65
+
+	_death_cache = _build_wav(samples)
+	return _death_cache
+
+
+## Subtle footstep tick (0.04 s): quiet damped tap played every 0.25 s walking.
+static func create_footstep_sfx() -> AudioStreamWAV:
+	if _footstep_cache != null:
+		return _footstep_cache
+
+	var duration := 0.04
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 303
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		var freq := lerpf(210.0, 105.0, progress)
+		phase += TAU * freq / float(MIX_RATE)
+
+		var tap := rng.randf_range(-1.0, 1.0) * 0.4 + sin(phase) * 0.6
+		var envelope := pow(1.0 - progress, 2.6)
+		# Kept intentionally subtle (0.30 gain) so walking feels grounded
+		# without fatiguing the player's ears.
+		samples[i] = tap * envelope * 0.30
+
+	_footstep_cache = _build_wav(samples)
+	return _footstep_cache
+
+
+## Pack normalized `-1.0 .. 1.0` float samples into a 16-bit mono AudioStreamWAV.
+static func _build_wav(samples: PackedFloat32Array) -> AudioStreamWAV:
+	var pcm := PackedByteArray()
+	pcm.resize(samples.size() * 2)
+
+	for i in samples.size():
+		var clamped := clampf(samples[i], -1.0, 1.0)
+		var s16 := int(roundf(clamped * 32767.0))
+		pcm.encode_s16(i * 2, s16)
+
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = MIX_RATE
+	stream.stereo = false
+	stream.loop_mode = AudioStreamWAV.LOOP_DISABLED
+	stream.data = pcm
+	return stream

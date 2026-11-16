@@ -32,6 +32,17 @@ that locks movement for the length of a swing.
   40 px/s inside 200 px, stops at 24 px, and pops in 3 hits.
 - **Arena:** 3 slimes at (200, 200), (600, 400), (1000, 300).
 
+## Phase 3 - game feel & juice
+
+- **Screen shake (`ScreenShake` autoload):** additive stacking camera shake
+  with exponential/linear decay (`max_intensity = 8.0`, `decay_rate = 4.0`) —
+  subtle nudge (`2.0`, `0.1 s`) on swing, heavier jolt (`3.0`, `0.15 s`) on hit.
+- **Hit stop (`HitStop` autoload):** `50 ms` impact freeze (`Engine.time_scale = 0.05`)
+  driven by an unscaled `Tween` (`TWEEN_PAUSE_PROCESS` + `set_ignore_time_scale(true)`).
+- **Procedural SFX (`SFXGenerator` + `"SFX"` audio bus):** synthesized 16-bit
+  `AudioStreamWAV` clips for punch swing (`0.1 s`), slime hit (`0.08 s`),
+  slime death slide (`0.3 s`), and walk-gated footsteps (`every 0.25 s`).
+
 Design notes and the full combat walkthrough: [`docs/combat.md`](docs/combat.md).
 
 ## Verify
@@ -40,7 +51,8 @@ Design notes and the full combat walkthrough: [`docs/combat.md`](docs/combat.md)
 godot --headless --path . tests/combat_test.tscn
 ```
 
-68 automated checks (4-frame sprite sheet & punch pose region, no duplicate
-body sprite during attack, hitbox timing, 3-hit kill math, single-hit-per-swing,
-white flash, 6x6 hit spark, signals, AI chase/stop, `queue_free()`, Phase 1
-regression). Exit code `0` means everything passed.
+94 automated checks (screen shake & stacking, hit stop `Engine.time_scale`,
+procedural SFX & `"SFX"` bus, footsteps, 4-frame sprite sheet & punch pose
+region, no duplicate body sprite during attack, hitbox timing, 3-hit kill math,
+single-hit-per-swing, white flash, 6x6 hit spark, signals, AI chase/stop,
+`queue_free()`, Phase 1 regression). Exit code `0` means everything passed.

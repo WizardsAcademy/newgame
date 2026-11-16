@@ -95,6 +95,8 @@ var _is_flashing: bool = false
 @onready var anim_player: AnimationPlayer = $AnimPlayer
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var health_bar: Node2D = $HealthBar  # custom-drawn bar, see health_bar.gd
+@onready var hit_sfx: AudioStreamPlayer = $HitSFX
+@onready var death_sfx: AudioStreamPlayer = $DeathSFX
 
 ## The player is looked up once at spawn time. `group: "player"` is set
 ## by Player.tscn, so this keeps working no matter where the player is in
@@ -110,6 +112,11 @@ func _ready() -> void:
 	# Remember our spawn point so the idle animation can bob around it,
 	# and so a dead slime is removed exactly where it fell.
 	visuals.self_modulate = body_color
+
+	# Procedural placeholder audio (cached in SFXGenerator so all slimes
+	# share the same generated waveform buffers in memory).
+	hit_sfx.stream = SFXGenerator.create_hit_sfx()
+	death_sfx.stream = SFXGenerator.create_death_sfx()
 
 	# Clamp health so an accidental Inspector value cannot create a
 	# slime that starts dead or over-healed.
@@ -208,6 +215,10 @@ func take_damage(amount: int) -> void:
 	print("[Slime] ", name, " took ", amount, " damage  ->  HP ",
 		current_health, "/", max_health)
 
+	# Play the higher-pitched impact pop ONLY here (when damage actually
+	# lands), distinct from the player's lower-pitched swing sound.
+	hit_sfx.play()
+
 	_update_health_bar()
 	health_changed.emit(current_health, max_health)
 	flash_white(flash_duration)
@@ -241,6 +252,10 @@ func die() -> void:
 	is_dead = true
 
 	print("[Slime] ", name, " died")
+
+	# Play the 0.3 s descending defeat tone right as the death squash begins
+	# (matching `death_duration = 0.3` so it finishes right before queue_free()).
+	death_sfx.play()
 
 	# Stop colliding immediately so the corpse cannot block the player
 	# during the death animation.

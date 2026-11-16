@@ -83,3 +83,9 @@ shape = SubResource("RectangleShape2D_hurtbox")
 
 [node name="HealthBar" type="Node2D" parent="."]
 script = ExtResource("3_health_bar")
+
+[node name="HitSFX" type="AudioStreamPlayer" parent="."]
+bus = &"SFX"
+
+[node name="DeathSFX" type="AudioStreamPlayer" parent="."]
+bus = &"SFX"
