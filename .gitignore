@@ -16,3 +16,6 @@ desktop.ini
 # Editor backup files
 *.tmp
 *.bak
+
+# Godot AI plugin update-tooling scratch data
+addons/.godot_ai_update/
