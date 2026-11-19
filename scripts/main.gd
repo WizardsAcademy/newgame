@@ -21,6 +21,8 @@ extends Node2D
 @onready var player: Node2D = $Player
 @onready var enemies_root: Node2D = $Enemies
 @onready var stats_label: Label = $UI/Stats
+@onready var player_health_bar: Node2D = $UI/PlayerHealthBar
+@onready var game_over_screen: Control = $UI/GameOver
 
 
 # =====================================================================
@@ -30,6 +32,8 @@ extends Node2D
 var total_damage_dealt: int = 0
 var last_hit_damage: int = 0
 var kills: int = 0
+## True once the player died and the Game Over overlay is showing.
+var game_is_over: bool = false
 
 
 # =====================================================================
@@ -43,9 +47,15 @@ func _ready() -> void:
 	# Callable with the wrong number of arguments is an error, so the
 	# signatures must match.
 	player.attack_hit.connect(_on_player_attack_hit)
+	player.health_changed.connect(_on_player_health_changed)
+	player.player_died.connect(_on_player_died)
 
 	for enemy in enemies_root.get_children():
 		_watch_enemy(enemy)
+
+	# Seed the health bar with the starting health BEFORE anything can
+	# hit us (the bar redraws on every health_changed anyway).
+	player_health_bar.set_health(player.current_health, player.max_health)
 
 	_update_stats_label()
 
@@ -72,6 +82,25 @@ func _on_player_attack_hit(enemy: Node) -> void:
 func _on_enemy_died() -> void:
 	kills += 1
 	_update_stats_label()
+
+
+func _on_player_health_changed(current: int, max_health: int) -> void:
+	player_health_bar.set_health(current, max_health)
+
+
+func _on_player_died() -> void:
+	game_is_over = true
+	game_over_screen.visible = true
+	# Optional juice: a last big shudder when Borzo hits the floor.
+	ScreenShake.shake(6.0, 0.35)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Only meaningful on the Game Over screen: reload the whole scene.
+	# Everything (health, slimes, labels) resets with it, because all
+	# state lives in nodes of this scene or its children.
+	if game_is_over and event.is_action_pressed("restart"):
+		get_tree().reload_current_scene()
 
 
 func _update_stats_label() -> void:

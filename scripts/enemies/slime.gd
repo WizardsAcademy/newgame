@@ -74,6 +74,27 @@ signal died
 ## Colour used for the placeholder square sprite.
 @export var body_color: Color = Color("6ec866")
 
+# --- Phase 4: the slime ATTACKS back ----------------------------------
+
+## Damage dealt when the lunge connects with the player.
+@export var attack_damage: int = 8
+
+## The slime starts winding up an attack once the player is this close.
+@export var attack_trigger_range: float = 34.0
+
+## Pixels per second while lunging at the player.
+@export var lunge_speed: float = 170.0
+
+## Telegraph duration: the squash + red tint warning BEFORE the lunge.
+## Longer = more forgiving to dodge.
+@export var telegraph_duration: float = 0.35
+
+## Seconds the lunge lasts (hitbox is live during this window).
+@export var lunge_duration: float = 0.25
+
+## Breather after a lunge before the next attack can start.
+@export var attack_cooldown: float = 1.2
+
 
 # =====================================================================
 # STATE
@@ -86,6 +107,20 @@ var is_dead: bool = false
 ## True while the white flash is showing (used to not restart it).
 var _is_flashing: bool = false
 
+# --- Phase 4 attack state machine --------------------------------------
+# CHASE      -> too far: walk to the player
+# TELEGRAPH  -> close: squash + tint red (the DODGE ME warning)
+# LUNGE      -> spring at where the player was, hitbox live
+# RECOVER    -> lunge over, brief slide to a stop
+# COOLDOWN   -> back to chasing, but cannot re-attack yet
+enum AttackState { CHASE, TELEGRAPH, LUNGE, RECOVER, COOLDOWN }
+
+var _attack_state: AttackState = AttackState.CHASE
+var _attack_timer: float = 0.0
+var _lunge_dir: Vector2 = Vector2.RIGHT
+## True when the CURRENT lunge already hit the player (one hit per lunge).
+var _has_hit_this_lunge: bool = false
+
 
 # =====================================================================
 # NODE REFERENCES
@@ -94,6 +129,7 @@ var _is_flashing: bool = false
 @onready var visuals: Sprite2D = $Visuals
 @onready var anim_player: AnimationPlayer = $AnimPlayer
 @onready var hurtbox: Area2D = $Hurtbox
+@onready var attack_area: Area2D = $AttackArea
 @onready var health_bar: Node2D = $HealthBar  # custom-drawn bar, see health_bar.gd
 @onready var hit_sfx: AudioStreamPlayer = $HitSFX
 @onready var death_sfx: AudioStreamPlayer = $DeathSFX
@@ -127,6 +163,12 @@ func _ready() -> void:
 	# the slime idle instead of crashing.
 	player = get_tree().get_first_node_in_group("player")
 
+	# The attack sensor is OFF until the lunge. Same "deliberate hit"
+	# pattern as the player's fist.
+	attack_area.monitoring = false
+	attack_area.monitorable = false
+	attack_area.area_entered.connect(_on_attack_area_area_entered)
+
 	_update_health_bar()
 	health_changed.emit(current_health, max_health)
 
@@ -135,14 +177,126 @@ func _ready() -> void:
 # MAIN LOOP
 # =====================================================================
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if is_dead:
 		# A dead slime must not keep sliding around. move_and_slide()
 		# with a zero velocity also stops it from being pushed.
 		velocity = Vector2.ZERO
 		return
 
-	_chase_player()
+	# Advance the attack state machine (telegraph -> lunge -> ...).
+	_update_attack_state(delta)
+
+	# Movement per state: only CHASE and LUNGE make the slime move.
+	match _attack_state:
+		AttackState.CHASE, AttackState.COOLDOWN:
+			_chase_player()
+		AttackState.TELEGRAPH, AttackState.RECOVER:
+			velocity = Vector2.ZERO
+			move_and_slide()
+			_set_walking(false)
+		AttackState.LUNGE:
+			velocity = _lunge_dir * lunge_speed
+			move_and_slide()
+			_set_walking(true)
+
+
+## Advance telegraph/lunge/recover/cooldown timers.
+func _update_attack_state(delta: float) -> void:
+	_attack_timer -= delta
+
+	match _attack_state:
+		AttackState.TELEGRAPH:
+			if _attack_timer <= 0.0:
+				_start_lunge()
+		AttackState.LUNGE:
+			if _attack_timer <= 0.0:
+				_end_lunge()
+		AttackState.RECOVER:
+			if _attack_timer <= 0.0:
+				_attack_state = AttackState.COOLDOWN
+				_attack_timer = attack_cooldown
+		AttackState.COOLDOWN:
+			if _attack_timer <= 0.0:
+				_attack_state = AttackState.CHASE
+		_:
+			pass  # CHASE: leaves through _maybe_start_attack()
+
+	# In CHASE, a player in range starts the telegraph.
+	if _attack_state == AttackState.CHASE:
+		_maybe_start_attack()
+
+
+## Player close enough (and alive)? Then wind up an attack: the classic
+## "tell the player BEFORE you hit them" telegraph.
+func _maybe_start_attack() -> void:
+	if not _is_player_alive():
+		return
+	var distance := global_position.distance_to(player.global_position)
+	if distance <= attack_trigger_range:
+		_attack_state = AttackState.TELEGRAPH
+		_attack_timer = telegraph_duration
+		velocity = Vector2.ZERO
+		_set_walking(false)
+		_show_telegraph()
+
+
+## The warning: squash down and glow red, like winding up a jump.
+func _show_telegraph() -> void:
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(visuals, "scale", Vector2(1.3, 0.7), telegraph_duration)
+	tween.tween_property(visuals, "modulate", Color(1.0, 0.45, 0.45), telegraph_duration)
+
+
+## Spring at where the player STOOD at take-off; hitbox live.
+func _start_lunge() -> void:
+	if not _is_player_alive():
+		# Player vanished mid-telegraph: revert visuals and go back to chase.
+		_cancel_telegraph()
+		return
+	_lunge_dir = (player.global_position - global_position).normalized()
+	_has_hit_this_lunge = false
+	attack_area.set_deferred("monitoring", true)
+	_attack_state = AttackState.LUNGE
+	_attack_timer = lunge_duration
+
+	# Un-squash into the jump shape.
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(visuals, "scale", Vector2(0.85, 1.25), 0.08)
+	tween.tween_property(visuals, "modulate", Color.WHITE, 0.08)
+
+
+## Lunge over: hitbox off, brief slide to a stop.
+func _end_lunge() -> void:
+	attack_area.set_deferred("monitoring", false)
+	_attack_state = AttackState.RECOVER
+	_attack_timer = 0.35
+	velocity = Vector2.ZERO
+
+	# Return to the resting shape.
+	var tween := create_tween()
+	tween.tween_property(visuals, "scale", Vector2.ONE, 0.15)
+
+
+## Abort an in-progress telegraph (safety valve for edge cases).
+func _cancel_telegraph() -> void:
+	_attack_state = AttackState.COOLDOWN
+	_attack_timer = attack_cooldown * 0.5
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(visuals, "scale", Vector2.ONE, 0.15)
+	tween.tween_property(visuals, "modulate", Color.WHITE, 0.15)
+
+
+## The player is "usable" for attacking while it exists and is not dead.
+func _is_player_alive() -> bool:
+	if player == null or not is_instance_valid(player):
+		player = get_tree().get_first_node_in_group("player")
+	if player == null:
+		return false
+	return not player.get("is_dead")
 
 
 ## Very small "follow the player" AI.
@@ -156,6 +310,13 @@ func _chase_player() -> void:
 		player = get_tree().get_first_node_in_group("player")
 
 	if player == null:
+		velocity = Vector2.ZERO
+		move_and_slide()
+		_set_walking(false)
+		return
+
+	# The player is dead: stop pestering the corpse and just idle.
+	if player.get("is_dead"):
 		velocity = Vector2.ZERO
 		move_and_slide()
 		_set_walking(false)
@@ -198,6 +359,32 @@ func _set_walking(walking: bool) -> void:
 # =====================================================================
 # DAMAGE
 # =====================================================================
+
+## The lunge's AttackArea touched something. Walk up from the touched
+## node until we find the Player (it has take_damage()), then make the
+## CALL: the enemy decides the damage - that is the same contract the
+## player's fist follows with our Hurtbox.
+func _on_attack_area_area_entered(area: Area2D) -> void:
+	if _has_hit_this_lunge or is_dead:
+		return
+
+	var current: Node = area
+	var guard := 4  # never walk further than a few parents up
+	while current != null and guard > 0:
+		if current != self and current.has_method("take_damage"):
+			_has_hit_this_lunge = true
+
+			# Same combat juice the player's punches get, softer.
+			HitStop.freeze(0.03)
+			ScreenShake.shake(2.5, 0.12)
+			hit_sfx.play()
+
+			current.take_damage(attack_damage, global_position)
+			print("[Slime] ", name, " hit the player for ",
+				attack_damage, " damage")
+			return
+		current = current.get_parent()
+		guard -= 1
 
 ## Called by the player's hitbox: enemy.take_damage(player.attack_damage).
 ##
@@ -261,6 +448,8 @@ func die() -> void:
 	# during the death animation.
 	hurtbox.set_deferred("monitoring", false)
 	hurtbox.set_deferred("monitorable", false)
+	attack_area.set_deferred("monitoring", false)
+	attack_area.set_deferred("monitorable", false)
 	set_deferred("collision_layer", 0)
 	set_deferred("collision_mask", 0)
 

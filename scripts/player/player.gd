@@ -47,29 +47,50 @@ extends CharacterBody2D
 #     player.attack_hit.connect(_on_player_attack_hit)
 signal attack_hit(enemy)
 
+## Emitted every time the player takes damage (HP already updated).
+## HUD listens to drive the health bar.
+signal health_changed(current_health: int, max_health: int)
+
+## Emitted exactly once, at the moment death is confirmed.
+## Main listens to show the Game Over screen.
+signal player_died
+
 
 # =====================================================================
 # EXPORTED SETTINGS (editable per-instance in the Inspector)
 # =====================================================================
 
-## How fast the player moves, in pixels per second.
-@export var move_speed: float = 120.0
+## How fast the player moves, in pixels per second. Borzo is heavy:
+## slower than a nimble character, but every punch counts.
+@export var move_speed: float = 90.0
 
-## How long an attack lasts, in seconds (0.2 s = 200 ms). Movement is
-## locked for this long, and it matches the "attack" animation length.
-@export var attack_duration: float = 0.2
+## How long an attack lasts, in seconds (0.45 s = heavy haymaker).
+## Movement is locked for this long, and it matches the "attack"
+## animation length. Long recovery = commit to your punches.
+@export var attack_duration: float = 0.45
 
-## How much health an enemy loses per hit.
-@export var attack_damage: int = 10
+## How much health an enemy loses per hit. Slow and heavy: big damage.
+@export var attack_damage: int = 18
 
 ## Delay between "attack pressed" and "hitbox turns on", in seconds.
 ## This is the wind-up: the punch is only dangerous once the arm is out
-## (punch pose in animation frame 3 at 0.05 s).
-@export var attack_windup: float = 0.05
+## (fist-extended pose in animation frame 4 at 0.18 s).
+@export var attack_windup: float = 0.18
 
-## How long the hitbox stays switched on, in seconds (0.1 s = 6 physics
+## How long the hitbox stays switched on, in seconds (0.12 s = 7 physics
 ## frames at 60 Hz). Keep it short, otherwise one swing hits twice.
-@export var hitbox_active_time: float = 0.1
+@export var hitbox_active_time: float = 0.12
+
+## Total player health. The player starts every scene at full health.
+@export var max_health: int = 100
+
+## Seconds of invulnerability after taking a hit (i-frames). While true
+## the player cannot be damaged again and the sprite blinks.
+@export var invulnerability_time: float = 0.8
+
+## Push speed applied away from the attacker when hit (pixels per second).
+## Decays to zero over a few frames - see _knockback and _handle_movement().
+@export var knockback_speed: float = 180.0
 
 ## Seconds between footstep ticks while the player is walking.
 @export var footstep_interval: float = 0.25
@@ -82,6 +103,23 @@ signal attack_hit(enemy)
 ## True while the player is mid-swing. Movement is locked while this is
 ## true so attacks feel deliberate.
 var is_attacking: bool = false
+
+## True once death is confirmed. The player ignores all input, the
+## hitbox/hurtbox switch off, and the death animation plays out.
+var is_dead: bool = false
+
+## Current health, 0 .. max_health. Changed ONLY in take_damage().
+var current_health: int = 100
+
+## True during i-frames after a hit; take_damage() bails out early.
+var _invulnerable: bool = false
+
+## Residual push from the last hit, in pixels per second. Decays in
+## _handle_movement so getting punched moves you a bit and then settles.
+var _knockback: Vector2 = Vector2.ZERO
+
+## True while the white/red hit flash is showing (used to not restart it).
+var _is_flashing: bool = false
 
 ## Horizontal facing direction: 1.0 = right, -1.0 = left.
 ## Stored separately from velocity so the player keeps looking the way
@@ -115,10 +153,12 @@ var _footstep_timer: float = 0.0
 @onready var hitbox_shape: CollisionShape2D = $Hitbox/CollisionShape2D
 @onready var punch_sfx: AudioStreamPlayer = $PunchSFX       # swing / whiff sound
 @onready var footstep_sfx: AudioStreamPlayer = $FootstepSFX # subtle walking tick
+@onready var hurt_sfx: AudioStreamPlayer = $HurtSFX         # "oof" when damaged
 
 ## Local offset of the AttackPoint marker when facing right.
 ## It gets mirrored on the X axis whenever the player faces left.
-const ATTACK_POINT_OFFSET := Vector2(12.0, 0.0)
+## Borzo's reach is long — his fist sticks out past the visual body.
+const ATTACK_POINT_OFFSET := Vector2(14.0, 0.0)
 
 ## Small 6x6 fist-colored impact spark spawned ONLY when a punch lands on an enemy.
 const HIT_SPARK_SCENE := preload("res://scenes/fx/HitSpark.tscn")
@@ -137,6 +177,10 @@ func _ready() -> void:
 	# "SFX" audio bus (see scripts/audio/sfx_generator.gd).
 	punch_sfx.stream = SFXGenerator.create_punch_sfx()
 	footstep_sfx.stream = SFXGenerator.create_footstep_sfx()
+	hurt_sfx.stream = SFXGenerator.create_hurt_sfx()
+
+	# Health starts (and restarts) at full.
+	current_health = max_health
 
 	# Signals are connected here in code so you can see, in one place,
 	# exactly which events this script listens to.
@@ -161,6 +205,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Project Settings > Input Map) starts an attack.
 	# _unhandled_input (instead of _input) lets UI elements consume
 	# clicks first.
+	if is_dead:
+		return  # no punching from beyond the grave
 	if event.is_action_pressed("attack"):
 		_start_attack()
 
@@ -170,6 +216,12 @@ func _unhandled_input(event: InputEvent) -> void:
 # =====================================================================
 
 func _handle_movement() -> void:
+	# A dead player stays put: zero velocity, no input, no facing flips.
+	if is_dead:
+		velocity = Vector2.ZERO
+		move_and_slide()
+		return
+
 	# Input.get_vector() reads the four actions defined in
 	# Project Settings > Input Map (move_left/right/up/down) and returns
 	# a normalized direction, so diagonals are not faster than straights.
@@ -179,9 +231,16 @@ func _handle_movement() -> void:
 			"move_left", "move_right", "move_up", "move_down"
 		)
 
+	# Knockback decays toward zero at a fixed rate (180 => ~0.25 s of
+	# movement from a 180 px/s push). Added on TOP of input, so you can
+	# fight the push a little while you slide from a slime's lunge.
+	_knockback = _knockback.move_toward(
+		Vector2.ZERO, 800.0 * get_physics_process_delta_time()
+	)
+
 	# CharacterBody2D pattern: write the desired velocity, then let
 	# move_and_slide() move the body and resolve collisions for us.
-	velocity = input_dir * move_speed
+	velocity = input_dir * move_speed + _knockback
 	move_and_slide()
 
 	# Remember which way we are facing. Only update while actually
@@ -282,7 +341,7 @@ func _update_footsteps(delta: float) -> void:
 
 func _start_attack() -> void:
 	# Ignore extra presses while an attack is already running.
-	if is_attacking:
+	if is_attacking or is_dead:
 		return
 
 	is_attacking = true
@@ -356,8 +415,11 @@ func _enable_hitbox() -> void:
 
 
 func _disable_hitbox() -> void:
-	hitbox.monitoring = false
-	hitbox.monitorable = false
+	# set_deferred because this can run INSIDE a physics signal callback
+	# (punch lands -> enemy dies -> ... ), and Godot forbids flipping
+	# monitoring/monitorable on an Area2D while that signal is in-flight.
+	hitbox.set_deferred("monitoring", false)
+	hitbox.set_deferred("monitorable", false)
 	print("[Combat] Hitbox OFF")
 
 
@@ -439,3 +501,111 @@ func _spawn_hit_spark() -> void:
 	parent.add_child(spark)
 	# A little in front of the player, at the centre of the hitbox.
 	spark.global_position = hitbox.global_position
+
+
+# =====================================================================
+# TAKING DAMAGE - THE OTHER HALF OF THE STORY
+# =====================================================================
+# The player is a damageable just like the Slime: enemies call
+# take_damage() on us. Mirror of the slime's contract:
+#
+#   Slime.AttackArea (layer 32, mask 64) notices the player's Hurtbox
+#   Player.Hurtbox   (layer 64) - the ENEMY decides the damage and calls
+#   player.take_damage(amount, from_position).
+#
+# `from_position` is where the hit came FROM, used to push the player
+# away (knockback). A hit without a position simply does not push.
+
+func take_damage(amount: int, from_position: Vector2 = Vector2.INF) -> void:
+	# Dead men take no damage; i-frames make every hit an event instead
+	# of a draining dribble when a slime touches you frame after frame.
+	if is_dead or _invulnerable:
+		return
+
+	current_health = clampi(current_health - amount, 0, max_health)
+	print("[Player] took ", amount, " damage  ->  HP ",
+		current_health, "/", max_health)
+
+	health_changed.emit(current_health, max_health)
+	hurt_sfx.play()
+
+	# Phase 3 juice, mirrored for hits RECEIVED: tiny freeze + shake.
+	# The shake is stronger and red flash heavier than the punch, so
+	# getting hit FEELS worse than landing a hit.
+	HitStop.freeze(0.04)
+	ScreenShake.shake(4.0, 0.2)
+
+	# Knockback: slide away from where the hit came from.
+	if from_position != Vector2.INF:
+		var away := global_position - from_position
+		if away.length() > 1.0:
+			_knockback = away.normalized() * knockback_speed
+
+	_flash_red()
+
+	if current_health <= 0:
+		_die()
+	else:
+		_start_invulnerability()
+
+
+## Paints the sprite red for a fraction of a second, then restores it.
+func _flash_red() -> void:
+	if _is_flashing:
+		return
+	_is_flashing = true
+	visuals.modulate = Color(1.0, 0.35, 0.35)
+	await get_tree().create_timer(0.15).timeout
+	if is_instance_valid(visuals) and not is_dead:
+		visuals.modulate = Color.WHITE
+	_is_flashing = false
+
+
+## i-frames: un-hittable for invulnerability_time seconds while the
+## sprite blinks (alpha up/down about every 0.1 s) so the state is VISIBLE.
+func _start_invulnerability() -> void:
+	if _invulnerable:
+		return
+	_invulnerable = true
+
+	var blink_time := 0.1  # seconds per alpha step
+	var steps := maxi(int(invulnerability_time / (blink_time * 2.0)), 1)
+	var tween := create_tween()
+	for i in steps:
+		tween.tween_property(visuals, "modulate:a", 0.3, blink_time)
+		tween.tween_property(visuals, "modulate:a", 1.0, blink_time)
+	await tween.finished
+
+	if is_instance_valid(visuals):
+		visuals.modulate.a = 1.0
+	_invulnerable = false
+
+
+## Death: stop everything, broadcast, and fall over dramatically.
+func _die() -> void:
+	if is_dead:
+		return
+	is_dead = true
+	print("[Player] died - GAME OVER")
+
+	_disable_hitbox()
+	# Hurtbox must stop being findable, and the BODY must stop blocking
+	# slimes' movement? No: the corpse stays solid (it did not leave the
+	# room) - we only detach the sensors.
+	$Hurtbox.set_deferred("monitoring", false)
+	$Hurtbox.set_deferred("monitorable", false)
+	footstep_sfx.stop()
+
+	# Tell Main -> Game Over screen. BEFORE the animation, so the overlay
+	# fades in while the body is still falling.
+	player_died.emit()
+
+	# Fall over + fade. Rotating the ONE sprite 90 degrees reads as
+	# collapsing without needing a dedicated frames.
+	anim_player.stop()
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(visuals, "rotation_degrees", 90.0 * facing, 0.5)\
+		.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(visuals, "modulate",
+		Color(0.6, 0.6, 0.6, 0.9), 0.5)

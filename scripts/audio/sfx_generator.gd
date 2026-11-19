@@ -46,6 +46,7 @@ static var _punch_cache: AudioStreamWAV = null
 static var _hit_cache: AudioStreamWAV = null
 static var _death_cache: AudioStreamWAV = null
 static var _footstep_cache: AudioStreamWAV = null
+static var _hurt_cache: AudioStreamWAV = null
 
 
 ## Short aggressive swing burst (0.10 s): low-frequency thump + airy noise.
@@ -164,6 +165,38 @@ static func create_footstep_sfx() -> AudioStreamWAV:
 
 	_footstep_cache = _build_wav(samples)
 	return _footstep_cache
+
+
+## Player "oof" (0.12 s): low dull thud - a body taking a hit, deeper and
+## softer than the crisp enemy impact so the two never blur together.
+static func create_hurt_sfx() -> AudioStreamWAV:
+	if _hurt_cache != null:
+		return _hurt_cache
+
+	var duration := 0.12
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 404
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	var noise_lp := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		# Low bouncy thud: 130 Hz dropping to 55 Hz.
+		var freq := lerpf(130.0, 55.0, pow(progress, 0.7))
+		phase += TAU * freq / float(MIX_RATE)
+
+		var raw_noise := rng.randf_range(-1.0, 1.0)
+		noise_lp = lerpf(noise_lp, raw_noise, 0.3)
+
+		var envelope := pow(1.0 - progress, 2.2)
+		var sample := (sin(phase) * 0.8 + noise_lp * 0.35) * envelope * 0.6
+		samples[i] = sample
+
+	_hurt_cache = _build_wav(samples)
+	return _hurt_cache
 
 
 ## Pack normalized `-1.0 .. 1.0` float samples into a 16-bit mono AudioStreamWAV.
