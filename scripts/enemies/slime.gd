@@ -57,6 +57,9 @@ signal died
 ## Pixels per second while chasing the player.
 @export var move_speed: float = 40.0
 
+## Hard cap the wave spawner may push us to (matches the old max_speed).
+@export var max_move_speed: float = 90.0
+
 ## The slime only starts chasing when the player is this close (pixels).
 @export var detection_range: float = 200.0
 

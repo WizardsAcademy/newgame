@@ -1,0 +1,98 @@
+[gd_scene load_steps=12 format=3 uid="uid://carcher0000001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/archer.gd" id="1_archer_script"]
+[ext_resource type="Texture2D" path="res://assets/textures/white_pixel.png" id="2_white"]
+[ext_resource type="Texture2D" path="res://assets/textures/archer_skeleton.png" id="3_archer_tex"]
+[ext_resource type="Script" path="res://scripts/ui/health_bar.gd" id="4_health_bar"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/Arrow.tscn" id="5_arrow_scene"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(12, 14)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hurtbox"]
+size = Vector2(15, 16)
+
+[sub_resource type="Animation" id="Animation_idle"]
+resource_name = "idle"
+length = 1.0
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5, 1.0),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [Vector2(0, 0), Vector2(0, -1), Vector2(0, 0)]
+}
+
+[sub_resource type="Animation" id="Animation_walk"]
+resource_name = "walk"
+length = 0.4
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [Vector2(0, 0), Vector2(0, -2), Vector2(0, 0), Vector2(0, -1), Vector2(0, 0)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]
+_data = {
+"idle": SubResource("Animation_idle"),
+"walk": SubResource("Animation_walk")
+}
+
+[node name="Archer" type="CharacterBody2D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_archer_script")
+max_health = 24
+current_health = 24
+move_speed = 55.0
+attack_damage = 5
+arrow_scene = ExtResource("5_arrow_scene")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="Visuals" type="Sprite2D" parent="."]
+texture = ExtResource("3_archer_tex")
+
+[node name="Shadow" type="Sprite2D" parent="Visuals"]
+show_behind_parent = true
+modulate = Color(0, 0, 0, 0.25)
+position = Vector2(0, 7)
+scale = Vector2(0.8, 0.28)
+texture = ExtResource("2_white")
+
+[node name="AnimPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_main")
+}
+autoplay = "idle"
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 8
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("RectangleShape2D_hurtbox")
+
+[node name="HealthBar" type="Node2D" parent="."]
+script = ExtResource("4_health_bar")
+
+[node name="HitSFX" type="AudioStreamPlayer" parent="."]
+bus = &"SFX"
+
+[node name="DeathSFX" type="AudioStreamPlayer" parent="."]
+bus = &"SFX"

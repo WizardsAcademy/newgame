@@ -12,13 +12,13 @@ extends Node2D
 ##  - Spawnpoints are chosen inside the arena (inset from the walls) and
 ##    always at LEAST min_spawn_distance away from the player, so nothing
 ##    ever appears on top of Borzo out of nowhere.
-##  - Enemy stat scaling is additive, like the slime death slide:
-##    every wave nudges speed / health / damage up a little.
+##  - Wave 1-2 are pure slimes (learn the basics). From wave 3 archers
+##    mix in, from wave 5 golems. Each type keeps its own base stats;
+##    waves add a BONUS on top, so the golem always stays the tank.
 ##
-##   wave: 1    2    3    4    5   ...
-##   count: 3   4    5    6    7   ...   (base_count + wave - monsters_per_wave_step...)
-##   hp:   30   40   50   60   70   ...
-##   speed: 45  50   55   60   65   ...  (capped at max_move_speed)
+##   wave:   1    2    3    4    5   ...
+##   count:  3    4    5    6    7   ...  (base_count + wave - 1)
+##   hp:   bonus +10 per wave on top of the type's own base
 
 # =====================================================================
 # SIGNALS
@@ -39,8 +39,24 @@ signal enemy_spawned(enemy: Node)
 # EXPORTED SETTINGS
 # =====================================================================
 
-## The scene to instantiate for each enemy.
-@export var enemy_scene: PackedScene = preload("res://scenes/enemies/Slime.tscn")
+## The classic wave filler.
+@export var slime_scene: PackedScene = preload("res://scenes/enemies/Slime.tscn")
+
+## --- Phase 7: the enemy ROSTER ---------------------------------------
+## Waves start pure (only slimes) and mix in new types as they get
+## harder - the classic roguelike "unlock by escalation".
+@export var archer_scene: PackedScene = preload("res://scenes/enemies/Archer.tscn")
+@export var golem_scene: PackedScene = preload("res://scenes/enemies/Golem.tscn")
+
+## First wave that can contain archers / golems.
+@export var archer_start_wave: int = 3
+@export var golem_start_wave: int = 5
+
+## Chance (0..1) that any single enemy slot rolls that type, once
+## unlocked. Slimes take whatever is left, so waves stay readable:
+## wave 3 ≈ 70% slime / 30% archer, wave 5+ ≈ 55/30/15.
+@export var archer_chance: float = 0.3
+@export var golem_chance: float = 0.15
 
 ## Enemies in wave 1. wave N has base_count + (N - 1) * count_per_wave.
 @export var base_count: int = 3
@@ -48,17 +64,13 @@ signal enemy_spawned(enemy: Node)
 ## Extra enemies added per wave.
 @export var count_per_wave: int = 1
 
-## Slime health in wave 1; +hp_per_wave each wave.
-@export var base_health: int = 30
+## Bonus health every wave adds ON TOP of each type's own base stat.
 @export var hp_per_wave: int = 10
 
-## Slime speed in wave 1; +speed_per_wave each wave, capped.
-@export var base_speed: float = 45.0
+## Bonus speed every wave adds, capped by each type's `max_move_speed`.
 @export var speed_per_wave: float = 5.0
-@export var max_speed: float = 90.0
 
-## Slime damage in wave 1; +1 every damage_step waves.
-@export var base_damage: int = 8
+## Bonus damage of every type grows by +1 every `damage_step` waves.
 @export var damage_step: int = 3
 
 ## Seconds between enemies of the same wave trickling in.
@@ -153,22 +165,28 @@ func _run_waves() -> void:
 		await _sleep(rest_between_waves)
 
 
-## Create one scaled enemy, place it far from the player, and announce it.
+## Create one scaled enemy of a random unlocked type, place it far from
+## the player, and announce it.
 func _spawn_enemy() -> void:
-	var enemy := enemy_scene.instantiate()
+	var scene := _pick_scene_for_wave(wave_number)
+	var enemy := scene.instantiate()
 	if enemy == null:
 		return
 
-	# --- Wave scaling: push the exported stats before add_child(), so
-	# the enemy's _ready() clamps see the final values.
-	enemy.max_health = base_health + (wave_number - 1) * hp_per_wave
+	# --- Wave scaling (additive ON TOP of each type's own base stats,
+	# so the golem stays the tank and the slime stays the fodder) ------
+	enemy.max_health += (wave_number - 1) * hp_per_wave
 	enemy.current_health = enemy.max_health
-	enemy.move_speed = minf(base_speed + (wave_number - 1) * speed_per_wave, max_speed)
+	# Slow guys must not become fast - each enemy script carries its own
+	# `max_move_speed` cap that matches its personality.
+	enemy.move_speed = minf(
+		enemy.move_speed + (wave_number - 1) * speed_per_wave,
+		enemy.max_move_speed)
 	# The floor() here is intentional: damage grows in whole steps of
 	# `damage_step` waves, so 1 / 3 must discard the decimal part.
-	enemy.attack_damage = base_damage + floori((wave_number - 1) / float(damage_step))
+	enemy.attack_damage += floori((wave_number - 1) / float(damage_step))
 
-	# The Enemy parent must exist so damage numbers and kill counting
+	# The Enemies parent must exist so damage numbers and kill counting
 	# keep working exactly like the hand-placed slimes did.
 	var parent := get_parent().get_node_or_null("Enemies")
 	if parent == null:
@@ -176,10 +194,12 @@ func _spawn_enemy() -> void:
 	parent.add_child(enemy)
 
 	enemy.global_position = _pick_spawn_position()
-	# Give the enemy a readable name BEFORE the log line - otherwise Godot
-	# shows auto-generated names like "@CharacterBody2D@2".
+	# Readable name: "<type>_W<wave>_<n>", e.g. Archer_W3_12. The scene's
+	# root node name ("Slime"/"Archer"/"Golem") is the type tag - read it
+	# BEFORE we overwrite enemy.name below.
 	total_spawned += 1
-	enemy.name = "Slime_W%d_%d" % [wave_number, total_spawned]
+	var type_name: String = String(enemy.name)
+	enemy.name = "%s_W%d_%d" % [type_name, wave_number, total_spawned]
 	print("[Wave] Spawned ", enemy.name,
 		" hp=", enemy.max_health,
 		" speed=", enemy.move_speed,
@@ -192,6 +212,16 @@ func _spawn_enemy() -> void:
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 	enemy_spawned.emit(enemy)
+
+
+## Weighted pick of which enemy type fills one slot of this wave.
+## wave 1-2: pure slime (learn the basics) -> then new faces mix in.
+func _pick_scene_for_wave(current_wave: int) -> PackedScene:
+	if current_wave >= golem_start_wave and randf() < golem_chance:
+		return golem_scene
+	if current_wave >= archer_start_wave and randf() < archer_chance:
+		return archer_scene
+	return slime_scene
 
 
 ## A random point inside the arena, at least min_spawn_distance away
