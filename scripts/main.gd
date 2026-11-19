@@ -9,6 +9,9 @@ extends Node2D
 ##   Slime.died                   -> kill counter
 ##   Slime.health_changed(hp,max) -> (nothing yet - a good place for a
 ##                                   target health bar in a later phase)
+##   WaveSpawner.wave_started(n)  -> "Wave N" banner in the HUD
+##   WaveSpawner.wave_cleared(n)  -> "cleared" message in the HUD
+##   WaveSpawner.enemy_spawned(e) -> watch the new enemy like the others
 ##
 ## Because the level connects these signals, deleting the HUD cannot
 ## break combat, and adding a combo counter does not touch player.gd.
@@ -23,6 +26,8 @@ extends Node2D
 @onready var stats_label: Label = $UI/Stats
 @onready var player_health_bar: Node2D = $UI/PlayerHealthBar
 @onready var game_over_screen: Control = $UI/GameOver
+@onready var wave_spawner: Node2D = $WaveSpawner
+@onready var wave_label: Label = $UI/WaveLabel
 
 
 # =====================================================================
@@ -32,6 +37,8 @@ extends Node2D
 var total_damage_dealt: int = 0
 var last_hit_damage: int = 0
 var kills: int = 0
+## Current wave number, shown in the debug label.
+var wave_number: int = 0
 ## True once the player died and the Game Over overlay is showing.
 var game_is_over: bool = false
 
@@ -52,6 +59,12 @@ func _ready() -> void:
 
 	for enemy in enemies_root.get_children():
 		_watch_enemy(enemy)
+
+	# --- Wave system wiring -------------------------------------------
+	# The spawner owns the wave state machine; the level only listens.
+	wave_spawner.wave_started.connect(_on_wave_started)
+	wave_spawner.wave_cleared.connect(_on_wave_cleared)
+	wave_spawner.enemy_spawned.connect(_on_enemy_spawned)
 
 	# Seed the health bar with the starting health BEFORE anything can
 	# hit us (the bar redraws on every health_changed anyway).
@@ -81,7 +94,33 @@ func _on_player_attack_hit(enemy: Node) -> void:
 
 func _on_enemy_died() -> void:
 	kills += 1
+	# Tell the spawner an enemy is gone - the wave is "cleared" only
+	# when its live counter reaches zero, so every death must be
+	# reported back. This is the one place where the level feeds a
+	# signal *into* the spawner instead of only listening.
+	wave_spawner.notify_enemy_died()
 	_update_stats_label()
+
+
+# ---------------------------------------------------------------------
+# WAVE SIGNAL HANDLERS
+# ---------------------------------------------------------------------
+
+func _on_wave_started(number: int, _enemy_count: int) -> void:
+	wave_number = number
+	wave_label.text = "Wave %d" % number
+	_update_stats_label()
+
+
+func _on_wave_cleared(number: int) -> void:
+	# A short celebratory message before the next wave banner replaces it.
+	wave_label.text = "Wave %d cleared!" % number
+
+
+func _on_enemy_spawned(enemy: Node) -> void:
+	# Enemies spawned by the spawner get the same treatment as the
+	# static ones used to: kill counting + damage numbers.
+	_watch_enemy(enemy)
 
 
 func _on_player_health_changed(current: int, max_health: int) -> void:
@@ -91,6 +130,9 @@ func _on_player_health_changed(current: int, max_health: int) -> void:
 func _on_player_died() -> void:
 	game_is_over = true
 	game_over_screen.visible = true
+	# Stop the wave machine immediately - no point spawning enemies
+	# into an empty arena while the Game Over screen is up.
+	wave_spawner.stop_spawning()
 	# Optional juice: a last big shudder when Borzo hits the floor.
 	ScreenShake.shake(6.0, 0.35)
 
@@ -106,11 +148,13 @@ func _unhandled_input(event: InputEvent) -> void:
 func _update_stats_label() -> void:
 	if stats_label == null:
 		return
-	stats_label.text = "damage dealt: %d   last hit: %d   kills: %d / %d" % [
+	# Enemies are no longer static scene children (the spawner owns
+	# them), so we show the wave number instead of a live count.
+	stats_label.text = "damage dealt: %d   last hit: %d   kills: %d   wave: %d" % [
 		total_damage_dealt,
 		last_hit_damage,
 		kills,
-		enemies_root.get_child_count(),
+		wave_number,
 	]
 
 
