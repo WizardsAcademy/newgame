@@ -154,6 +154,7 @@ var _footstep_timer: float = 0.0
 @onready var punch_sfx: AudioStreamPlayer = $PunchSFX       # swing / whiff sound
 @onready var footstep_sfx: AudioStreamPlayer = $FootstepSFX # subtle walking tick
 @onready var hurt_sfx: AudioStreamPlayer = $HurtSFX         # "oof" when damaged
+@onready var dust: CPUParticles2D = $Dust                   # little kick-up puffs
 
 ## Local offset of the AttackPoint marker when facing right.
 ## It gets mirrored on the X axis whenever the player faces left.
@@ -330,6 +331,11 @@ func _update_footsteps(delta: float) -> void:
 
 	if _footstep_timer <= 0.0:
 		footstep_sfx.play()
+		# One small puff per footstep, in sync with the sound. `restart()`
+		# makes a one-shot emitter replay its burst from scratch - calling
+		# `emitting = true` again would do nothing while it is still
+		# playing its previous burst.
+		dust.restart()
 		_footstep_timer = footstep_interval
 	else:
 		_footstep_timer -= delta

@@ -462,6 +462,10 @@ func die() -> void:
 	if health_bar != null:
 		tween.tween_property(health_bar, "modulate:a", 0.0, death_duration)
 
+	# Splash! The shrink+fade alone reads as "mistake"; a burst of
+	# droplets the same colour as the body reads as "the slime popped".
+	_spawn_death_burst()
+
 	# Tell listeners (loot drops, score, wave counters, ...) - BEFORE we
 	# disappear, while the node is still valid.
 	died.emit()
@@ -471,6 +475,39 @@ func die() -> void:
 	# which is the safe way to delete a node from inside its own code.
 	await get_tree().create_timer(death_duration).timeout
 	queue_free()
+
+
+## One-shot burst of small squares in the slime's colour, flying outward
+## and falling back down - the classic "goo splat".
+##
+## Created in CODE (not in the scene file) because we only ever need it
+## once per slime, at the moment of death. KEY DETAIL: the burst is added
+## to this slime's PARENT, not to the slime itself - the slime frees
+## itself 0.3 s after dying, which would cut the particles short.
+func _spawn_death_burst() -> void:
+	var burst := CPUParticles2D.new()
+	burst.one_shot = true        # fire once, then stop on its own
+	burst.amount = 14            # how many droplets
+	burst.lifetime = 0.45        # how long each droplet lives (seconds)
+	burst.explosiveness = 1.0    # 1.0 = all droplets spawn at once (a pop)
+	burst.direction = Vector2.UP # base direction; `spread` scatters it
+	burst.spread = 180.0         # so droplets can fly in ANY direction
+	burst.initial_velocity_min = 60.0
+	burst.initial_velocity_max = 140.0
+	burst.gravity = Vector2(0, 240)  # droplets arc back down like goo
+	burst.scale_amount_min = 1.5     # tiny 1-2 px squares, ...
+	burst.scale_amount_max = 3.5     # ... big enough to see
+	burst.color = body_color.darkened(0.1)
+	burst.emitting = false       # position it first, THEN fire
+
+	# Parent it next to us (we are kept as a node but dying).
+	get_parent().add_child(burst)
+	burst.global_position = global_position + Vector2(0, 4)
+	burst.emitting = true
+
+	# CPUParticles2D emits `finished` when a one-shot emission completes;
+	# use it to clean the burst node up automatically.
+	burst.finished.connect(burst.queue_free)
 
 
 # =====================================================================

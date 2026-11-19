@@ -28,6 +28,7 @@ extends Node2D
 @onready var game_over_screen: Control = $UI/GameOver
 @onready var wave_spawner: Node2D = $WaveSpawner
 @onready var wave_label: Label = $UI/WaveLabel
+@onready var hurt_flash: ColorRect = $UI/HurtFlash
 
 
 # =====================================================================
@@ -39,6 +40,12 @@ var last_hit_damage: int = 0
 var kills: int = 0
 ## Current wave number, shown in the debug label.
 var wave_number: int = 0
+## Health from the previous health_changed signal - used to detect
+## whether the latest change was damage (a decrease) or healing.
+var _last_health: int = -1
+## Tween of the hurt flash, kept so a new hit can cancel the old fade
+## instead of fighting it.
+var _hurt_tween: Tween
 ## True once the player died and the Game Over overlay is showing.
 var game_is_over: bool = false
 
@@ -108,13 +115,35 @@ func _on_enemy_died() -> void:
 
 func _on_wave_started(number: int, _enemy_count: int) -> void:
 	wave_number = number
-	wave_label.text = "Wave %d" % number
+	_pop_wave_label("Wave %d" % number)
 	_update_stats_label()
 
 
 func _on_wave_cleared(number: int) -> void:
-	# A short celebratory message before the next wave banner replaces it.
-	wave_label.text = "Wave %d cleared!" % number
+	# Green banner instead of the usual warm colour, so the eye can
+	# tell "you won this one" apart from "a new one begins".
+	_pop_wave_label("Wave %d cleared!" % number, Color(0.7, 1.0, 0.75))
+
+
+## Set the banner text and play a quick "pop": it starts bigger and
+## transparent, then claps down to normal size.
+##
+## GOTCHA: scaling a Control pivots at its top-LEFT corner by default,
+## which looks like a slide instead of a pop - so we centre `pivot_offset`
+## first. The one-frame wait lets the label lay out its new text, because
+## `size` updates on the next layout pass, not the moment we set `text`.
+func _pop_wave_label(new_text: String, color := Color(1, 0.95, 0.75, 0.95)) -> void:
+	wave_label.text = new_text
+	wave_label.add_theme_color_override("font_color", color)
+	await get_tree().process_frame
+	wave_label.pivot_offset = wave_label.size / 2.0
+	wave_label.modulate.a = 0.0
+	wave_label.scale = Vector2(1.6, 1.6)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(wave_label, "scale", Vector2.ONE, 0.25)\
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(wave_label, "modulate:a", 1.0, 0.15)
 
 
 func _on_enemy_spawned(enemy: Node) -> void:
@@ -125,6 +154,22 @@ func _on_enemy_spawned(enemy: Node) -> void:
 
 func _on_player_health_changed(current: int, max_health: int) -> void:
 	player_health_bar.set_health(current, max_health)
+	# A DECREASE in health means Borzo took a hit: flash the whole
+	# screen red for a moment. (Healing would be an increase - ignored.)
+	if _last_health >= 0 and current < _last_health:
+		_flash_hurt()
+	_last_health = current
+
+
+## Brief full-screen red flash when the player takes damage.
+func _flash_hurt() -> void:
+	# Kill any flash still fading from the previous hit so two hits in
+	# a row don't make two tweens fight over the same alpha property.
+	if _hurt_tween and _hurt_tween.is_valid():
+		_hurt_tween.kill()
+	hurt_flash.color.a = 0.22
+	_hurt_tween = create_tween()
+	_hurt_tween.tween_property(hurt_flash, "color:a", 0.0, 0.35)
 
 
 func _on_player_died() -> void:
