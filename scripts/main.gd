@@ -29,6 +29,7 @@ extends Node2D
 @onready var wave_spawner: Node2D = $WaveSpawner
 @onready var wave_label: Label = $UI/WaveLabel
 @onready var hurt_flash: ColorRect = $UI/HurtFlash
+@onready var upgrade_menu: Control = $UI/UpgradeMenu
 
 
 # =====================================================================
@@ -72,6 +73,12 @@ func _ready() -> void:
 	wave_spawner.wave_started.connect(_on_wave_started)
 	wave_spawner.wave_cleared.connect(_on_wave_cleared)
 	wave_spawner.enemy_spawned.connect(_on_enemy_spawned)
+
+	# --- Upgrade system wiring (phase 7)-------------------------------
+	# Loop: wave cleared -> roll 3 -> player picks -> apply -> release
+	# the spawner. The pool applies the stats itself; Main only glues.
+	upgrade_menu.upgrade_chosen.connect(_on_upgrade_chosen)
+	upgrade_menu.hide_menu()  # start closed
 
 	# Seed the health bar with the starting health BEFORE anything can
 	# hit us (the bar redraws on every health_changed anyway).
@@ -124,6 +131,28 @@ func _on_wave_cleared(number: int) -> void:
 	# tell "you won this one" apart from "a new one begins".
 	_pop_wave_label("Wave %d cleared!" % number, Color(0.7, 1.0, 0.75))
 
+	# --- The roguelike reward: roll 1-of-3 upgrades ------------------
+	# (Only while the player is alive - a corpse gets no rewards and,
+	# when the run restarts, everything resets with the scene.)
+	if not game_is_over:
+		_show_upgrade_menu()
+
+
+func _show_upgrade_menu() -> void:
+	var options := UpgradePool.roll(player, 3)
+	if options.is_empty():
+		# Nothing left in the pool (all stats maxed): skip gracefully.
+		wave_spawner.continue_next_wave()
+		return
+	upgrade_menu.show_menu(options)
+
+
+func _on_upgrade_chosen(id: String) -> void:
+	var feedback := UpgradePool.apply(id, player)
+	print("[Upgrade] picked ", id, " -> ", feedback)
+	# Release the wave machine - the next wave rolls in.
+	wave_spawner.continue_next_wave()
+
 
 ## Set the banner text and play a quick "pop": it starts bigger and
 ## transparent, then claps down to normal size.
@@ -175,6 +204,11 @@ func _flash_hurt() -> void:
 func _on_player_died() -> void:
 	game_is_over = true
 	game_over_screen.visible = true
+	# A dead player picks no upgrades - close the menu if it was open.
+	if upgrade_menu != null:
+		upgrade_menu.hide_menu()
+		# And let the wave loop drain quietly (it checks _stopped).
+		wave_spawner.continue_next_wave()
 	# Stop the wave machine immediately - no point spawning enemies
 	# into an empty arena while the Game Over screen is up.
 	wave_spawner.stop_spawning()

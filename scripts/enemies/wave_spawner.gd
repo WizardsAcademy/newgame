@@ -79,6 +79,10 @@ signal enemy_spawned(enemy: Node)
 ## Breather after a wave is cleared, before the next one starts.
 @export var rest_between_waves: float = 2.5
 
+## True = after the breather, wait for continue_next_wave() (that is
+## when Main shows the upgrade menu). False = old self-paced loop.
+@export var wait_for_upgrades_between_waves: bool = true
+
 ## Delay after the scene boots before wave 1 starts (orientation time).
 @export var first_wave_delay: float = 1.5
 
@@ -112,6 +116,9 @@ var _stopped: bool = false
 
 ## Guards the async _run_waves() loop so it can never start twice.
 var _running: bool = false
+
+## Set by continue_next_wave(); read by _wait_for_continue().
+var _continue_ok: bool = false
 
 
 # =====================================================================
@@ -163,6 +170,15 @@ func _run_waves() -> void:
 		wave_cleared.emit(wave_number)
 		print("[Wave] Wave ", wave_number, " cleared!")
 		await _sleep(rest_between_waves)
+		if _stopped:
+			return
+
+		# Roguelike gate: between waves the player picks an upgrade.
+		# Main calls continue_next_wave() when the pick is done.
+		if wait_for_upgrades_between_waves:
+			await _wait_for_continue()
+			if _stopped:
+				return
 
 
 ## Create one scaled enemy of a random unlocked type, place it far from
@@ -247,6 +263,22 @@ func _pick_spawn_position() -> Vector2:
 ## Sleep that survives the node leaving the tree.
 func _sleep(seconds: float) -> void:
 	await get_tree().create_timer(seconds).timeout
+
+
+## Block until continue_next_wave() (or stop_spawning()). Polling keeps
+## this dead simple and death-safe; a signal await born BEFORE the pick
+## is also fine, but then Player death needs its own release - polling
+## checks _stopped every tick, so nothing can hang.
+func _wait_for_continue() -> void:
+	while not _continue_ok and not _stopped:
+		await _sleep(0.1)
+	_continue_ok = false
+
+
+## Upgrade pick done (or skipped) - the next wave may start. Safe to
+## call any time, any number of times.
+func continue_next_wave() -> void:
+	_continue_ok = true
 
 
 # =====================================================================
