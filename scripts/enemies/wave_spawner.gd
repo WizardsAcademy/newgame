@@ -216,6 +216,15 @@ func _spawn_enemy() -> void:
 	if enemy == null:
 		return
 
+	# --- SLIME FAMILY ROLL -------------------------------------------
+	# Separate from the archer/golem roll above: once a SLIME slot is
+	# chosen, this decides WHICH slime fills it (grass/acid/ember/basalt).
+	# Set before add_child() so _ready() -> _apply_variant() scales the
+	# stats we are about to write, and so the elite roll below stacks on
+	# top of the variant instead of overwriting it.
+	if "variant_id" in enemy:
+		enemy.variant_id = SlimeVariant.pick_for_wave(wave_number)
+
 	# --- Wave scaling (additive ON TOP of each type's own base stats,
 	# so the golem stays the tank and the slime stays the fodder) ------
 	enemy.max_health += (wave_number - 1) * hp_per_wave
@@ -257,6 +266,10 @@ func _spawn_enemy() -> void:
 	# BEFORE we overwrite enemy.name below.
 	total_spawned += 1
 	var type_name: String = String(enemy.name)
+	# Slimes advertise their variant in the node name ("AcidSlime_W3_7"),
+	# which makes the spawn log and remote-debugger tree self-explaining.
+	if "variant_id" in enemy:
+		type_name = SlimeVariant.display_tag(enemy.variant_id)
 	if is_elite_spawned:
 		type_name = "Elite" + type_name
 	enemy.name = "%s_W%d_%d" % [type_name, wave_number, total_spawned]

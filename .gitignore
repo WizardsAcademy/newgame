@@ -19,3 +19,6 @@ desktop.ini
 
 # Godot AI plugin update-tooling scratch data
 addons/.godot_ai_update/
+
+# Python bytecode from the sprite generators
+tools/__pycache__/

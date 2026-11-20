@@ -8,6 +8,18 @@ extends CharacterBody2D
 ##  - telegraphs, lunges, hits, recovers, waits out `attack_cooldown`,
 ##  - takes damage, flashes white, pops into goo when its health runs out.
 ##
+## THE SLIME FAMILY (scripts/enemies/slime_variant.gd)
+##  This one script drives FOUR creatures. `variant_id` picks which member of
+##  the family we are, and everything variant-specific is data:
+##    grass  - the baseline (unchanged behaviour)
+##    acid   - slower, tankier, leaves a damaging pool when it dies
+##    ember  - faster, frailer, detonates shortly after dying
+##    basalt - slow and heavy, its spiked body damages on contact
+##  The wave spawner sets `variant_id` BEFORE the node enters the tree, so
+##  `_ready()` -> `_apply_variant()` can scale the stats the spawner already
+##  wrote (wave bonus first, then the variant multiplier - same ordering the
+##  elite helper uses).
+##
 ## What it LOOKS like (scripts/enemies/slime_visuals.gd):
 ##  a rounded jelly that breathes, blinks, hops, squashes on landing,
 ##  winds up red before a lunge and splats into a puddle on death.
@@ -81,9 +93,25 @@ signal died
 ## How long the death "squash and fade" takes before queue_free().
 @export var death_duration: float = 0.3
 
-## The slime's signature green. Drives the goo droplets / death splat, so
-## a future toxic-blue slime is one Inspector value, not a new texture.
+## The slime's signature green. Drives the goo droplets / death splat.
+## `_apply_variant()` overwrites it with the variant's goo colour, so the
+## droplets always match the body without any extra art.
 @export var body_color: Color = Color("6ec866")
+
+## Which member of the slime family this is: "grass" / "acid" / "ember" /
+## "basalt" (see slime_variant.gd). The wave spawner overwrites this right
+## after instantiate(), before the node is added to the tree.
+@export var variant_id: String = "grass"
+
+## Damage the BODY deals on touch, per `contact_interval`. Only the Basalt
+## slime uses this (0 = off, so the other three behave exactly as before).
+@export var contact_damage: int = 0
+
+## How close the player has to be for contact damage (px, centre to centre).
+@export var contact_range: float = 20.0
+
+## Seconds between contact-damage ticks.
+@export var contact_interval: float = 0.8
 
 # --- Phase 4: the slime ATTACKS back ----------------------------------
 
@@ -140,8 +168,14 @@ var _has_hit_this_lunge: bool = false
 # NODE REFERENCES
 # =====================================================================
 
-## The look lives in slime_visuals.gd (12-pose sheet, hop cycle, squash &
-## stretch, hit flash, death splat). The AI below never touches pixels.
+## Variant death effects live in the ARENA, not on the slime: the corpse is
+## queue_free()d 0.3 s after dying, which is far too early for an ember fuse.
+const AcidPoolScene := preload("res://scenes/fx/AcidPool.tscn")
+const EmberBlastScene := preload("res://scenes/fx/EmberBlast.tscn")
+
+## The look lives in slime_visuals.gd (12-pose family sheet, hop cycle,
+## squash & stretch, hit flash, death splat). The AI below never touches
+## pixels, and the variant only chooses which row of that sheet is drawn.
 @onready var visuals: SlimeVisuals = $Visuals
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var attack_area: Area2D = $AttackArea
@@ -154,12 +188,25 @@ var _has_hit_this_lunge: bool = false
 ## the scene tree.
 var player: Node2D = null
 
+## Resolved variant data (filled in _apply_variant()).
+var variant_data: Dictionary = {}
+
+## Which death/contact mechanic this variant runs (SlimeVariant.Mechanic).
+var mechanic: int = SlimeVariant.Mechanic.NONE
+
+## Time left before the body may hurt the player again.
+var _contact_cooldown: float = 0.0
+
 
 # =====================================================================
 # SETUP
 # =====================================================================
 
 func _ready() -> void:
+	# Variant FIRST: it rewrites max_health / speeds / damage / telegraph
+	# and the sheet row before anything else reads those numbers.
+	_apply_variant()
+
 	# Start asleep: a freshly spawned slime breathes in place until the
 	# player walks into its detection range.
 	visuals.set_moving(false)
@@ -203,6 +250,9 @@ func _physics_process(delta: float) -> void:
 
 	# Advance the attack state machine (telegraph -> lunge -> ...).
 	_update_attack_state(delta)
+
+	# Basalt spikes hurt on touch, independent of the lunge state machine.
+	_update_contact_damage(delta)
 
 	# Movement per state: only CHASE and LUNGE make the slime move.
 	match _attack_state:
@@ -491,11 +541,102 @@ func die() -> void:
 	# disappear, while the node is still valid.
 	died.emit()
 
+	# Variant death mechanic (acid pool / ember fuse). Runs while we are
+	# still in the tree so the FX can use our position.
+	_on_death_effect()
+
 	# Wait, then remove ourselves from the scene tree for good.
 	# queue_free() deletes the node at the end of the current frame,
 	# which is the safe way to delete a node from inside its own code.
 	await get_tree().create_timer(death_duration).timeout
 	queue_free()
+
+
+# =====================================================================
+# SLIME FAMILY (variant data + the three per-variant hooks)
+# =====================================================================
+
+## Read `variant_id`, scale the stats the wave spawner already wrote, and
+## tell the visuals which row of the sheet to draw.
+##
+## ORDERING MATTERS: the spawner adds its wave bonus BEFORE add_child(), so
+## that bonus is already in max_health / move_speed / attack_damage here.
+## Multiplying on top means a wave-10 Basalt is "tanky wave-10 slime", not
+## "wave-1 tanky slime" - the same rule the elite helper follows.
+func _apply_variant() -> void:
+	variant_data = SlimeVariant.get_data(variant_id)
+	if variant_data.is_empty():
+		push_warning("[Slime] unknown variant_id '%s' - falling back to grass"
+				% variant_id)
+		variant_id = SlimeVariant.DEFAULT_ID
+		variant_data = SlimeVariant.get_data(variant_id)
+
+	max_health = maxi(1, int(round(float(max_health)
+			* float(variant_data.get("hp", 1.0)))))
+	current_health = max_health
+
+	move_speed *= float(variant_data.get("speed", 1.0))
+	max_move_speed *= float(variant_data.get("speed", 1.0))
+
+	attack_damage = maxi(1, int(round(float(attack_damage)
+			* float(variant_data.get("damage", 1.0)))))
+	telegraph_duration *= float(variant_data.get("telegraph", 1.0))
+
+	contact_damage = int(variant_data.get("contact_damage", 0))
+	mechanic = int(variant_data.get("mechanic", SlimeVariant.Mechanic.NONE))
+
+	# Colour + sheet row: the variant's identity is the art, not a tint.
+	body_color = SlimeVariant.goo_color(variant_id)
+	visuals.set_variant(SlimeVariant.row_for(variant_id))
+	visuals.set_goo_color(body_color)
+
+
+## Basalt's spiked shell: standing next to it hurts, on a fixed tick so the
+## player can learn the rhythm and step out between ticks.
+func _update_contact_damage(delta: float) -> void:
+	_contact_cooldown = maxf(0.0, _contact_cooldown - delta)
+	if contact_damage <= 0 or is_dead or _contact_cooldown > 0.0:
+		return
+	if not _is_player_alive():
+		return
+	if global_position.distance_to(player.global_position) > contact_range:
+		return
+
+	_contact_cooldown = contact_interval
+	HitStop.freeze(0.02)
+	ScreenShake.shake(1.8, 0.1)
+	hit_sfx.play()
+	player.take_damage(contact_damage, global_position)
+
+
+## The variant's parting gift. Called from die() while we are still in the
+## tree, so `get_parent()` is the arena and our position is still valid.
+func _on_death_effect() -> void:
+	match mechanic:
+		SlimeVariant.Mechanic.ACID_POOL:
+			_spawn_acid_pool()
+		SlimeVariant.Mechanic.EMBER_FUSE:
+			_spawn_ember_blast()
+		_:
+			pass
+
+
+func _spawn_acid_pool() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var pool: Node2D = AcidPoolScene.instantiate()
+	parent.add_child(pool)
+	pool.global_position = visuals.global_position
+
+
+func _spawn_ember_blast() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var blast: Node2D = EmberBlastScene.instantiate()
+	parent.add_child(blast)
+	blast.global_position = visuals.global_position
 
 
 # =====================================================================
