@@ -85,3 +85,10 @@ Every meaningful numeric change is logged here so we know what happened:
   NEW panic exhaustion — after 1.5s of fleeing in one stretch the archer
   cannot retreat for 1.2s (grey tint tell). Effect: a persistent player
   always catches the archer and gets a guaranteed hit window.
+- 2026-11-20 — Phase 8: first boss "Forest Colossus" (every 5th wave,
+  no wave scaling). 400 HP, speed 26 px/s. Attacks: SLAM (close, r=70,
+  18 dmg, 1.0s telegraph, 1.2s recover), SWEEP (close, r=52, 14 dmg,
+  0.7s telegraph, alternates with SLAM), ROOTS (ranged cast ≤340px,
+  red ring grows 0.9s on the player's spot, then 12 dmg burst; 2.5s
+  cooldown). ENRAGE once below 30% HP: speed ×1.4, telegraphs ×0.6,
+  permanent red tint.

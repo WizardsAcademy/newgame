@@ -40,8 +40,11 @@
 
 ## Phase 8 — First boss
 
-- [ ] Wave-5 boss: "Forest Colossus" — 3 attack phases, clear telegraphs,
-  enrage phase
+- [x] Wave-5 boss: "Forest Colossus" — 3 attack phases (SLAM 70px/18 dmg,
+  SWEEP 52px/14 dmg alternating close-range, ROOTS ring burst 12 dmg at
+  range up to 340px), 1.0s clear telegraphs, ENRAGE below 30% HP
+  (speed ×1.4, telegraphs ×0.6, red tint). Spawns as a boss-only wave
+  every 5th wave. 17/17 automated boss checks pass.
 - DoD: beating the boss should feel like "I learned it", not like luck
 
 ## Phase 9 — Meta progression and second character

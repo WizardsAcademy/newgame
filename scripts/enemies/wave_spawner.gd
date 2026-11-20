@@ -48,6 +48,13 @@ signal enemy_spawned(enemy: Node)
 @export var archer_scene: PackedScene = preload("res://scenes/enemies/Archer.tscn")
 @export var golem_scene: PackedScene = preload("res://scenes/enemies/Golem.tscn")
 
+## --- Phase 8: the BOSS ------------------------------------------------
+## Every boss_interval-th wave is a BOSS WAVE: nothing else spawns -
+## the ringmaster alone. The player fights the colossus one on one,
+## then the normal waves resume (harder than ever).
+@export var boss_scene: PackedScene = preload("res://scenes/enemies/Colossus.tscn")
+@export var boss_interval: int = 5
+
 ## First wave that can contain archers / golems.
 @export var archer_start_wave: int = 3
 @export var golem_start_wave: int = 5
@@ -159,16 +166,22 @@ func _run_waves() -> void:
 
 	while not _stopped:
 		wave_number += 1
-		var count := base_count + (wave_number - 1) * count_per_wave
+		var is_boss_wave: bool = wave_number % boss_interval == 0
+		var count := 1 if is_boss_wave \
+			else base_count + (wave_number - 1) * count_per_wave
 		wave_started.emit(wave_number, count)
-		print("[Wave] Wave ", wave_number, " starting - ", count, " enemies")
+		print("[Wave] ", "BOSS WAVE " if is_boss_wave else "Wave ",
+			wave_number, " starting - ", count, " enemies")
 
 		enemies_alive = 0
 		for i in count:
 			await _sleep(spawn_interval)
 			if _stopped:
 				return
-			_spawn_enemy()
+			if is_boss_wave:
+				_spawn_boss()
+			else:
+				_spawn_enemy()
 			enemies_alive += 1
 
 		# Wait until the player has squashed every enemy of this wave.
@@ -265,6 +278,32 @@ func _pick_scene_for_wave(current_wave: int) -> PackedScene:
 	if current_wave >= archer_start_wave and randf() < archer_chance:
 		return archer_scene
 	return slime_scene
+
+
+## The boss enters the arena: no wave scaling, no elite roll - its stats
+## are exported and tuned as ONE design (docs/ROADMAP.md Phase 8). Boss
+## waves are a pure 1v1 statement: the fight YOU learned waves for.
+func _spawn_boss() -> void:
+	var boss := boss_scene.instantiate()
+	if boss == null:
+		return
+	var parent := get_parent().get_node_or_null("Enemies")
+	if parent == null:
+		parent = get_parent()
+	parent.add_child(boss)
+	boss.global_position = _pick_spawn_position()
+
+	total_spawned += 1
+	boss.name = "Colossus_W%d_%d" % [wave_number, total_spawned]
+	print("[Wave] Spawned ", boss.name, " hp=", boss.max_health)
+
+	# Same dramatic pop-in as regular enemies, just slower + bigger.
+	boss.visuals.scale = Vector2.ZERO
+	var tween := boss.create_tween()
+	tween.tween_property(boss.visuals, "scale", Vector2.ONE, 0.5) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	enemy_spawned.emit(boss)
 
 
 ## A random point inside the arena, at least min_spawn_distance away
