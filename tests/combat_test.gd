@@ -142,6 +142,26 @@ func _run() -> void:
 			and (s.get_node("HitSFX") as AudioStreamPlayer).stream is AudioStreamWAV
 			and (s.get_node("DeathSFX") as AudioStreamPlayer).stream is AudioStreamWAV)
 
+	# ---- Slime art wiring (the rounded 12-pose sheet, not a green box) ----
+	var art_slime: CharacterBody2D = slimes[0]
+	var slime_visuals: Node2D = art_slime.get_node("Visuals")
+	var slime_body: Sprite2D = slime_visuals.get_node("Body")
+	_check("Slime body is a 12x2 pose sheet (384x64)", 
+		slime_body.hframes == 12 and slime_body.vframes == 2
+		and slime_body.texture.get_size() == Vector2(384, 64),
+		"%dx%d frames from %s" % [slime_body.hframes, slime_body.vframes,
+			str(slime_body.texture.get_size())])
+	_check("Slime has a soft ground shadow and a goo puddle",
+		slime_visuals.has_node("Shadow") and slime_visuals.has_node("Puddle"))
+	_check("Slime shows a coloured pose, never the white flash row at spawn",
+		slime_body.frame >= 0 and slime_body.frame < 12
+		and not slime_visuals.is_flashing(),
+		"frame=%d" % slime_body.frame)
+	_check("Slime visuals own facing / locomotion / attack poses",
+		slime_visuals.has_method("set_facing") and slime_visuals.has_method("set_moving")
+		and slime_visuals.has_method("play_telegraph") and slime_visuals.has_method("play_lunge")
+		and slime_visuals.has_method("play_hurt") and slime_visuals.has_method("play_death"))
+
 	# ---------------------------------------------------------------
 	# 1b. PHASE 3 WIRING: Autoloads, SFX bus, Player AudioStreamPlayers
 	# ---------------------------------------------------------------
@@ -300,9 +320,11 @@ func _run() -> void:
 	_check("Engine.time_scale restores to 1.0 after 50 ms HitStop",
 		is_equal_approx(Engine.time_scale, 1.0),
 		"time_scale=%.3f" % Engine.time_scale)
-	_check("Slime flashed white after the hit",
-		target.get_node("Visuals").self_modulate == Color(1, 1, 1, 1),
-		str(target.get_node("Visuals").self_modulate))
+	# The flash is the white silhouette row of the sheet: frame >= 12.
+	var target_body: Sprite2D = target.get_node("Visuals/Body")
+	_check("Slime flashed white after the hit (white sheet row)",
+		target.is_flashing() and target_body.frame >= 12,
+		"flashing=%s frame=%d" % [str(target.is_flashing()), target_body.frame])
 	_check("A hit spark was spawned", _count_hit_sparks(main) >= 1)
 	var spark_node: Node2D = _first_hit_spark(main)
 	if spark_node != null:
@@ -313,9 +335,9 @@ func _run() -> void:
 
 	# The flash must wear off again (back to the slime's own green).
 	await _wait(player.attack_duration)
-	_check("White flash ends after 0.1 s",
-		target.get_node("Visuals").self_modulate == target.body_color,
-		str(target.get_node("Visuals").self_modulate))
+	_check("White flash ends after 0.1 s (back to the coloured row)",
+		not target.is_flashing() and target_body.frame < 12,
+		"flashing=%s frame=%d" % [str(target.is_flashing()), target_body.frame])
 	_check("Hit sparks clean themselves up", _count_hit_sparks(main) == 0)
 	_place_for_hit(player, target)
 	await _punch(player)

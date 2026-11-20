@@ -26,6 +26,7 @@ Inspect and choose from **4 distinct heroes** on the Showcase Character Select s
 ## Core Features
 
 - **High-Detail `32×32` Pixel-Art Heroes**: Custom-shaded spritesheets with dark pixel outlines, weapons, shields, quivers, and gothic cloaks.
+- **Hand-Animated Jelly Slimes** (`slime_visuals.gd` + `tools/make_slime_sprites.py`): rounded 32×32 dome with banded pixel shading, glossy specular, blink, a 3-stage hop with squash & stretch, red tremble wind-up, white silhouette hit flash, goo-splat death decal, and an elite variant — regenerated from one command (`docs/SLIME_REDESIGN.md`).
 - **Tactical Proximity Mini-Map** (`scripts/ui/minimap.gd`): Top-right `1:10` arena map showing walls, obstacles, and player position (no camera box clutter). Distant enemies (`> 210 px`) only display **directional arrows (`➔`)** pointing their way until you close in (`<= 210 px`) to reveal their exact position!
 - **Endless Escalating Waves, Elites & Bosses** (`WaveSpawner` + `ForestColossus`): Slimes, Skeleton Archers, Stone Golems, `3x HP` Elites, and 5th-wave Boss fights.
 - **Between-Wave Roguelike Upgrades** (`UpgradePool` + `UpgradeMenu`): Pick 1 of 3 stacking run upgrades after every cleared wave.

@@ -1,11 +1,18 @@
 extends CharacterBody2D
-## "Dummy Slime" - the first enemy of the game.
+## "Slime" - the first enemy of the game, and the tutorial for every
+## attacking enemy that followed.
 ##
-## It is deliberately simple:
-##  - harmless target practice (it does not damage the player yet),
-##  - slowly slides toward the player when they are close,
-##  - stops once it is standing right next to them,
-##  - takes damage, flashes white, and pops when its health runs out.
+## What the AI does (this file):
+##  - sleeps until the player is within `detection_range`,
+##  - crawls toward them and stops just short (`stop_distance`),
+##  - telegraphs, lunges, hits, recovers, waits out `attack_cooldown`,
+##  - takes damage, flashes white, pops into goo when its health runs out.
+##
+## What it LOOKS like (scripts/enemies/slime_visuals.gd):
+##  a rounded jelly that breathes, blinks, hops, squashes on landing,
+##  winds up red before a lunge and splats into a puddle on death.
+##  The split matters: every number in this file is gameplay, every pixel
+##  is over there.
 ##
 ## =========================================================================
 ## THE TWO HALVES OF A HIT (beginner-friendly)
@@ -74,7 +81,8 @@ signal died
 ## How long the death "squash and fade" takes before queue_free().
 @export var death_duration: float = 0.3
 
-## Colour used for the placeholder square sprite.
+## The slime's signature green. Drives the goo droplets / death splat, so
+## a future toxic-blue slime is one Inspector value, not a new texture.
 @export var body_color: Color = Color("6ec866")
 
 # --- Phase 4: the slime ATTACKS back ----------------------------------
@@ -132,8 +140,9 @@ var _has_hit_this_lunge: bool = false
 # NODE REFERENCES
 # =====================================================================
 
-@onready var visuals: Sprite2D = $Visuals
-@onready var anim_player: AnimationPlayer = $AnimPlayer
+## The look lives in slime_visuals.gd (12-pose sheet, hop cycle, squash &
+## stretch, hit flash, death splat). The AI below never touches pixels.
+@onready var visuals: SlimeVisuals = $Visuals
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var attack_area: Area2D = $AttackArea
 @onready var health_bar: Node2D = $HealthBar  # custom-drawn bar, see health_bar.gd
@@ -151,9 +160,11 @@ var player: Node2D = null
 # =====================================================================
 
 func _ready() -> void:
-	# Remember our spawn point so the idle animation can bob around it,
-	# and so a dead slime is removed exactly where it fell.
-	visuals.self_modulate = body_color
+	# Start asleep: a freshly spawned slime breathes in place until the
+	# player walks into its detection range.
+	visuals.set_moving(false)
+	visuals.set_facing(1.0)
+	visuals.set_goo_color(body_color)
 
 	# Procedural placeholder audio (cached in SFXGenerator so all slimes
 	# share the same generated waveform buffers in memory).
@@ -200,11 +211,12 @@ func _physics_process(delta: float) -> void:
 		AttackState.TELEGRAPH, AttackState.RECOVER:
 			velocity = Vector2.ZERO
 			move_and_slide()
-			_set_walking(false)
+			visuals.set_moving(false)
 		AttackState.LUNGE:
 			velocity = _lunge_dir * lunge_speed
 			move_and_slide()
-			_set_walking(true)
+			visuals.set_facing(_lunge_dir.x)
+			visuals.set_moving(true)
 
 
 ## Advance telegraph/lunge/recover/cooldown timers.
@@ -243,16 +255,14 @@ func _maybe_start_attack() -> void:
 		_attack_state = AttackState.TELEGRAPH
 		_attack_timer = telegraph_duration
 		velocity = Vector2.ZERO
-		_set_walking(false)
+		visuals.set_moving(false)
 		_show_telegraph()
 
 
-## The warning: squash down and glow red, like winding up a jump.
+## The warning: gather low, lean back, tremble and glow red. All of that
+## is one call - the timing lives in slime_visuals.gd next to the art.
 func _show_telegraph() -> void:
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(visuals, "scale", Vector2(1.3, 0.7), telegraph_duration)
-	tween.tween_property(visuals, "modulate", Color(1.0, 0.45, 0.45), telegraph_duration)
+	visuals.play_telegraph()
 
 
 ## Spring at where the player STOOD at take-off; hitbox live.
@@ -267,11 +277,9 @@ func _start_lunge() -> void:
 	_attack_state = AttackState.LUNGE
 	_attack_timer = lunge_duration
 
-	# Un-squash into the jump shape.
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(visuals, "scale", Vector2(0.85, 1.25), 0.08)
-	tween.tween_property(visuals, "modulate", Color.WHITE, 0.08)
+	# Un-squash into the long "spring" pose, facing the jump direction.
+	visuals.set_facing(_lunge_dir.x)
+	visuals.play_lunge()
 
 
 ## Lunge over: hitbox off, brief slide to a stop.
@@ -281,19 +289,15 @@ func _end_lunge() -> void:
 	_attack_timer = 0.35
 	velocity = Vector2.ZERO
 
-	# Return to the resting shape.
-	var tween := create_tween()
-	tween.tween_property(visuals, "scale", Vector2.ONE, 0.15)
+	# Return to the resting dome, then back to breathing/hopping.
+	visuals.play_recover()
 
 
 ## Abort an in-progress telegraph (safety valve for edge cases).
 func _cancel_telegraph() -> void:
 	_attack_state = AttackState.COOLDOWN
 	_attack_timer = attack_cooldown * 0.5
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(visuals, "scale", Vector2.ONE, 0.15)
-	tween.tween_property(visuals, "modulate", Color.WHITE, 0.15)
+	visuals.play_recover()
 
 
 ## Called by the wave spawner for hero versions of this enemy.
@@ -305,6 +309,8 @@ func become_elite() -> void:
 	Elite.make_enemy_elite(self)
 	telegraph_duration *= 0.6
 	lunge_speed *= 1.15
+	# Slightly bigger + warmer, on top of the shared golden ring.
+	visuals.become_elite()
 
 
 ## The player is "usable" for attacking while it exists and is not dead.
@@ -329,14 +335,14 @@ func _chase_player() -> void:
 	if player == null:
 		velocity = Vector2.ZERO
 		move_and_slide()
-		_set_walking(false)
+		visuals.set_moving(false)
 		return
 
 	# The player is dead: stop pestering the corpse and just idle.
 	if player.get("is_dead"):
 		velocity = Vector2.ZERO
 		move_and_slide()
-		_set_walking(false)
+		visuals.set_moving(false)
 		return
 
 	var to_player: Vector2 = player.global_position - global_position
@@ -356,21 +362,13 @@ func _chase_player() -> void:
 
 	move_and_slide()
 
-	# Only animate "walk" while we are actually moving.
-	_set_walking(velocity.length() > 0.0)
-
-
-# =====================================================================
-# ANIMATION
-# =====================================================================
-
-## Switches between the looping "idle" bounce and the "walk" wobble.
-## play() is only called on a real change, otherwise the animation would
-## restart from frame 0 every physics frame.
-func _set_walking(walking: bool) -> void:
-	var desired := "walk" if walking else "idle"
-	if anim_player.current_animation != desired:
-		anim_player.play(desired)
+	# Face the player (the sheet is drawn facing right). The 6 px dead zone
+	# stops a slime standing on top of the player from flickering back and
+	# forth between the two sides every frame.
+	if absf(to_player.x) > 6.0:
+		visuals.set_facing(to_player.x)
+	# And let the visuals decide between breathing in place and hopping.
+	visuals.set_moving(velocity.length() > 0.0)
 
 
 # =====================================================================
@@ -425,31 +423,39 @@ func take_damage(amount: int) -> void:
 
 	_update_health_bar()
 	health_changed.emit(current_health, max_health)
+	visuals.play_hurt()
 	flash_white(flash_duration)
 
 	if current_health <= 0:
 		die()
 
 
-## Briefly paints the sprite pure white so a hit is unmistakable.
-## (sprite `self_modulate` is a color multiplier over the texture.)
+## Briefly paints the slime pure white so a hit is unmistakable.
+##
+## The flash is NOT a colour multiply: `slime_visuals.gd` swaps to the
+## white silhouette row of the sheet (frame + 12) for a blink. That keeps
+## the exact rounded outline of the pose instead of washing a texture out.
 func flash_white(duration: float) -> void:
 	if _is_flashing or is_dead:
 		return
 
 	_is_flashing = true
-	var original := body_color
-	visuals.self_modulate = Color(1, 1, 1, 1)  # white = max brightness
+	visuals.flash(duration)
 	await get_tree().create_timer(duration).timeout
 
 	# The node may have died while we waited.
 	if not is_instance_valid(visuals):
 		return
-	visuals.self_modulate = original
 	_is_flashing = false
 
 
-## Shrink + fade, then remove the node after `death_duration` seconds.
+## True while the white silhouette is showing (used by the tests).
+func is_flashing() -> bool:
+	return _is_flashing
+
+
+## Flatten into a goo puddle, leave a decal, fade out, then queue_free()
+## after `death_duration` seconds.
 func die() -> void:
 	if is_dead:
 		return
@@ -470,18 +476,16 @@ func die() -> void:
 	set_deferred("collision_layer", 0)
 	set_deferred("collision_mask", 0)
 
-	# A Tween animates properties over time without writing any
-	# per-frame code. tween_property(object, "property", final_value, seconds)
+	# The slime flattens into a puddle, spits goo and leaves a decal.
+	# slime_visuals.gd owns the pose + particles; this tween only fades the
+	# leftover puddle out so the node can be freed cleanly.
+	visuals.play_death()
+
 	var tween := create_tween()
-	tween.set_parallel(true)  # both properties animate at the same time
-	tween.tween_property(visuals, "scale", Vector2.ZERO, death_duration)
+	tween.set_parallel(true)
 	tween.tween_property(visuals, "modulate:a", 0.0, death_duration)
 	if health_bar != null:
 		tween.tween_property(health_bar, "modulate:a", 0.0, death_duration)
-
-	# Splash! The shrink+fade alone reads as "mistake"; a burst of
-	# droplets the same colour as the body reads as "the slime popped".
-	_spawn_death_burst()
 
 	# Tell listeners (loot drops, score, wave counters, ...) - BEFORE we
 	# disappear, while the node is still valid.
@@ -492,39 +496,6 @@ func die() -> void:
 	# which is the safe way to delete a node from inside its own code.
 	await get_tree().create_timer(death_duration).timeout
 	queue_free()
-
-
-## One-shot burst of small squares in the slime's colour, flying outward
-## and falling back down - the classic "goo splat".
-##
-## Created in CODE (not in the scene file) because we only ever need it
-## once per slime, at the moment of death. KEY DETAIL: the burst is added
-## to this slime's PARENT, not to the slime itself - the slime frees
-## itself 0.3 s after dying, which would cut the particles short.
-func _spawn_death_burst() -> void:
-	var burst := CPUParticles2D.new()
-	burst.one_shot = true        # fire once, then stop on its own
-	burst.amount = 14            # how many droplets
-	burst.lifetime = 0.45        # how long each droplet lives (seconds)
-	burst.explosiveness = 1.0    # 1.0 = all droplets spawn at once (a pop)
-	burst.direction = Vector2.UP # base direction; `spread` scatters it
-	burst.spread = 180.0         # so droplets can fly in ANY direction
-	burst.initial_velocity_min = 60.0
-	burst.initial_velocity_max = 140.0
-	burst.gravity = Vector2(0, 240)  # droplets arc back down like goo
-	burst.scale_amount_min = 1.5     # tiny 1-2 px squares, ...
-	burst.scale_amount_max = 3.5     # ... big enough to see
-	burst.color = body_color.darkened(0.1)
-	burst.emitting = false       # position it first, THEN fire
-
-	# Parent it next to us (we are kept as a node but dying).
-	get_parent().add_child(burst)
-	burst.global_position = global_position + Vector2(0, 4)
-	burst.emitting = true
-
-	# CPUParticles2D emits `finished` when a one-shot emission completes;
-	# use it to clean the burst node up automatically.
-	burst.finished.connect(burst.queue_free)
 
 
 # =====================================================================

@@ -9,8 +9,9 @@ plus the places you will want to touch when you add the next enemy.
 | --- | --- |
 | `scenes/player/Player.tscn` | Player root, `Hitbox` Area2D, `attack` animation |
 | `scripts/player/player.gd` | Input, swing timing, hit detection, damage |
-| `scenes/enemies/Slime.tscn` | Dummy slime: body, hurtbox, health bar |
-| `scripts/enemies/slime.gd` | Health, white flash, death, follow AI |
+| `scenes/enemies/Slime.tscn` | Rounded jelly: `Visuals` (shadow + goo + 12-pose body), hurtbox, health bar |
+| `scripts/enemies/slime.gd` | Health, hit flash, death, follow AI, attack state machine |
+| `scripts/enemies/slime_visuals.gd` | Every slime pixel: hop cycle, squash & stretch, poses, goo FX (see `SLIME_REDESIGN.md`) |
 | `scripts/ui/health_bar.gd` | Immediate-mode `draw_rect()` health bar |
 | `scenes/fx/HitSpark.tscn` | One-shot impact spark |
 | `scripts/utils/ScreenShake.gd` | Autoload `Camera2D` shake with stacking & decay |
@@ -44,7 +45,7 @@ Space / left click
            │     ├─ current_health -= 10
            │     ├─ HitSFX.play()        0.08 s higher-pitched impact pop
            │     ├─ HealthBar.set_health()
-           │     ├─ flash_white(0.1)     sprite turns white, then back
+           │     ├─ flash_white(0.1)     frame swaps to the white silhouette row, then back
            │     └─ current_health <= 0 → die() → DeathSFX.play() → tween → queue_free()
            ├─ spawn 6x6 fist-colored HitSpark (only on hit)
            └─ emit attack_hit(enemy)          anyone can listen
