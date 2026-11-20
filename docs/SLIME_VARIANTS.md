@@ -2,6 +2,11 @@
 
 ![The slime family](images/slime_variants_preview.png)
 
+The danger zones those variants leave on the floor are pixel art too
+(`tools/make_fx_sprites.py`):
+
+![Hazard art](images/slime_hazards_preview.png)
+
 > **Status: Phase V1 shipped.** The chassis + **Acid, Ember and Basalt** are in
 > the game; Frost, Splitter, Void and the King Slime are designed but **not
 > built** (V2/V3, see §5). Deferred on purpose: the boss slot stays with the
@@ -116,8 +121,10 @@ bosses alternate instead of one replacing the other.
 | `scripts/enemies/slime_visuals.gd` | `set_variant(row)`; `frame = row * 24 + (flash ? 12 : 0) + pose` |
 | `scripts/enemies/slime.gd` | `@export variant_id` + `_apply_variant()` (stats, goo colour, sheet row) + three hooks: `_update_contact_damage()` (basalt), `_on_death_effect()` (acid / ember) |
 | `scripts/enemies/wave_spawner.gd` | slime-family sub-roll right after `instantiate()` (before `add_child`, so `_ready()` sees it); node names advertise the variant (`AcidSlime_W3_7`) |
-| `scenes/fx/AcidPool.tscn` + `scripts/fx/acid_pool.gd` | drawn-on-the-fly puddle: r 26, 3 dmg / 0.5 s, 4 s life, 0.9 s fade-out, **max 6 live** |
-| `scenes/fx/EmberBlast.tscn` + `scripts/fx/ember_blast.gd` | 0.55 s fuse with the boss's `GroundTelegraph` circle filling up, then one r 44 / 14 dmg blast + ring + particles — and it **lights the fuse of every other ember in the radius**, so a cluster pops as a cascade |
+| `scenes/fx/AcidPool.tscn` + `scripts/fx/acid_pool.gd` | **pixel-art** puddle (4-frame bubble loop): r 26, 3 dmg / 0.5 s, 4 s life, 0.9 s fade-out, **max 6 live** |
+| `scenes/fx/EmberBlast.tscn` + `scripts/fx/ember_blast.gd` | 0.55 s fuse drawn as 8 **pixel-art** charge frames, then one r 44 / 14 dmg blast (5-frame shockwave + particles) — and it **lights the fuse of every other ember in the radius**, so a cluster pops as a cascade |
+| `tools/make_fx_sprites.py` | generator for the hazard art: acid pool strip, ember ring strip, detonation strip + `docs/images/slime_hazards_preview.png` |
+| `scripts/fx/pixel_shapes.gd` | `PixelShapes.filled_disc/ring`: hazards that follow a live number (the boss telegraph) drawn as 1-px rows instead of vector circles |
 | `scenes/enemies/Slime.tscn` | `vframes` 2 → 8 |
 | `tests/slime_variants_test.gd` + `.tscn` | 60+ checks: registry, ladder, per-variant stats & rows, pool tick/expiry/cap, fuse timing & single hit, contact tick, grass passivity |
 | `tests/combat_test.gd` | sheet assertions moved to the family layout (`frame % 24`) |
@@ -132,7 +139,13 @@ purpose):
 2. **Multipliers are applied in `_ready()`, i.e. after the spawner's wave bonus.**
    Identical ordering to `become_elite()`'s ×3 HP, so elite + variant stacks
    predictably instead of fighting each other.
-3. **The fuse pulses but never grows.** An earlier draft scaled the ember body
+3. **Hazards are pixel art, not `_draw()` circles.** `draw_circle()` is
+   rasterised at the *window* resolution, so the first shippable version of the
+   acid pool and the ember fuse looked like smooth vector rings floating under a
+   pixel-art world. Both are now pre-rendered strips at **1 texture pixel = 1
+   game pixel**, generated at exactly the damaging radius and never scaled at
+   runtime (see `docs/images/slime_hazards_preview.png`).
+4. **The fuse pulses but never grows.** An earlier draft scaled the ember body
    while charging; that would have made the painted circle look smaller than the
    real blast. A telegraph that lies is worse than no telegraph.
 

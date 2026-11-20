@@ -15,7 +15,7 @@ extends Node
 ##      from its own row of slime.png
 ##   4. acid death leaves a pool that damages on a 0.5 s tick, only inside
 ##      its radius, and expires
-##   5. ember death fuses (visible charge) then hits once for 14
+##   5. ember death fuses (pixel-art charge frames) then hits once for 14
 ##   6. basalt damages on contact on a 0.8 s tick; grass never does
 ##   7. the acid pool cap holds at 6
 ##
@@ -256,6 +256,9 @@ func _test_acid_pool() -> void:
 	_check("Pool drops at the slime's feet",
 			pool.global_position.distance_to(Vector2(0, 18)) < 2.0,
 			str(pool.global_position))
+	_check("Pool is pixel art, not a drawn circle",
+			pool._sprite != null and pool._sprite.texture != null
+			and pool._sprite.hframes == 4)
 	_check_eq("Pool damage per tick", pool.damage_per_tick, 3)
 	_check_eq("Pool tick interval", pool.tick_interval, 0.5)
 	_check("Pool paints a >20 px radius", pool.radius >= 20.0, str(pool.radius))
@@ -308,13 +311,14 @@ func _test_ember_fuse() -> void:
 	_check_eq("Blast damage is 14", blast.damage, 14)
 	_check("Blast radius is 44 px", is_equal_approx(blast.radius, 44.0),
 			str(blast.radius))
-	_check("Fuse paints a ground telegraph", blast._zone != null)
+	_check("Fuse paints the 8-frame pixel-art ring", blast._art != null
+			and blast._art.texture != null and blast._art.hframes == 8)
 	_check_eq("Nothing explodes instantly", fake.hit_count, 0)
 
 	await _wait(0.25)
-	var charge: float = blast._zone.charge if blast._zone != null else -1.0
-	_check("Telegraph charge grows during the fuse",
-			charge > 0.1 and charge < 1.0, "charge=%.2f" % charge)
+	var fuse_frame: int = blast._art.frame if blast._art != null else -1
+	_check("The fuse strip advances during the fuse",
+			fuse_frame > 0 and fuse_frame < 8, "frame=%d" % fuse_frame)
 	_check("Player still untouched mid-fuse", fake.hit_count == 0)
 
 	await _wait(0.5)
