@@ -13,6 +13,10 @@ extends CharacterBody2D
 ##   SHOOT      -> spawn the arrow, done
 ##   COOLDOWN   -> walk around, cannot shoot yet
 ##
+## Looks live in scripts/enemies/archer_visuals.gd (12-pose skeleton sheet,
+## shamble, rattles, bow draw, collapse). This file only calls it - no pixel
+## or tween of the silhouette is decided here.
+##
 ## Same combat contract as the slime (docs/ARCHITECTURE.md):
 ##   * the PLAYER'S hitbox calls our take_damage()            (we get hurt)
 ##   * our ARROW calls the player's take_damage()         (we deal damage)
@@ -111,8 +115,12 @@ var _aim_line: Line2D = null
 # NODE REFERENCES
 # =====================================================================
 
-@onready var visuals: Sprite2D = $Visuals
-@onready var anim_player: AnimationPlayer = $AnimPlayer
+## Untyped on purpose: `ArcherVisuals` is a brand-new `class_name`, and the
+## global class cache (.godot/) is gitignored, so a typed reference would make
+## the very first headless run fail until an editor scan registered it. The
+## scene still loads archer_visuals.gd by path, so every call below is the same
+## dynamic call the slime does with its typed node.
+@onready var visuals = $Visuals
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var health_bar: Node2D = $HealthBar
 @onready var hit_sfx: AudioStreamPlayer = $HitSFX
@@ -150,6 +158,10 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector2.ZERO   # planted feet while drawing the bow
 			move_and_slide()
 			_set_walking(false)
+			# 0 -> 1 over the telegraph, so the string comes back in step
+			# with the red glow the player is already reading.
+			var aim_progress: float = 1.0 - clampf(_attack_timer / maxf(aim_duration, 0.001), 0.0, 1.0)
+			visuals.play_draw(aim_progress)
 			_update_aim_line()
 		AttackState.SHOOT:
 			# One physics frame of "release": spawn and move on.
@@ -161,10 +173,10 @@ func _physics_process(delta: float) -> void:
 			# player got closer - this is what makes him FEEL skittish.
 			_keep_distance()
 
-	# Face the player whenever he exists: sprite flip is cheap and
+	# Face the player whenever he exists: a sprite flip is cheap and
 	# reads instantly. (Our texture looks to the RIGHT by default.)
 	if player != null and is_instance_valid(player):
-		visuals.flip_h = player.global_position.x < global_position.x
+		visuals.set_facing(player.global_position.x - global_position.x)
 
 
 ## Advance the small state machine.
@@ -198,6 +210,9 @@ func _start_aim() -> void:
 	tween.set_parallel(true)
 	tween.tween_property(visuals, "modulate", Color(1.0, 0.5, 0.5), aim_duration)
 	tween.tween_property(visuals, "scale", Vector2(1.1, 0.95), aim_duration)
+
+	# The art itself pulls the string: the pose advances with the AI timer.
+	visuals.play_draw(0.0)
 
 	_spawn_aim_line()
 
@@ -303,6 +318,14 @@ func _fire() -> void:
 	var tween := create_tween()
 	tween.tween_property(visuals, "scale", Vector2.ONE, 0.12)
 
+	# The arm snaps forward and lets go; a third of the time the skeleton
+	# then tilts its head at you. Pure swagger - it cannot shoot faster.
+	visuals.play_release()
+	if randf() < 0.34:
+		var taunt := create_tween()
+		taunt.tween_interval(0.22)
+		taunt.tween_callback(visuals.play_mock)
+
 
 ## Called by the wave spawner for hero versions of this enemy.
 ## Shared package (3x HP + golden ring) lives in Elite; the archer's
@@ -389,10 +412,9 @@ func _is_player_alive() -> bool:
 # ANIMATION
 # =====================================================================
 
+## The visuals own the actual frames; this is only "am I moving?".
 func _set_walking(walking: bool) -> void:
-	var desired := "walk" if walking else "idle"
-	if anim_player.current_animation != desired:
-		anim_player.play(desired)
+	visuals.set_moving(walking)
 
 
 # =====================================================================
@@ -411,23 +433,26 @@ func take_damage(amount: int) -> void:
 	hit_sfx.play()
 	_update_health_bar()
 	health_changed.emit(current_health, max_health)
+	# A visible flinch plus the white silhouette. Both are cosmetic; the
+	# hurt pose is skipped mid-draw so the telegraph never lies.
+	visuals.play_hurt()
 	flash_white(flash_duration)
 
 	if current_health <= 0:
 		die()
 
 
-## Tint RED (not white): the sprite has real pixels, so multiplying to
-## pure white would just show the original colours - red reads as "hit".
+## Swap to the pure-white silhouette row of the sheet for a moment. The
+## tint is left alone so the exhaustion grey and any elite modulate survive
+## the hit untouched (tests read `visuals.modulate` directly).
 func flash_white(duration: float) -> void:
 	if _is_flashing or is_dead:
 		return
 	_is_flashing = true
-	visuals.modulate = Color(1, 0.35, 0.35)
+	visuals.flash(duration)
 	await get_tree().create_timer(duration).timeout
 	if not is_instance_valid(visuals) or is_dead:
 		return
-	visuals.modulate = Color.WHITE
 	_is_flashing = false
 
 
@@ -445,43 +470,27 @@ func die() -> void:
 	set_deferred("collision_layer", 0)
 	set_deferred("collision_mask", 0)
 
+	# Skeletons don't squash and they don't rotate either: the sheet has a
+	# knees-fold pose followed by a bone heap, so the collapse is drawn.
+	visuals.play_death()
+
 	var tween := create_tween()
 	tween.set_parallel(true)
-	# Skeletons don't squash - they topple: rotate and drop.
-	tween.tween_property(visuals, "rotation_degrees", 90.0, death_duration)
-	tween.tween_property(visuals, "position:y", visuals.position.y + 6.0, death_duration)
-	tween.tween_property(visuals, "modulate:a", 0.0, death_duration)
+	# The collapse is held for a beat before the heap dissolves - otherwise
+	# the player never sees the pose they were promised.
+	var fade_delay: float = minf(0.12, death_duration * 0.5)
+	tween.tween_property(visuals, "modulate:a", 0.0,
+		maxf(death_duration - fade_delay, 0.05)).set_delay(fade_delay)
 	if health_bar != null:
 		tween.tween_property(health_bar, "modulate:a", 0.0, death_duration)
 
-	# Bone-white dust puff instead of goo.
-	_spawn_death_burst()
+	# (Bone chips are spawned by archer_visuals.gd in play_death, together
+	# with the pose - the art and its dust stay in one file.)
 
 	died.emit()
 
 	await get_tree().create_timer(death_duration).timeout
 	queue_free()
-
-
-func _spawn_death_burst() -> void:
-	var burst := CPUParticles2D.new()
-	burst.one_shot = true
-	burst.amount = 12
-	burst.lifetime = 0.4
-	burst.explosiveness = 1.0
-	burst.direction = Vector2.UP
-	burst.spread = 180.0
-	burst.initial_velocity_min = 50.0
-	burst.initial_velocity_max = 110.0
-	burst.gravity = Vector2(0, 240)
-	burst.scale_amount_min = 1.0
-	burst.scale_amount_max = 2.0
-	burst.color = Color(0.87, 0.85, 0.75)  # bone chips
-	burst.emitting = false
-	get_parent().add_child(burst)
-	burst.global_position = global_position + Vector2(0, 4)
-	burst.emitting = true
-	burst.finished.connect(burst.queue_free)
 
 
 # =====================================================================

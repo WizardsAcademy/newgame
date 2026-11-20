@@ -35,6 +35,11 @@
   archer VOLLEY (3-arrow fan), golem UPRISING (+50% slam radius, +5 dmg);
   chance grows with the wave (8% from wave 6, +2%/wave, 25% cap)
   (`Elite` helper + `become_elite()` per enemy)
+- [x] Archer art pass: the 16×16 placeholder became a 32×32, 12-pose
+  hooded skeleton (shamble, bone rattle, bow draw → release, mocking head
+  tilt, white hit flash, collapse into a bone heap) with the same HP,
+  speed, damage and hitboxes — `docs/ARCHER_REDESIGN.md`, generator in
+  `tools/make_archer_sprites.py`
 - [x] Slime art pass: the green placeholder square became a rounded,
   hand-generated 12-pose jelly (breath, blink, hop, splat, wind-up, lunge,
   flinch, puddle) with a real white hit flash and goo death decal —
