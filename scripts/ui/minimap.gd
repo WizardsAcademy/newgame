@@ -141,7 +141,11 @@ func get_enemy_blips() -> Array[Dictionary]:
 			"exact_map_pos": world_to_map(enemy.global_position) if is_revealed else Vector2(-1.0, -1.0),
 			"arrow_pos": arrow_pos,
 			"kind": kind,
-			"is_elite": bool(enemy.get("is_elite")),
+			# Null-safe: the boss (Colossus) has no `is_elite` property, and
+			# `bool(null)` is a hard runtime error in this Godot version -
+			# which crashed every _draw() frame on boss waves. Compare
+			# against `true` instead so a missing property reads as false.
+			"is_elite": enemy.get("is_elite") == true,
 		})
 	return result
 
