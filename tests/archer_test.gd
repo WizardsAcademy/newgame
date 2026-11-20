@@ -196,6 +196,115 @@ func _run() -> void:
 	var arrows_after := _count_children_arrows(elite_world)
 	_check_eq("Elite volley spawns 3 arrows", arrows_after - arrows_before, 3)
 
+
+	# ----------------------------------------------------------------
+	# 7. ART RIG - the 12-pose skeleton sheet (visual-only redesign)
+	# ----------------------------------------------------------------
+	# A second archer whose AI is switched OFF, so nothing fights the rig
+	# while we poke poses. Nothing here touches gameplay: the checks below
+	# also pin the numbers the redesign promised NOT to change.
+	var rig_world := Node2D.new()
+	add_child(rig_world)
+
+	var rig: CharacterBody2D = archer_scene.instantiate()
+	rig_world.add_child(rig)
+	rig.set_physics_process(false)
+	await _tick(2)
+
+	var vis: Node2D = rig.get_node("Visuals")
+	var art: Sprite2D = vis.get_node("Body")
+
+	_check("Archer visuals expose the pose API",
+		vis.has_method("set_facing") and vis.has_method("set_moving")
+		and vis.has_method("play_draw") and vis.has_method("play_release")
+		and vis.has_method("play_mock") and vis.has_method("play_hurt")
+		and vis.has_method("play_death") and vis.has_method("flash"))
+	_check("Archer keeps a ground shadow", vis.has_node("Shadow"))
+
+	_check("Sheet is 12 poses x 2 rows (384x64 at 32x32)",
+		art.hframes == 12 and art.vframes == 2
+		and art.texture != null
+		and art.texture.get_width() == 384 and art.texture.get_height() == 64,
+		"%dx%d grid, texture %s" % [art.hframes, art.vframes,
+			"%dx%d" % [art.texture.get_width(), art.texture.get_height()]
+			if art.texture != null else "none"])
+
+	# Facing flips the sprite without moving the collision box.
+	vis.set_facing(-1.0)
+	await _frames(2)
+	var flipped_left: bool = art.flip_h
+	vis.set_facing(1.0)
+	await _frames(2)
+	_check("Facing flips the art, not the body",
+		flipped_left and not art.flip_h and rig.position == Vector2.ZERO)
+
+	# Locomotion: the walk cycle alternates the two step poses.
+	vis.set_moving(true)
+	await _frames(3)
+	var walk_frame: int = art.frame
+	vis.set_moving(false)
+	await _frames(3)
+	_check("Walking shows a walk frame (3 or 4)", walk_frame == 3 or walk_frame == 4,
+		"frame=%d" % walk_frame)
+	_check("Standing still shows an idle frame (0 or 1)",
+		art.frame == 0 or art.frame == 1, "frame=%d" % art.frame)
+
+	# The bow draw advances with the AI's own aim progress.
+	vis.play_draw(0.15)
+	await _frames(1)
+	var early_draw: int = art.frame
+	vis.play_draw(0.95)
+	await _frames(1)
+	var full_draw: int = art.frame
+	_check("Draw progress picks the half-drawn pose then the full draw",
+		early_draw == 5 and full_draw == 6,
+		"early=%d full=%d" % [early_draw, full_draw])
+
+	vis.play_release()
+	await _frames(1)
+	_check_eq("Release pose after the shot", art.frame, 7)
+
+	vis.play_mock()
+	await _frames(1)
+	_check_eq("Mocking head tilt", art.frame, 8)
+
+	vis.play_hurt()
+	await _frames(1)
+	_check_eq("Hurt flinch", art.frame, 9)
+
+	# The white silhouettes live one row down: flash = frame + 12.
+	vis.flash(0.12)
+	await _frames(2)
+	var flash_frame: int = art.frame
+	await _wait(0.2)
+	await _frames(2)
+	_check("Hit flash uses the white silhouette row",
+		flash_frame >= 12 and art.frame < 12,
+		"flash=%d after=%d" % [flash_frame, art.frame])
+
+	# Death: knees fold, then the heap that is left behind.
+	vis.play_death()
+	await _frames(2)
+	var collapse_frame: int = art.frame
+	await _wait(0.25)
+	await _frames(2)
+	_check("Death collapses into a bone heap",
+		collapse_frame == 10 and art.frame == 11,
+		"collapse=%d heap=%d" % [collapse_frame, art.frame])
+
+	# The redesign is visual only - pin the numbers it promised to leave alone.
+	_check("Gameplay numbers untouched by the art pass",
+		rig.max_health == 24 and is_equal_approx(rig.move_speed, 55.0)
+		and is_equal_approx(rig.aim_duration, 0.55)
+		and is_equal_approx(rig.attack_cooldown, 2.0)
+		and is_equal_approx(rig.shooting_distance, 260.0)
+		and is_equal_approx(rig.retreat_distance, 90.0),
+		"hp=%d speed=%.1f aim=%.2f cd=%.2f" % [rig.max_health, rig.move_speed,
+			rig.aim_duration, rig.attack_cooldown])
+	_check("Hitbox and hurtbox sizes are unchanged",
+		(rig.get_node("CollisionShape2D").shape as RectangleShape2D).size == Vector2(12, 14)
+		and (rig.get_node("Hurtbox/CollisionShape2D").shape as RectangleShape2D).size == Vector2(15, 16))
+
 	# ----------------------------------------------------------------
 	print("\n%d/%d checks passed." % [_checks - _failures, _checks])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -209,6 +318,12 @@ func _count_children_arrows(container: Node) -> int:
 			count += 1
 	return count
 
+
+## Wait for idle frames - the visuals node animates in _process, not in
+## physics, so the pose checks have to sample rendered frames.
+func _frames(count: int = 1) -> void:
+	for i in count:
+		await get_tree().process_frame
 
 func _ready() -> void:
 	_run()

@@ -12,6 +12,8 @@ plus the places you will want to touch when you add the next enemy.
 | `scenes/enemies/Slime.tscn` | Rounded jelly: `Visuals` (shadow + goo + 12-pose body), hurtbox, health bar |
 | `scripts/enemies/slime.gd` | Health, hit flash, death, follow AI, attack state machine |
 | `scripts/enemies/slime_visuals.gd` | Every slime pixel: hop cycle, squash & stretch, poses, goo FX (see `SLIME_REDESIGN.md`) |
+| `scenes/enemies/Archer.tscn` | Rattling skeleton: `Visuals` (shadow + 12-pose body), hurtbox, health bar |
+| `scripts/enemies/archer_visuals.gd` | Every archer pixel: shamble, rattle, `play_draw()`, `play_release()`, mock tilt, collapse (see `ARCHER_REDESIGN.md`) |
 | `scripts/ui/health_bar.gd` | Immediate-mode `draw_rect()` health bar |
 | `scenes/fx/HitSpark.tscn` | One-shot impact spark |
 | `scripts/utils/ScreenShake.gd` | Autoload `Camera2D` shake with stacking & decay |
