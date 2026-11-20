@@ -208,8 +208,13 @@ func _spawn_aim_line() -> void:
 	if not show_aim_line:
 		return
 	_aim_line = Line2D.new()
-	_aim_line.width = 1.5
-	_aim_line.z_index = -1
+	_aim_line.width = 2.0
+	# Z ordering trap (this is a bug we hit): z_index -1 would tuck the
+	# line BEHIND the Level's opaque Background ColorRect (z 0) and make
+	# it invisible. Keep z 0 - the line wins over the background purely
+	# by tree order, and show_behind_parent keeps it under the archer's
+	# own body so it still reads as "painted on the floor".
+	_aim_line.z_index = 0
 	_aim_line.show_behind_parent = true
 	_aim_line.default_color = Color(1.0, 0.25, 0.2, 0.35)
 	add_child(_aim_line)
