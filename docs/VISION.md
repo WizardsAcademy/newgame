@@ -1,54 +1,57 @@
-# چشم‌انداز بازی — Roguelike Brawler
+# Game Vision — Roguelike Brawler
 
-> این سند مرجع اصلی همه‌ی تصمیم‌های طراحی است. اگر وسط توسعه شک کردی
-> «کدام درست است؟»، جواب را از **اصول چهارگانه** پیدا کن.
+> This document is the single source of truth for every design decision.
+> When in doubt during development — "which choice is right?" — the answer
+> lives in the **four pillars**.
 
-## بازی در یک جمله
+## The game in one sentence
 
-یک بِراولر روگلایک دوبعدی که با دوستت لوکال دو‌نفره بازی می‌کنید، چهار
-کرکتر اختصاصی با درخت مهارت دارد، و در موج‌های سخت‌تر و سخت‌تر تا مرگ
-پیش می‌رود — هر مرگ، قوی‌تر برمی‌گردی.
+A 2D roguelike brawler you play locally with a friend, with four distinct
+characters each having their own skill tree, pushing through ever-harder
+waves until death — and every death makes you come back stronger.
 
-## اصول چهارگانه (Design Pillars)
+## Four Pillars
 
-| # | اصل | معنی عملی |
-|---|------|-----------|
-| ۱ | **هر ضربه باید حس شود** (Impact) | هیت‌استاپ، لرزش صفحه، فلش، ذرات، صدا — هیچ ضربه‌ای «بی‌صدا» نیست. اگر یک مکانیک جدید این افکت‌ها را ندارد، نصفه‌کاره است. |
-| ۲ | **کاراکتر = گیم‌پلی** | تفاوت ۴ کرکتر فقط ظاهری نیست؛ هر کدام باید ۱۰ دقیقه اول باهاش حس بکنی «این یکی از آن یکی فرق دارد». |
-| ۳ | **مرگ پیشرفت است** (Death = Progress) | هر مرگ منابع می‌دهد که در درخت مهارت خرج می‌شود. بازیکن هیچ‌وقت باید حس «حروم شد» نداشته باشد — حس «یک قدم جلو افتادم» داشته باشد. |
-| ۴ | **سخت ولی عادلانه** | دشمن‌ها تلگراف (هشدار واضح) می‌دهند، بعد می‌زنند. مرگ همیشه قابل پیشگیری است. رندوم ظالمانه ممنوع. |
+| # | Pillar | Practical meaning |
+|---|--------|-------------------|
+| 1 | **Every hit must be felt** (Impact) | Hit-stop, screen shake, flash, particles, sound — no hit is ever "silent". A new mechanic without these effects is half-finished. |
+| 2 | **Character = Gameplay** | The 4 characters must not differ only in looks; each should make you feel within the first 10 minutes that "this one plays unlike the others". |
+| 3 | **Death = Progress** | Every death grants resources spent in the skill tree. The player should never feel "that was wasted" — they should feel "I moved one step forward". |
+| 4 | **Hard but fair** | Enemies telegraph clearly, then strike. Death is always preventable. Unfair randomness is forbidden. |
 
-## حلقه‌ی بازی (Core Loop)
+## Core Loop
 
 ```
-موج دشمن → مبارزه (اورژانسی و پرتنش) → پاداش بین موج‌ها
-   ↑                                          |
-   |                                          ↓
-مرگ → درخت مهارت کرکتر ← منابع جمع‌شده → موج بعدی / ران بعدی
+enemy wave → combat (urgent, high-tension) → reward between waves
+   ↑                                              |
+   |                                              ↓
+death → character skill tree ← collected resources → next wave / next run
 ```
 
-ساختار هر ران (نسخه فعلی و نزدیک):
-- آرنا ثابت، موج‌های بی‌پایان با اسکیلینگ
-- هر ۵ موج: یک **باoss** / رویداد خاص
-- بین موج‌ها: انتخاب یک آپگرید (روگلایک درون‌ران)
+Run structure (current and near-term):
+- Fixed arena, endless waves with scaling difficulty
+- Every 5 waves: a **boss** / special event
+- Between waves: pick one upgrade (in-run roguelike layer)
 
-ساختار بلندمدت (بعد از کو-اپ):
-- اتاق‌ها → بیوم‌ها (مثل Dead Cells) با دَر خروج و انتخاب مسیر
-- اکستراکشن اختیاری: هر لحظه می‌توانی منابع را **ثبت** کنی و خارج شوی،
-  یا طمع کنی و ریسک از دست دادن همه‌شان را بپذیری
+Long-term structure (after co-op):
+- Rooms → biomes (à la Dead Cells) with exit doors and route choice
+- Optional extraction: at any moment you may **bank** your resources and
+  leave, or get greedy and risk losing them all
 
-## حالت‌های بازی
+## Game Modes
 
-| حالت | نسخه | توضیح |
-|------|------|-------|
-| تک‌نفره آرنا | ✅ الان | موجود |
-| کو-اپ لوکال ۲ نفر | فاز A | دو دسته/کیبورد، دوربین مشترک |
-| کو-اپ لوکال تا ۴ نفر | فاز B | همان معماری، فقط ورودی بیشتر |
-| آنلاین (host/join) | فاز C | یکی هاست می‌شود، بقیه جوین؛ همان باک.gif لوکال روی شبکه |
+| Mode | Version | Notes |
+|------|---------|-------|
+| Single-player arena | ✅ now | Done |
+| Local co-op, 2 players | Phase A | Two gamepads/keyboards, shared camera |
+| Local co-op, up to 4 players | Phase B | Same architecture, just more inputs |
+| Online (host/join) | Phase C | One player hosts, others join; the same local gameplay loop over the network |
 
-## لحن و ظاهر
+## Tone and Look
 
-- پیکسل‌آرت ۲۴×۲۴، پالت محدود، پس‌زمینه ساده و تیره
-- اسم‌ها و فانتزی ایرانی‌پسند: برزو، بهمن، شبنم، پری ← بقیه محتوا از
-  همین فضا الهام می‌گیرد (دشمن‌ها، جاهای بازی، اسم آپگریدها)
-- صدا: SFX رویه‌ای (procedural) با `SFXGenerator` تا موسیقی/فایل خارجی نباشد
+- 24×24 pixel art, limited palette, simple dark background
+- Persian-flavored names and fantasy: Borzo, Bahman, Shabnam, Pari —
+  the rest of the content (enemies, places, upgrade names) draws from
+  the same space
+- Audio: procedural SFX via `SFXGenerator` — no music files or external
+  audio assets

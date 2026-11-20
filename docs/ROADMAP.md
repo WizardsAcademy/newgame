@@ -1,67 +1,73 @@
-# نقشه راه
+# Roadmap
 
-> هر فاز یک «تعریف اتمام» (DoD) دارد — وقتی همه بندهای DoD تست و درست
-> بودند، کامیت و فاز بعدی. ترتیب فازها ثابت است: تک‌نفره → کو‌اپ لوکال
-> → آنلاین.
+> Every phase has a "Definition of Done" (DoD) — once every DoD item is
+> tested and correct, commit and move to the next phase. The order of
+> phases is fixed: single-player → local co-op → online.
 
-## وضعیت فعلی
+## Current status
 
-| فاز | محتوا | وضعیت |
-|-----|-------|-------|
-| ۱ | حرکت + حمله پایه (براولر) | ✅ |
-| ۲ | دشمن اول (اسلایم: چیس/لانج) | ✅ |
-| ۳ | جوس: لرزش صفحه، هیت‌استاپ، SFX رویه‌ای | ✅ |
-| ۴ | جان پلیر، گیم‌اور، اسپرایت برزو | ✅ |
-| ۵ | سیستم موج بی‌پایان با اسکیلینگ | ✅ |
-| ۶ | پولیش: ذرات مرگ، سایه، دود پا، فلش جراحت، بنر موج | ✅ |
+| Phase | Content | Status |
+|-------|---------|--------|
+| 1 | Movement + basic attack (brawler) | ✅ |
+| 2 | First enemy (slime: chase/lunge) | ✅ |
+| 3 | Juice: screen shake, hit-stop, procedural SFX | ✅ |
+| 4 | Player health, game over, Borzo sprite | ✅ |
+| 5 | Endless wave system with scaling | ✅ |
+| 6 | Polish: death particles, shadows, footstep dust, hurt flash, wave banner | ✅ |
 
-## فاز ۷ — تنوع دشمن و آپگرید بین موج‌ها (در جریان)
+## Phase 7 — Enemy variety and between-wave upgrades (in progress)
 
-- [x] دشمن دوم: «اسکلت کمان‌دار» — حفظ فاصله، تلگراف قرمز، تیر قابل
-  جاخالی؛ موج ۳ به بعد وارد می‌شود (`archer_start_wave`)
-- [x] دشمن سوم: «گولم سنگی» — کند، ۹۰ جان، تلگراف بلند (۰.۸ ثانیه)،
-  اسلم AOE با لرزش شدید صفحه + پنجره‌ی کیج بعد از ضربه؛ موج ۵ به بعد
-  (`golem_start_wave`)
-- [x] ترکیب موج‌ها: موج ۱–۲ فقط اسلایم؛ از موج ۳ احتمال ۳۰٪ کمان‌دار؛
-  از موج ۵ احتمال ۱۵٪ گولم — اسکیلینگ «به‌علاوه بونوس» روی آمار پایه‌ی
-  هر تایپ (cap سرعت مخصوص هر تایپ: `max_move_speed`)
-- [ ] تیرها خطِ ریسک روی زمین بکشند (telegraph خطی، نسخه‌ی پولیش)
-- [ ] الیت (نسخه قهرمانِ دشمن): هاله طلایی، ۳× جان، یک توانایی اضافه
-- [x] بین موج‌ها: انتخاب ۱ از ۳ آپگرید (روگلایک درون‌ران) — شروع با
-  آپگریدهای عمومی (+HP، سرعت حملات، دَش دوم)؛ بعداً هر کرکتر
-  آپگرید اختصاصی خودش را می‌گیرد (`UpgradePool` + منوی ۱/۲/۳، تست شد:
-  منو باز می‌شود، آمار اعمال و موج بعدی آزاد می‌شود)
-- DoD: یک ران ۱۰ دقیقه‌ای متنوع باشد؛ مرگ روی موج ۷–۱۰ طبیعی باشد؛ صفر خطای لاگ
+- [x] Second enemy: "skeleton archer" — keeps distance, red telegraph,
+  dodgeable arrows; joins from wave 3 (`archer_start_wave`)
+- [x] Third enemy: "stone golem" — slow, 90 HP, long telegraph (0.8s),
+  AOE slam with heavy screen shake + a punish window after the hit;
+  joins from wave 5 (`golem_start_wave`)
+- [x] Wave composition: waves 1–2 slimes only; from wave 3 a 30% archer
+  chance; from wave 5 a 15% golem chance — scaling is an "added bonus"
+  on each type's base stats (per-type speed cap: `max_move_speed`)
+- [x] Between waves: pick 1 of 3 upgrades (in-run roguelike layer) —
+  starts with generic upgrades (+HP, attack speed, dash); each character
+  later gets their own exclusive pool (`UpgradePool` + the 1/2/3 menu,
+  tested: menu opens, stats apply, next wave unlocks)
+- [ ] Arrows draw a risk line on the ground (linear telegraph, polish pass)
+- [ ] Elites (hero versions of enemies): golden aura, 3× HP, one extra ability
+- DoD: a 10-minute run should feel varied; death around waves 7–10 should
+  feel natural; zero log errors
 
-## فاز ۸ — باس اول
+## Phase 8 — First boss
 
-- [ ] باس موج ۵: «غول جنگل» — ۳ فاز حمله، تلگراف واضح، فاز خشمگین
-- DoD: شکست باس حس «بلد بودن» بدهد، نه خوش‌شانسی
+- [ ] Wave-5 boss: "Forest Colossus" — 3 attack phases, clear telegraphs,
+  enrage phase
+- DoD: beating the boss should feel like "I learned it", not like luck
 
-## فاز ۹ — متاپراگرس و کرکتر دوم
+## Phase 9 — Meta progression and second character
 
-- [ ] ارز مرگ + صحنه هاب/منو (انتخاب کرکتر + درخت مهارت)
-- [ ] درخت مهارت برزو — دیتا در یک فایل (JSON/دیکشنری)، نه کد سفت‌شده
-- [ ] کرکتر دوم: بهمن — روی «PlayerBase» مشترک، نه کپی player.gd
-- DoD: با مرگ‌های پیاپی، حس رشد واقعی منتقل شود؛ بهمن تفاوت مکانیکی واضح با برزو دارد
+- [ ] Death currency + hub/menu scene (character select + skill tree)
+- [ ] Borzo's skill tree — data in one file (JSON/Dictionary), not hardcoded
+- [ ] Second character: Bahman — built on a shared `PlayerBase`, not a copy
+  of player.gd
+- DoD: repeated deaths should convey real growth; Bahman must feel clearly
+  mechanically different from Borzo
 
-## فاز ۱۰ — کو-اپ لوکال (۲ نفر)
+## Phase 10 — Local co-op (2 players)
 
-- [ ] ریفکتور ورودی: هر Player به «پروفایل ورودی» (دستگاه) وصل باشد، نه
-  اکشن سراسری؛ بازیکن دوم: کیبورد دوم یا دسته
-- [ ] دوربین مشترک: هر دو پلیر در کادر + زوم داینامیک
-- [ ] احیای هم‌تیمی (نگه‌داشتن دکمه کنار جسد ۳ ثانیه)
-- [ ] HUD دو ستونه؛ friendly-fire خاموش
-- DoD: دو نفر با کیبورد+دسته تا موج ۱۰ برسند
+- [ ] Input refactor: every Player binds to an "input profile" (device),
+  not global actions; player 2: second keyboard or gamepad
+- [ ] Shared camera: both players in frame + dynamic zoom
+- [ ] Teammate revive (hold a button near the body for 3 seconds)
+- [ ] Two-column HUD; friendly fire off
+- DoD: two people on keyboard + gamepad reach wave 10
 
-## فاز ۱۱ — آنلاین (host/join)
+## Phase 11 — Online (host/join)
 
-- [ ] معماری سرور-مرجع (host = authority؛ کلاینت‌ها ورودی می‌فرستند و رندر می‌کنند)
-- [ ] همگام‌سازی وضعیت (position/health/wave) با RPC؛ اول فقط ۲ نفر
-- [ ] تست LAN اول، بعد کارگذاشتن عمومی (تصمیم روش انتشار بعداً)
-- DoD: ۲ نفر روی ۲ سیستمِ جدا یک ران سالم بازی کنند
+- [ ] Authoritative server architecture (host = authority; clients send
+  inputs and render)
+- [ ] State sync (position/health/wave) via RPC; 2 players only at first
+- [ ] LAN test first, then public deployment (distribution method decided later)
+- DoD: 2 people on 2 separate machines complete a healthy run
 
-> قاعده طلایی برای فاز ۱۱: از همین حالا چیزی «تک‌پلیرتاً» ننویسیم —
-> منطق جداست از رندر، ورودی‌ها از پلیر عبور می‌کنند نه از Input سراسری،
-> و تصمیم‌های مهم با سیگنال منتشر می‌شوند (الگوی فعلی main.gd). این
-> سه عادت، فاز ۱۱ را از کابوس به یک فاز معمولی تبدیل می‌کند.
+> Golden rule for Phase 11: write nothing "single-player-only" even now —
+> keep logic separate from rendering, route inputs through the player
+> instead of global Input, and publish important decisions with signals
+> (the current main.gd pattern). These three habits turn Phase 11 from a
+> nightmare into an ordinary phase.

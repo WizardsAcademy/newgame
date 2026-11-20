@@ -1,75 +1,82 @@
-# کرکترها و درخت مهارت
+# Characters and Skill Trees
 
-> قانون: هر کرکتر ۳ چیز اختصاصی دارد — **کیت پایه** (حمله عادی + ۲
-> توانایی)، **مکانیک امضایی** (چیزی که فقط او دارد)، و **درخت مهارت خودش**.
-> عدم توازن در اولین نسخه‌ها طبیعی است؛ بعداً پچ می‌کنیم.
+> Rule: every character owns 3 exclusive things — a **base kit** (normal
+> attack + 2 abilities), a **signature mechanic** (something only they
+> have), and **their own skill tree**. Imbalance in early versions is
+> expected; we patch it later.
 
-## جدول کلی
+## Overview Table
 
-| کرکتر | نقش | برد | سرعت | سختی یادگیری | وضعیت پیاده‌سازی |
-|--------|-----|-----|------|----------------|-------------------|
-| **برزو** | مشت‌زن تن‌به‌تن، تانک ملایم | کوتاه | سنگین/کُند | آسان | ✅ فازهای ۱–۵ |
-| **بهمن** | شوالیه شمشیربلند، «aura farmer» | متوسط–بلند | خیلی سنگین | متوسط | ❌ |
-| **شبنم** | خون‌آشام، بردار دور (تیغه‌های خونی) | بلند | چابک | متوسط | ❌ |
-| **پری** | الف، تیرکمون، موبایل و kite | خیلی بلند | سریع/شکننده | سخت | ❌ |
-
----
-
-## ۱. برزو (Borzo) — مشت‌زن
-
-- ظاهر: مرد عضلانی سیبیل‌دار، لباس کارگری سرمه‌ای، شال قرمز (اسپرایت‌شیت فعلی)
-- HP پایه: ۱۰۰ (دومین تانک بعد از بهمن)
-- مکانیک امضایی: **کمبو ۳ ضربه** (چپ–راست–آپرکات) که ضربه سوم دشمن
-  را به هوا پرتاب می‌کند
-- کیت پایه: مشت کمبو / دَش شانه (شکستن تلگراف دشمن) / زمین‌کوب (موج شوک شعاعی)
-- جهت درخت مهارت: دوام + کنترل جمعیت (knockback بیشتر، جذب HP کوچک روی
-  هر ضربه، شوک‌ویو پهن‌تر)
-
-## ۲. بهمن (Bahman) — شوالیه
-
-- ظاهر: زره پولادین، شمشیر بلند، «aura» = هاله‌ی سرد اطراف بدنش
-- HP پایه: ۱۲۰ (تانک اصلی) — کم‌سرعت‌ترین
-- مکانیک امضایی: **هاله زمستانی** — دشمنان داخل شعاع کوتاه کند می‌شوند؛
-  هرچه بهمن ثابت بایستد هاله قوی‌تر (aura farmer!)
-- کیت پایه: شلاقی شمشیر (پهن و کُند، چند دشمن) / والِ سپر (بلاک کامل
-  سمت جلو + بازتاب خفیف) / حمله شارژ (شارژ ۱ ثانیه، برش خطی)
-- جهت درخت مهارت: کنترل منطقه + بقا (هاله پهن‌تر، انعکاس دمیج، صلابت)
-
-## ۳. شبنم (Shabnam) — خون‌آشام
-
-- ظاهر: خانوم با موهای مشکی کوتاه، چشم‌های قرمز، ردّ خونی روی لباس
-- HP پایه: ۸۰ — ولی **جذب خون**: هر ضربه HP کوچکی برمی‌گرداند
-- مکانیک امضایی: **استخر خون** — دمیجی که به دشمن می‌زنی در استخر جمع
-  می‌شود و با توانایی خاص خرجش می‌کنی
-- کیت پایه: تیغه خونی (پرتاب منحنی که برمی‌گردد، مثل بومرنگ) / دَم خفاش
-  (جابه‌جایی سریع به سمت نشانگر) / بلع خون: استخر را خرج کن، انفجار
-  شعاعی + بزرگ‌ترین شفای بازی
-- جهت درخت مهارت: مدیریت ریسک (لایف‌ستیل بیشتر، چسبندگی تیغه، خفاش‌دم
-  دوم/سوم، ظرفیت استخر خون)
-
-## ۴. پری (Pari) — الف تیرانداز
-
-- ظاهر: خانوم الف جذاب، چهره ظریف، لباس سبز جنگلی، تیرکمون
-- HP پایه: ۷۰ (شکننده‌ترین) — سریع‌ترین حرکت + پرش دوگانه (double jump)
-- مکانیک امضایی: **شارژ شکارچی** — نگه داشتن حمله یک تیر عظیم می‌سازد که
-  از دشمن‌ها رد می‌شود (pierce)
-- کیت پایه: تیر سریع (در ارتقاها سه‌تایی می‌شود) / تله خاردار (گیر انداختن
-  دشمن) / باران تیر (اولتیمیت محدوده‌ای با شارژ طولانی)
-- جهت درخت مهارت: موبایل‌بازی (پرش بیشتر، سرعت شلیک، تله‌های بیشتر،
-  ضربه بحرانی از پشت)
+| Character | Role | Reach | Speed | Learning curve | Implementation status |
+|-----------|------|-------|-------|----------------|-----------------------|
+| **Borzo** | Melee brawler, soft tank | Short | Heavy/slow | Easy | ✅ Phases 1–5 |
+| **Bahman** | Greatsword knight, "aura farmer" | Medium–long | Very heavy | Medium | ❌ |
+| **Shabnam** | Vampire, ranged (blood blades) | Long | Agile | Medium | ❌ |
+| **Pari** | Elf, bow, mobile kiter | Very long | Fast/fragile | Hard | ❌ |
 
 ---
 
-## اصول درخت مهارت (مشترک بین هر ۴ کرکتر)
+## 1. Borzo — Brawler
 
-- ساختار: هر درخت از **یک ریشه** به ۳ شاخه می‌رسد (شاخه = فانتزی رول):
-  مثال برزو → «مشت‌آهنین» (دمج) / «کوه» (بقا) / «توفان» (موبایلی)
-- هر گره: عدد ثابت و چک‌پذیر (نه رندوم)؛ بیشینه سطح هر گره ۲–۳
-- هزینه‌ها بعد از هر مرگ خرج می‌شوند و **هرگز از دست نمی‌روند** (متاپراگرس)
-- قاعده طراحی: گره‌های «مکانیک جدید» را ارزان و گره‌های «عدد» را گران
-  بگذار — گره مکانیکی (مثل پرش دوم پری) حس پیشرفت واقعی می‌دهد
+- Look: muscular mustached man, navy work clothes, red scarf (current spritesheet)
+- Base HP: 100 (second tank after Bahman)
+- Signature mechanic: **3-hit combo** (left–right–uppercut) where the
+  third hit launches the enemy into the air
+- Base kit: punch combo / shoulder dash (breaks enemy telegraphs) / ground
+  slam (radial shockwave)
+- Skill tree direction: durability + crowd control (more knockback, small
+  HP-on-hit leech, wider shockwave)
 
-## دفتر توازن (Balance Log)
+## 2. Bahman — Knight
 
-هر تغییر مهم عددی اینجا ثبت می‌شود تا بدانیم چه شد:
-- (فعلاً خالی — از اولین تست توازن بین دو کرکتر شروع می‌کنیم)
+- Look: steel armor, greatsword, an "aura" = cold frost field around his body
+- Base HP: 120 (main tank) — slowest mover
+- Signature mechanic: **Winter Aura** — enemies inside a short radius are
+  slowed; the longer Bahman stands still, the stronger the aura (aura farmer!)
+- Base kit: whiplike sword sweep (wide and slow, hits several enemies) /
+  shield wall (full frontal block + slight reflect) / charge attack
+  (1-second windup, linear cleave)
+- Skill tree direction: zone control + survival (wider aura, damage
+  reflection, resilience)
+
+## 3. Shabnam — Vampire
+
+- Look: woman with short black hair, red eyes, a blood trail on her clothes
+- Base HP: 80 — but has **life leech**: every hit returns a little HP
+- Signature mechanic: **Blood Pool** — damage you deal accumulates in a
+  pool, spent on her special ability
+- Base kit: blood blade (a curving boomerang-like throw) / bat dash (quick
+  reposition toward a marker) / blood gulp: spend the pool for a radial
+  burst + the biggest heal in the game
+- Skill tree direction: risk management (more life steal, blade stickiness,
+  second/third bat dash, blood pool capacity)
+
+## 4. Pari — Elf Archer
+
+- Look: attractive elf woman, delicate features, forest-green outfit, bow
+- Base HP: 70 (most fragile) — fastest mover + double jump
+- Signature mechanic: **Hunter's Charge** — holding the attack builds a
+  huge arrow that pierces through enemies
+- Base kit: quick arrow (upgrades into a triple shot) / spike trap (roots
+  an enemy) / arrow rain (ultimate AOE with a long windup)
+- Skill tree direction: mobility (extra jumps, fire rate, more traps,
+  critical backstabs)
+
+---
+
+## Skill Tree Principles (shared by all 4 characters)
+
+- Structure: each tree runs from **one root** into 3 branches
+  (branch = fantasy role). Example for Borzo → "Iron Fists" (damage) /
+  "The Mountain" (survival) / "The Storm" (mobility)
+- Every node: a fixed, checkable number (never random); max level of any
+  node is 2–3
+- Costs are spent after each death and **are never lost** (meta progression)
+- Design rule: price "new mechanic" nodes cheap and "numeric" nodes
+  expensive — a mechanical node (like Pari's double jump) delivers a
+  real sense of progress
+
+## Balance Log
+
+Every meaningful numeric change is logged here so we know what happened:
+- (Empty for now — starts with the first two-character balance test)

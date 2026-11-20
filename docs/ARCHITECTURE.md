@@ -1,93 +1,101 @@
-# معماری فنی
+# Technical Architecture
 
-> هدف این سند: وقتی به کو-اپ لوکال و آنلاین رسیدیم، مجبور به بازنویسی
-> نشویم. این «قواعد ساخت» است — هر تغییری که یکی از این قواعد را
-> می‌شکند، یا قاعده را به‌روز می‌کنیم یا کد را.
+> Purpose of this document: when we reach local co-op and online play,
+> we should not be forced into a full rewrite. These are the "building
+> rules" — any change that breaks one of them means we either update the
+> rule here or change the code.
 
-## موتور و ابزار
+## Engine and Tooling
 
-- **Godot 4.7.2** — GDScript، پیکسل‌آرت (texture filter = Nearest)
-- افزونه `godot_ai` برای توسعه با ایجنت (خیلی به آن تکیه داریم — خود بازی به آن وابسته نیست، ولی توسعه‌ی ما هست)
-- رزولوشن منطقی: ۱۲۸۰×۷۲۰؛ اسپرایت‌ها ۲۴×۲۴ (پلیر)، ۱۶×۱۶ (دشمنان فعلی)
+- **Godot 4.7.2** — GDScript, pixel art (texture filter = Nearest)
+- The `godot_ai` addon for agent-driven development (we lean on it
+  heavily — the game itself does not depend on it, but our development does)
+- Logical resolution: 1280×720; sprites 24×24 (player), 16×16 (current enemies)
 
-## لایه‌های برخورد (تعهدشده — بدون به‌روزرسانی همین جدول عوض نکن)
+## Collision Layers (committed — do not change without updating this table)
 
-| بیت | مقدار | معنی |
-|-----|-------|------|
-| 1 | world | دیوارها / موانع |
-| 2 | player body | بدن پلیر |
-| 3 | enemy body | بدن دشمن |
-| 8 | player hitbox | ضربه زدن پلیر |
-| 16 | enemy hurtbox | ضربه خوردن دشمن |
-| 32 | enemy attack | حمله‌ی دشمن |
-| 64 | player hurtbox | ضربه خوردن پلیر |
+| Bit | Value | Meaning |
+|-----|-------|---------|
+| 1 | world | Walls / obstacles |
+| 2 | player body | Player body |
+| 3 | enemy body | Enemy body |
+| 8 | player hitbox | Player dealing damage |
+| 16 | enemy hurtbox | Enemy receiving damage |
+| 32 | enemy attack | Enemy attack |
+| 64 | player hurtbox | Player receiving damage |
 
-## الگوی سیگنال (مهم‌ترین قاعده)
+## Signal Pattern (the most important rule)
 
-اجزای بازی **سیگنال منتشر می‌کنند**؛ اینکه آن سیگنال چه اثری روی صفحه
-بگذارد با `main.gd` (وایرینگ HUD) است:
+Game components **emit signals**; what those signals do on screen is
+wired in `main.gd` (HUD wiring):
 
 ```
-Player.attack_hit(enemy)      → عدد دمیج شناور
-Player.health_changed(h, max) → نوار جان + فلش قرمز
-Slime.died                    → شمارش کشتن + خالی شدن موج
-WaveSpawner.wave_started(n)   → بنر «Wave n»
-WaveSpawner.enemy_spawned(e)  → واتچ کردن دشمن تازه
-WaveSpawner.wave_cleared(n)   → بنر «wave cleared»
+Player.attack_hit(enemy)      → floating damage number
+Player.health_changed(h, max) → health bar + red flash
+Slime.died                    → kill count + wave empty
+WaveSpawner.wave_started(n)   → "Wave n" banner
+WaveSpawner.enemy_spawned(e)  → watch the newly spawned enemy
+WaveSpawner.wave_cleared(n)   → "wave cleared" banner
 ```
 
-چرا؟ (۱) HUD را حذف/عوض کنی بازی نمی‌شکند. (۲) در کو-اپ همین
-سیگنال‌ها به HUD دو ستونه وصل می‌شوند بدون تغییر کامپوننت‌ها. (۳) در
-نت‌پلی همین سیگنال‌ها روی شبکه همگام می‌شوند.
+Why? (1) Remove or replace the HUD and the game doesn't break. (2) In
+co-op these same signals plug into a two-column HUD with no component
+changes. (3) In netcode these same signals sync over the network.
 
-قاعده‌ی سختِ مرتبط: **منطق دمیج فقط از یک طرف** — پلیر به دشمن دمیج
-می‌زند، دشمن به پلیر؛ هیچ‌وقت هر دو طرف یک برخورد را حساب نکنید.
+Related hard rule: **damage logic flows one way only** — the player
+damages the enemy, the enemy damages the player; never compute both
+sides of a single collision.
 
-## ساختار فایل‌ها (قرارداد)
+## File Structure (convention)
 
 ```text
 scenes/
-  main.tscn              صحنه‌ی آرنا + UI + WaveSpawner
-  player/Player.tscn     پلیر
-  enemies/Slime.tscn     هر دشمن یک scene جدا
+  main.tscn              arena scene + UI + WaveSpawner
+  player/Player.tscn     the player
+  enemies/Slime.tscn     one scene per enemy
 scripts/
-  main.gd                وایرینگ سیگنال‌ها + HUD + گیم‌اور
-  player/player.gd       ورودی / حرکت / کمبو
-  enemies/slime.gd       ماشین وضعیت دشمن
-  enemies/wave_spawner.gd سیستم موج
-  ui/                    نوار جان و HUD
-  fx/                    اثرات
-  audio/sfx_generator.gd صدای رویه‌ای (factory های static)
-assets/textures/         پیکسل‌آرت (white_pixel.png ابزار عمومی)
-docs/                    همین داکیومنت‌ها
+  main.gd                signal wiring + HUD + game over
+  player/player.gd       input / movement / combo
+  enemies/slime.gd       enemy state machine
+  enemies/wave_spawner.gd wave system
+  ui/                    health bar and HUD
+  fx/                    effects
+  audio/sfx_generator.gd procedural sound (static factories)
+  upgrades/upgrade_pool.gd in-run roguelike upgrade pool
+assets/textures/         pixel art (white_pixel.png is a shared helper)
+docs/                    these documents
+tests/                   headless test scripts
 ```
 
-## کوک‌بوک: افزودن دشمن جدید
+## Cookbook: Adding a New Enemy
 
-1. اسپرایت ۱۶×۱۶ (یا ۲۴×۲۴) با Python/PIL بساز → `assets/textures/`
-2. `scenes/enemies/<Name>.tscn` با همان اسکلت Slime.tscn: Body + HurtBox +
-   AttackArea + health bar + پلیرهای SFX
-3. اسکریپت زیر `scripts/enemies/` — ماشین وضعیت با **تلگراف واضح** (اصل ۴ از VISION)
-4. سیگنال `died` حتماً emit شود (سیستم موج به آن وابسته است)
-5. در `wave_spawner.gd` به لیست انواع اضافه شود (وزن‌دهی در موج‌های بعدی)
-6. تست: اسپاون دستی، مرگ با burst ذرات، بدون خطای لاگ
+1. Build a 16×16 (or 24×24) sprite with Python/PIL → `assets/textures/`
+2. `scenes/enemies/<Name>.tscn` following the Slime.tscn skeleton: Body +
+   HurtBox + AttackArea + health bar + SFX players
+3. Script under `scripts/enemies/` — state machine with a **clear telegraph**
+   (pillar 4 from VISION)
+4. The `died` signal must be emitted (the wave system depends on it)
+5. Add the type to the list in `wave_spawner.gd` (weighted in later waves)
+6. Test: manual spawn, death with particle burst, zero log errors
 
-## قواعد آماده‌سازی برای مولتی‌پلیر (از الان رعایت کن)
+## Multiplayer-Readiness Rules (follow from day one)
 
-1. **ورودی یک‌جا خوانده شود**: همه‌ی خواندن ورودی در player.gd فقط در
-   `_read_input()` باشد؛ در فاز ۱۰ همین تابع پشت پروفایل input پلیر ۱/۲
-   می‌رود بدون تغییر بقیه‌ی کد.
-2. **تصمیم فقط نزد «مالک»**: هر عدد و تصمیم بازی (دمیج، مرگ، شمارش
-   موج) فقط یک جا محاسبه می‌شود — پلیر دمیج خودش را می‌زند،
-   spawner موج خودش را می‌سازد. کلاینت‌های آینده فقط نتیجه را نمایش
-   می‌دهند (مدل authoritative).
-3. **وابستگی به نام نود بین scene ها ممنوع**: ارتباط فقط با سیگنال یا
-   ارجاع پاس‌شده در `_ready` — نه find از بیرون به داخل درخت اجباری دیگر.
-4. `reload_current_scene` فقط راه‌حل تک‌نفره است؛ ریست ران باید
-   تابع مرکزی شود (`reset_run()` در فاز ۱۰) که همه‌ی state ها پاک کند.
+1. **Read input in one place**: all input reading in player.gd lives only
+   in `_read_input()`; in Phase 10 this same function goes behind the
+   input profile of player 1/2 without touching the rest of the code.
+2. **Decisions happen at the "owner" only**: every game number and
+   decision (damage, death, wave count) is computed in exactly one place —
+   the player deals its own damage, the spawner builds its own wave.
+   Future clients only display results (authoritative model).
+3. **No cross-scene node-name dependencies**: communication only via
+   signals or references passed in `_ready` — never forced find-from-outside
+   into a scene tree.
+4. `reload_current_scene` is a single-player-only shortcut; run reset must
+   become a central function (`reset_run()` in Phase 10) that wipes all
+   state.
 
-## چیزهایی که هنوز ضعیف‌اند و باید قوی شوند
+## Known Weak Spots To Strengthen
 
-- **توازن**: هر عددی که برای توازن تغییر می‌دهد، در Balance Log
-  (`docs/CHARACTERS.md`) ثبت کن.
-- **ذخیره‌سازی پیشرفت**: هنوز نیست؛ فاز ۹ با `user://save.json` می‌آید.
+- **Balance**: every numeric balance change gets recorded in the Balance
+  Log (`docs/CHARACTERS.md`).
+- **Progress saving**: none yet; Phase 9 adds it with `user://save.json`.
