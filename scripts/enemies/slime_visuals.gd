@@ -29,8 +29,15 @@ class_name SlimeVisuals
 ##   tests all behave exactly as before.
 
 # ---------------------------------------------------------------------------
-# Sheet layout
+# Sheet layout  (see tools/make_slime_sprites.py)
 # ---------------------------------------------------------------------------
+## Frames per row = the 12 poses.
+const ROW_FRAMES: int = 12
+
+## Frames per variant block = one coloured row + one white row.
+const VARIANT_FRAMES: int = 24
+
+## The white silhouettes sit exactly one row below their coloured poses.
 const WHITE_ROW_OFFSET: int = 12
 
 ## Frame indices inside row 0. Keep in sync with POSES in the generator.
@@ -112,6 +119,10 @@ var _blink_in: float = 3.0
 var _blink_left: float = 0.0
 var _is_elite: bool = false
 var _goo_color: Color = Color("6ec866")
+
+## Which variant block of the sheet we draw (0 grass, 1 acid, 2 ember,
+## 3 basalt). See `SlimeVariant` - this is the row PAIR index.
+var _variant_row: int = 0
 
 
 func _ready() -> void:
@@ -328,6 +339,13 @@ func _update_dead() -> void:
 # APPLYING THE LOOK
 # =====================================================================
 
+## Pick which member of the slime family this body is drawn as.
+## Called by slime.gd once, in _ready(), before the first frame is shown.
+func set_variant(row: int) -> void:
+	_variant_row = maxi(0, row)
+	_apply()
+
+
 func _set_pose(pose: int) -> void:
 	_pose = pose
 
@@ -338,8 +356,12 @@ func _apply() -> void:
 	if body == null:
 		return
 
-	# 1) frame: the white row is exactly 12 frames down the sheet.
-	body.frame = _pose + (WHITE_ROW_OFFSET if _flash_left > 0.0 else 0)
+	# 1) frame: variant block -> coloured/flash row -> pose.
+	#    0 grass art   = 0..11      grass flash = 12..23
+	#    1 acid  art   = 24..35     acid  flash = 36..47   (and so on)
+	body.frame = (_variant_row * VARIANT_FRAMES
+			+ (WHITE_ROW_OFFSET if _flash_left > 0.0 else 0)
+			+ _pose)
 	body.flip_h = _facing < 0
 
 	# 2) lift + squash & stretch (volume-ish preserving: what grows one way

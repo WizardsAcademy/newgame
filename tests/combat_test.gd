@@ -146,16 +146,18 @@ func _run() -> void:
 	var art_slime: CharacterBody2D = slimes[0]
 	var slime_visuals: Node2D = art_slime.get_node("Visuals")
 	var slime_body: Sprite2D = slime_visuals.get_node("Body")
-	_check("Slime body is a 12x2 pose sheet (384x64)", 
-		slime_body.hframes == 12 and slime_body.vframes == 2
-		and slime_body.texture.get_size() == Vector2(384, 64),
+	_check("Slime body is the 12-pose x 4-variant family sheet (384x256)",
+		slime_body.hframes == 12 and slime_body.vframes == 8
+		and slime_body.texture.get_size() == Vector2(384, 256),
 		"%dx%d frames from %s" % [slime_body.hframes, slime_body.vframes,
 			str(slime_body.texture.get_size())])
 	_check("Slime has a soft ground shadow and a goo puddle",
 		slime_visuals.has_node("Shadow") and slime_visuals.has_node("Puddle"))
+	# Every variant occupies a 24-frame block: 12 coloured poses, then the
+	# 12 white flash silhouettes. A spawned slime must show a coloured pose
+	# of its own block, never a flash row.
 	_check("Slime shows a coloured pose, never the white flash row at spawn",
-		slime_body.frame >= 0 and slime_body.frame < 12
-		and not slime_visuals.is_flashing(),
+		(slime_body.frame % 24) < 12 and not slime_visuals.is_flashing(),
 		"frame=%d" % slime_body.frame)
 	_check("Slime visuals own facing / locomotion / attack poses",
 		slime_visuals.has_method("set_facing") and slime_visuals.has_method("set_moving")
@@ -320,10 +322,11 @@ func _run() -> void:
 	_check("Engine.time_scale restores to 1.0 after 50 ms HitStop",
 		is_equal_approx(Engine.time_scale, 1.0),
 		"time_scale=%.3f" % Engine.time_scale)
-	# The flash is the white silhouette row of the sheet: frame >= 12.
+	# The flash is the white silhouette row of the sheet: inside the
+	# variant's block, but past its 12 coloured poses.
 	var target_body: Sprite2D = target.get_node("Visuals/Body")
 	_check("Slime flashed white after the hit (white sheet row)",
-		target.is_flashing() and target_body.frame >= 12,
+		target.is_flashing() and (target_body.frame % 24) >= 12,
 		"flashing=%s frame=%d" % [str(target.is_flashing()), target_body.frame])
 	_check("A hit spark was spawned", _count_hit_sparks(main) >= 1)
 	var spark_node: Node2D = _first_hit_spark(main)

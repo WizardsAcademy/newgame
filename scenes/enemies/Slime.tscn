@@ -47,7 +47,7 @@ texture = ExtResource("5_slime_puddle")
 texture = ExtResource("3_slime_sheet")
 offset = Vector2(0, -14)
 hframes = 12
-vframes = 2
+vframes = 8
 
 [node name="Hurtbox" type="Area2D" parent="."]
 collision_layer = 16

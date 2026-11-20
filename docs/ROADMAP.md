@@ -39,6 +39,13 @@
   hand-generated 12-pose jelly (breath, blink, hop, splat, wind-up, lunge,
   flinch, puddle) with a real white hit flash and goo death decal —
   `docs/SLIME_REDESIGN.md`, generator in `tools/make_slime_sprites.py`
+- [x] Slime family (Phase V1): grass / acid / ember / basalt share one 12-pose
+  rig and escalate with the wave — acid unlocks at 3 (dies into a damaging
+  pool), ember at 6 (fuses then explodes behind a painted danger circle),
+  basalt at 9 (spiked shell, contact damage, tanky) — registry in
+  `scripts/enemies/slime_variant.gd`, FX in `scenes/fx/`, design and the
+  remaining variants (frost / splitter / void / king) in
+  `docs/SLIME_VARIANTS.md`
 - DoD: a 10-minute run should feel varied; death around waves 7–10 should
   feel natural; zero log errors
 

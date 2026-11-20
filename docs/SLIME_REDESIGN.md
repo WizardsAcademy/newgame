@@ -77,22 +77,37 @@ GLINT    #FAFFF5   1 px eye glint
 
 ## 4. The sheet
 
-`assets/textures/slime.png` — **384×64**, generated, never hand-edited:
+`assets/textures/slime.png` — **384×256**, generated, never hand-edited.
+It is a family sheet: **4 variants × (art row + white-flash row) × 12 poses**.
 
 | | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **row 0** | idle_a | idle_b | blink | crouch | air_up | air_down | land | telegraph | lunge | hurt | settle | puddle |
-| **row 1** | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ |
+| **row 0** grass | idle_a | idle_b | blink | crouch | air_up | air_down | land | telegraph | lunge | hurt | settle | puddle |
+| **row 1** grass | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ |
+| **row 2** acid | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ |
+| **row 3** acid | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ | ↳ |
 
-Row 1 is the **same pose as a pure-white silhouette**. The hit flash is
-therefore `frame += 12` for 0.1 s — exact outline, zero shaders, zero extra
+…and the same two rows again for **ember** (rows 4–5) and **basalt** (rows 6–7).
+
+Every odd row is the **same pose as a pure-white silhouette**. The hit flash
+is therefore `frame += 12` for 0.1 s — exact outline, zero shaders, zero extra
 nodes, and it cannot desynchronise from the pose the slime is actually in.
 
-Three companion textures live next to it:
+Frame maths (only in `slime_visuals.gd`):
+
+```
+frame = variant_row * 24 + (flashing ? 12 : 0) + pose
+```
+
+`variant_row` is the **row pair** index: 0 grass, 1 acid, 2 ember, 3 basalt.
+The whys and the balance of the variants live in `docs/SLIME_VARIANTS.md`.
+
+Two companion textures live next to it:
 
 - `slime_shadow.png` (32×10) — feathered oval shadow.
 - `slime_goo_puddle.png` (32×10) — the wet base / landing splat / death decal.
-- `docs/images/slime_preview.png` — the contact sheet above, for review.
+- `docs/images/slime_preview.png` — grass pose contact sheet, for review.
+- `docs/images/slime_variants_preview.png` — one row per variant, for review.
 
 Everything is produced by:
 
@@ -215,11 +230,11 @@ godot --headless --path . tests/heroes_and_dash_test.tscn
 
 New assertions in `tests/combat_test.gd`:
 
-- the slime body really is the 12×2 / 384×64 pose sheet (a green box would fail),
+- the slime body really is the family sheet, handled as 12×8 / 384×256 (a green box would fail),
 - a ground shadow and a goo puddle exist,
 - the idle pose is frame 0–1, not the flash row,
-- a hit switches `Body.frame` to the white row (`>= 12`) and `is_flashing()`
-  is true, and both revert after 0.1 s.
+- a hit switches `Body.frame` into the white row of the variant's block
+  (`frame % 24 >= 12`) and `is_flashing()` is true, and both revert after 0.1 s.
 
 Manual smoke test (30 s): stand still → the slime breathes and blinks; walk
 into range → it hops toward you; let it reach 34 px → red tremble, lunge,
