@@ -1,11 +1,11 @@
 extends Area2D
-## Elven arrow fired by Pari (Hero 3 of 4).
+## Elven arrow fired by Sylvara (Hero 3 of 4).
 ##
 ## Collision layers (docs/ARCHITECTURE.md):
 ##   collision_layer = 8   (player hitbox)
 ##   collision_mask  = 17  (1 = walls + 16 = enemy hurtbox)
 ##
-## Supports both quick single/fan shots (`piercing = false`) and Pari's
+## Supports both quick single/fan shots (`piercing = false`) and Sylvara's
 ## signature charged **Hunter's Great-Arrow** (`piercing = true`, slices
 ## straight through every enemy in a line!).
 

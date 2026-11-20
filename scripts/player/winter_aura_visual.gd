@@ -1,5 +1,5 @@
 extends Node2D
-## Visual ground ring for Bahman's signature **Winter Aura**.
+## Visual ground ring for the Knight's signature **Winter Aura**.
 ##
 ## Uses `show_behind_parent = true` at `z_index = 0` so it paints on top
 ## of `Level/Background` while staying tucked under character sprites.

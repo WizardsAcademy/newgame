@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player_scene"]
 [ext_resource type="Script" path="res://scripts/main.gd" id="3_main_script"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/enemies/wave_spawner.gd" id="5_wave_spawner"]
 [ext_resource type="Script" path="res://scripts/ui/upgrade_menu.gd" id="6_upgrade_menu"]
 [ext_resource type="Script" path="res://scripts/ui/character_select_menu.gd" id="7_char_select"]
+[ext_resource type="Script" path="res://scripts/ui/minimap.gd" id="8_minimap"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wall_h"]
 size = Vector2(1280, 32)
@@ -150,31 +151,37 @@ color = Color(0.85, 0.1, 0.1, 0)
 [node name="Hint" type="Label" parent="UI"]
 offset_left = 12.0
 offset_top = 8.0
-offset_right = 540.0
-offset_bottom = 28.0
-theme_override_colors/font_color = Color(0.901961, 0.901961, 0.901961, 0.784314)
-theme_override_font_sizes/font_size = 11
-text = "WASD: move    Space/Click: attack    Shift: dash    Esc: heroes"
+offset_right = 420.0
+offset_bottom = 26.0
+theme_override_colors/font_color = Color(0.901961, 0.901961, 0.901961, 0.85)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 10
+text = "WASD: Move   Space/Click: Attack   Shift: Dash   Esc: Heroes"
 
 [node name="Stats" type="Label" parent="UI"]
 offset_left = 12.0
 offset_top = 24.0
-offset_right = 520.0
-offset_bottom = 44.0
-theme_override_colors/font_color = Color(0.6, 1, 0.7, 0.784314)
-theme_override_font_sizes/font_size = 10
-text = "damage dealt: 0    last hit: 0    kills: 0    wave: 0"
+offset_right = 440.0
+offset_bottom = 42.0
+theme_override_colors/font_color = Color(0.6, 1, 0.7, 0.88)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 9
+text = "hero: Behemoth   dmg: 0   last: 0   kills: 0   wave: 0"
 
 [node name="WaveLabel" type="Label" parent="UI"]
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -100.0
+offset_left = -90.0
 offset_top = 6.0
-offset_right = 100.0
+offset_right = 90.0
 offset_bottom = 28.0
 grow_horizontal = 2
 theme_override_colors/font_color = Color(1, 0.95, 0.75, 0.95)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 14
 text = ""
 horizontal_alignment = 1
@@ -182,16 +189,18 @@ horizontal_alignment = 1
 [node name="HPText" type="Label" parent="UI"]
 offset_left = 12.0
 offset_top = 40.0
-offset_right = 62.0
+offset_right = 78.0
 offset_bottom = 58.0
-theme_override_colors/font_color = Color(1, 0.85, 0.85, 0.9)
+theme_override_colors/font_color = Color(1, 0.92, 0.85, 0.95)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 9
-text = "HP"
+text = "BEHEMOTH"
 
 [node name="PlayerHealthBar" type="Node2D" parent="UI"]
-position = Vector2(126, 48)
+position = Vector2(146, 48)
 script = ExtResource("4_health_bar")
-bar_size = Vector2(130, 8)
+bar_size = Vector2(128, 8)
 bar_offset = Vector2(0, 0)
 low_color = Color(0.878431, 0.294118, 0.294118, 1)
 high_color = Color(0.368627, 0.878431, 0.415686, 1)
@@ -199,16 +208,18 @@ high_color = Color(0.368627, 0.878431, 0.415686, 1)
 [node name="DashText" type="Label" parent="UI"]
 offset_left = 12.0
 offset_top = 53.0
-offset_right = 62.0
+offset_right = 78.0
 offset_bottom = 69.0
-theme_override_colors/font_color = Color(0.65, 0.92, 1, 0.9)
+theme_override_colors/font_color = Color(0.65, 0.92, 1, 0.92)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 8
 text = "DASH"
 
 [node name="DashBar" type="Node2D" parent="UI"]
-position = Vector2(126, 60)
+position = Vector2(146, 60)
 script = ExtResource("4_health_bar")
-bar_size = Vector2(130, 5)
+bar_size = Vector2(128, 5)
 bar_offset = Vector2(0, 0)
 low_color = Color(0.24, 0.45, 0.68, 1)
 high_color = Color(0.35, 0.9, 1, 1)
@@ -270,3 +281,6 @@ script = ExtResource("6_upgrade_menu")
 
 [node name="CharacterSelectMenu" type="Control" parent="UI"]
 script = ExtResource("7_char_select")
+
+[node name="MiniMap" type="Control" parent="UI"]
+script = ExtResource("8_minimap")

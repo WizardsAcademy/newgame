@@ -231,7 +231,7 @@ static func create_dash_sfx() -> AudioStreamWAV:
 	return _dash_cache
 
 
-## Crisp bowstring twang + arrow whoosh (0.09 s) for Pari the Elf Archer.
+## Crisp bowstring twang + arrow whoosh (0.09 s) for Sylvara the Elf Ranger.
 static func create_bow_sfx() -> AudioStreamWAV:
 	if _bow_cache != null:
 		return _bow_cache
