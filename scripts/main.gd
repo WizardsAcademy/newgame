@@ -2,20 +2,24 @@ extends Node2D
 ## Level root for the arena.
 ##
 ## Signal-based HUD & run orchestrator (docs/ARCHITECTURE.md):
-##   CharacterSelectMenu.character_selected -> spawn chosen hero + start waves
-##   Player.attack_hit(enemy)               -> floating damage number + stats
-##   Player.health_changed(hp, max_hp)      -> health bar + red flash / heal popup
-##   Player.dash_cooldown_changed(rem, dur) -> Shift-Dash cooldown bar
-##   Player.player_died                     -> Game Over overlay
-##   WaveSpawner.wave_started / cleared     -> wave banner + UpgradeMenu
+##   CharacterSelectMenu.character_highlighted -> live-preview hero in Arena + MiniMap
+##   CharacterSelectMenu.character_selected    -> spawn chosen hero + start waves
+##   Player.attack_hit(enemy)                  -> floating damage number + stats
+##   Player.health_changed(hp, max_hp)         -> health bar + red flash / heal popup
+##   Player.dash_cooldown_changed(rem, dur)    -> Shift-Dash cooldown bar
+##   Player.player_died                        -> Game Over overlay
+##   WaveSpawner.wave_started / cleared        -> wave banner + UpgradeMenu
+##   MiniMap                                   -> top-right tactical radar
 
 
 # =====================================================================
 # NODE REFERENCES
 # =====================================================================
 
+@onready var level_root: Node2D = $Level
 @onready var player: Node2D = $Player
 @onready var enemies_root: Node2D = $Enemies
+@onready var hint_label: Label = $UI/Hint
 @onready var stats_label: Label = $UI/Stats
 @onready var hp_text_label: Label = $UI/HPText
 @onready var player_health_bar: Node2D = $UI/PlayerHealthBar
@@ -28,6 +32,7 @@ extends Node2D
 @onready var hurt_flash: ColorRect = $UI/HurtFlash
 @onready var upgrade_menu: Control = $UI/UpgradeMenu
 @onready var character_select_menu: Control = $UI/CharacterSelectMenu
+@onready var minimap: MiniMap = $UI/MiniMap
 
 
 # =====================================================================
@@ -64,32 +69,48 @@ func _ready() -> void:
 	upgrade_menu.upgrade_chosen.connect(_on_upgrade_chosen)
 	upgrade_menu.hide_menu()
 
-	# --- Character Select wiring --------------------------------------
+	# --- Character Select + Mini-Map wiring ---------------------------
+	character_select_menu.character_highlighted.connect(_on_character_highlighted)
 	character_select_menu.character_selected.connect(_on_character_selected)
+
+	if minimap != null:
+		minimap.set_arena_refs(level_root, player)
 
 	if CharacterRegistry.quick_retry_same_hero:
 		CharacterRegistry.quick_retry_same_hero = false
 		select_character(CharacterRegistry.selected_id)
 	else:
-		# Hold the default player still until the user picks their hero.
-		if player != null and "input_enabled" in player:
-			player.input_enabled = false
-		player_health_bar.set_health(100, 100)
-		dash_bar.set_health(1.0, 1.0)
-		_update_stats_label()
+		_set_combat_hud_visible(false)
+		if minimap != null:
+			minimap.is_in_menu = true
 		character_select_menu.show_menu(CharacterRegistry.selected_id)
 
 
-## Spawn the chosen hero (`"borzo"`, `"bahman"`, `"pari"`, `"shabnam"`),
-## wire all player signals into the HUD, and begin Wave 1.
-func select_character(char_id: String) -> void:
-	if character_select_menu != null and character_select_menu.is_open():
-		character_select_menu.hide_menu()
+func _set_combat_hud_visible(show_hud: bool) -> void:
+	hint_label.visible = show_hud
+	stats_label.visible = show_hud
+	hp_text_label.visible = show_hud
+	player_health_bar.visible = show_hud
+	dash_text_label.visible = show_hud
+	dash_bar.visible = show_hud
+	wave_label.visible = show_hud
 
+
+## Live-preview the highlighted hero on the stone Arena & Mini-Map while
+## the player browses the Character Select screen!
+func _on_character_highlighted(char_id: String) -> void:
+	if not character_select_menu.is_open():
+		return
 	var entry := CharacterRegistry.get_entry(char_id)
-	CharacterRegistry.selected_id = String(entry["id"])
+	_replace_player_instance(String(entry["id"]), false)
+	if minimap != null:
+		minimap.is_in_menu = true
+		minimap.set_arena_refs(level_root, player)
+		minimap.set_player_accent(entry["accent"])
 
-	# Replace the placeholder Player node cleanly.
+
+func _replace_player_instance(char_id: String, enable_combat: bool) -> Dictionary:
+	var entry := CharacterRegistry.get_entry(char_id)
 	if player != null and is_instance_valid(player):
 		remove_child(player)
 		player.queue_free()
@@ -98,18 +119,36 @@ func select_character(char_id: String) -> void:
 	new_player.name = "Player"
 	new_player.position = _spawn_origin
 	add_child(new_player)
-	# Keep Player right above Enemies in draw order, matching main.tscn.
 	move_child(new_player, enemies_root.get_index())
 	player = new_player
 
-	player.attack_hit.connect(_on_player_attack_hit)
-	player.health_changed.connect(_on_player_health_changed)
-	player.player_died.connect(_on_player_died)
-	if player.has_signal("dash_cooldown_changed"):
-		player.dash_cooldown_changed.connect(_on_dash_cooldown_changed)
-
 	if "input_enabled" in player:
-		player.input_enabled = true
+		player.input_enabled = enable_combat
+
+	if enable_combat:
+		player.attack_hit.connect(_on_player_attack_hit)
+		player.health_changed.connect(_on_player_health_changed)
+		player.player_died.connect(_on_player_died)
+		if player.has_signal("dash_cooldown_changed"):
+			player.dash_cooldown_changed.connect(_on_dash_cooldown_changed)
+
+	return entry
+
+
+## Spawn the chosen hero (`"behemoth"`, `"knight"`, `"sylvara"`, `"velmira"`),
+## wire all player signals into the HUD + Mini-Map, and begin Wave 1.
+func select_character(char_id: String) -> void:
+	if character_select_menu != null and character_select_menu.is_open():
+		character_select_menu.hide_menu()
+
+	var entry := _replace_player_instance(char_id, true)
+	CharacterRegistry.selected_id = String(entry["id"])
+
+	_set_combat_hud_visible(true)
+	if minimap != null:
+		minimap.is_in_menu = false
+		minimap.set_arena_refs(level_root, player)
+		minimap.set_player_accent(entry["accent"])
 
 	_last_health = player.current_health
 	hp_text_label.text = String(entry["name"]).to_upper()

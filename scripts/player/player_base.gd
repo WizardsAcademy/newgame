@@ -28,8 +28,8 @@ signal dash_cooldown_changed(remaining: float, duration: float)
 # EXPORTED SETTINGS
 # =====================================================================
 
-@export var character_id: String = "borzo"
-@export var character_name: String = "Borzo"
+@export var character_id: String = "behemoth"
+@export var character_name: String = "Behemoth"
 
 @export var move_speed: float = 90.0
 @export var attack_duration: float = 0.45

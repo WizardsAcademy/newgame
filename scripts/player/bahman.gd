@@ -1,9 +1,9 @@
 extends PlayerBase
-## Bahman - the Frost Greatsword Knight (Hero 2 of 4, docs/CHARACTERS.md).
+## Knight - the Frost Greatsword Knight (Hero 2 of 4, docs/CHARACTERS.md).
 ##
 ## Role: Main armored tank (120 HP), wide greatsword cleave, "aura farmer".
 ## Signature mechanic: **Winter Aura**
-##   - Enemies near Bahman are chilled & slowed (30% -> 55% slow).
+##   - Enemies near Knight are chilled & slowed (30% -> 55% slow).
 ##   - Standing your ground charges the Winter Aura (wider frost ring +
 ##     periodic icy pulse damage to enemies inside the field!).
 ##   - Shift Dash: heavy **Shield-Ram Dash** (1.0s cooldown, 16 dash damage).
@@ -28,8 +28,8 @@ func _create_attack_sfx() -> AudioStreamWAV:
 
 
 func _character_ready() -> void:
-	character_id = "bahman"
-	character_name = "Bahman"
+	character_id = "knight"
+	character_name = "Knight"
 	attack_point_offset_x = 18.0
 	dash_damage = 16
 	dash_tint = Color(0.55, 0.88, 1.0, 0.80)

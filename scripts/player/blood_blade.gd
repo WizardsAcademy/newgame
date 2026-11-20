@@ -1,8 +1,8 @@
 extends Area2D
-## Boomerang Blood Blade hurled by Shabnam the Vampire (Hero 4 of 4).
+## Boomerang Blood Blade hurled by Velmira the Vampire (Hero 4 of 4).
 ##
 ## Flies outward up to `outbound_range` (or rebounds off a wall!), then
-## curves swiftly back into Shabnam's hand - slicing enemies BOTH on the
+## curves swiftly back into Velmira's hand - slicing enemies BOTH on the
 ## way out AND on the way back!
 
 @export var outbound_speed: float = 320.0

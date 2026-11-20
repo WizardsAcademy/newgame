@@ -1,5 +1,5 @@
 extends PlayerBase
-## Pari - the Elven Ranger (Hero 3 of 4, docs/CHARACTERS.md).
+## Sylvara - the Elven Ranger (Hero 3 of 4, docs/CHARACTERS.md).
 ##
 ## Role: Fragile, ultra-fast ranged kiter (75 HP, 118 move speed).
 ## Signature mechanic: **Hunter's Charge + Elven Volley**
@@ -25,8 +25,8 @@ func _create_attack_sfx() -> AudioStreamWAV:
 
 
 func _character_ready() -> void:
-	character_id = "pari"
-	character_name = "Pari"
+	character_id = "sylvara"
+	character_name = "Sylvara"
 	dash_speed = 390.0
 	dash_damage = 11
 	dash_tint = Color(0.45, 0.98, 0.62, 0.78)
@@ -44,7 +44,7 @@ func _setup_charge_ring() -> void:
 
 
 func _get_attack_move_multiplier() -> float:
-	# Agile ranger: Pari can still glide at 55% speed while drawing her bow!
+	# Agile ranger: Sylvara can still glide at 55% speed while drawing her bow!
 	return 0.55 if _is_drawing else 0.0
 
 

@@ -1,5 +1,5 @@
 extends PlayerBase
-## Borzo - the Iron-Fist Brawler (Hero 1 of 4, docs/CHARACTERS.md).
+## Behemoth - the Iron-Fist Brawler (Hero 1 of 4, docs/CHARACTERS.md).
 ##
 ## Role: Melee brawler & soft tank (100 HP).
 ## Signature mechanic: **3-Hit Brawler Combo** (Jab -> Cross -> Uppercut!).
@@ -15,8 +15,8 @@ var _active_combo_step: int = 0
 
 
 func _character_ready() -> void:
-	character_id = "borzo"
-	character_name = "Borzo"
+	character_id = "behemoth"
+	character_name = "Behemoth"
 	dash_damage = 14
 	dash_tint = Color(1.0, 0.74, 0.32, 0.78)
 

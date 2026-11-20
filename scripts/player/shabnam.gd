@@ -1,5 +1,5 @@
 extends PlayerBase
-## Shabnam - the Crimson Vampire (Hero 4 of 4, docs/CHARACTERS.md).
+## Velmira - the Crimson Vampire (Hero 4 of 4, docs/CHARACTERS.md).
 ##
 ## Role: Agile mid-range vampire predator (85 HP, sustained by Life Leech!).
 ## Signature mechanic: **Blood Blade Boomerang + Life Leech & Blood Pool**
@@ -7,7 +7,7 @@ extends PlayerBase
 ##     curves back to slice them AGAIN on the return!
 ##   - Every hit leeches HP (+2 on blade hit, +3 on Bat-Mist Shift Dash) and
 ##     builds 1 Blood Orb (up to 5).
-##   - At 5 Blood Orbs, unleashes a **Crimson Blood Nova** around Shabnam!
+##   - At 5 Blood Orbs, unleashes a **Crimson Blood Nova** around Velmira!
 
 const BLOOD_BLADE_SCENE := preload("res://scenes/player/BloodBlade.tscn")
 
@@ -43,8 +43,8 @@ func _create_attack_sfx() -> AudioStreamWAV:
 
 
 func _character_ready() -> void:
-	character_id = "shabnam"
-	character_name = "Shabnam"
+	character_id = "velmira"
+	character_name = "Velmira"
 	dash_speed = 365.0
 	dash_damage = 15
 	dash_tint = Color(0.95, 0.18, 0.34, 0.84)
