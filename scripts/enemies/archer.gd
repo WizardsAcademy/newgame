@@ -208,7 +208,7 @@ func _spawn_aim_line() -> void:
 	if not show_aim_line:
 		return
 	_aim_line = Line2D.new()
-	_aim_line.width = 2.0
+	_aim_line.width = 1.0
 	# Z ordering trap (this is a bug we hit): z_index -1 would tuck the
 	# line BEHIND the Level's opaque Background ColorRect (z 0) and make
 	# it invisible. Keep z 0 - the line wins over the background purely
