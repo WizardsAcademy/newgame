@@ -79,4 +79,9 @@
 ## Balance Log
 
 Every meaningful numeric change is logged here so we know what happened:
-- (Empty for now — starts with the first two-character balance test)
+- 2026-11-20 — Archer anti-kiting (playtest: wave 3 was unwinnable, the
+  archer's retreat + arrow knockback made the fight an endless chase).
+  Changed: retreat speed 55 → 30 px/s (×0.55 `retreat_speed_factor`);
+  NEW panic exhaustion — after 1.5s of fleeing in one stretch the archer
+  cannot retreat for 1.2s (grey tint tell). Effect: a persistent player
+  always catches the archer and gets a guaranteed hit window.

@@ -57,6 +57,18 @@ signal died
 ## No shooting again for this long after an arrow.
 @export var attack_cooldown: float = 2.0
 
+## RETREAT SPEED FACTOR - a playtest showed wave 3 turns into an endless
+## chase: the player eats an arrow (knockback resets the distance) and
+## can never finish the catch. A panicked archer flees SLOWER than it
+## strafes in, so a persistent player can always close the gap.
+@export var retreat_speed_factor: float = 0.55
+
+## After fleeing this long in one stretch the archer runs out of breath:
+## for `panic_exhausted_duration` seconds it CANNOT retreat at all. This
+## is the guaranteed kill window we owe the player (pillar 4: fair).
+@export var panic_exhaust_after: float = 1.5
+@export var panic_exhausted_duration: float = 1.2
+
 ## Flash duration when hit.
 @export var flash_duration: float = 0.1
 
@@ -81,6 +93,12 @@ var _is_flashing: bool = false
 enum AttackState { REPOSITION, AIM, SHOOT, COOLDOWN }
 var _attack_state: AttackState = AttackState.REPOSITION
 var _attack_timer: float = 0.0
+
+## Panic bookkeeping for the exhaustion mechanic:
+##   _panic_time  seconds spent fleeing in the current stretch
+##   _exhausted   seconds of "out of breath" left (cannot retreat)
+var _panic_time: float = 0.0
+var _exhausted: float = 0.0
 
 ## The ground risk line while aiming (created in _start_aim, killed in
 ## _fire / die). Null whenever we are not aiming.
@@ -264,7 +282,8 @@ func _fire() -> void:
 	tween.tween_property(visuals, "scale", Vector2.ONE, 0.12)
 
 
-## The skittish part: stand at <= retreat_distance? Walk away.
+## The skittish part: stand at <= retreat_distance? Walk away (slower
+## than the player, and only until the archer runs out of breath).
 ## Inside shooting range? Hold ground (and let _update_attack_state aim).
 func _keep_distance() -> void:
 	if player == null or not is_instance_valid(player):
@@ -275,22 +294,57 @@ func _keep_distance() -> void:
 		_set_walking(false)
 		return
 
+	var dt := get_physics_process_delta_time()
 	var to_player: Vector2 = player.global_position - global_position
 	var distance := to_player.length()
 
+	# OUT OF BREATH: the exhaustion window. Hold ground, sweat it out -
+	# this is the player's guaranteed chance to land the hits.
+	if _exhausted > 0.0:
+		_exhausted -= dt
+		if _exhausted <= 0.0:
+			_end_exhausted()
+		velocity = Vector2.ZERO
+		_set_walking(false)
+		move_and_slide()
+		return
+
 	if distance < retreat_distance:
-		# Too close! Back away (opposite direction, same speed).
-		velocity = -to_player.normalized() * move_speed
-		_set_walking(true)
+		# Too close! Back away - but panicked, so at a reduced speed.
+		_panic_time += dt
+		if _panic_time >= panic_exhaust_after:
+			# Legs gave out: stop the flee, start the exhaust window.
+			_panic_time = 0.0
+			_exhausted = panic_exhausted_duration
+			_show_exhausted()
+		else:
+			velocity = -to_player.normalized() * move_speed * retreat_speed_factor
+			_set_walking(true)
 	elif distance > shooting_distance:
-		# Too far to shoot from: shuffle in a bit.
+		# Too far to shoot from: shuffle in a bit (proper speed, no fear).
+		_panic_time = maxf(_panic_time - dt, 0.0)
 		velocity = to_player.normalized() * move_speed * 0.8
 		_set_walking(true)
 	else:
+		# Comfortable distance: recover the panic clock slowly.
+		_panic_time = maxf(_panic_time - dt, 0.0)
 		velocity = Vector2.ZERO
 		_set_walking(false)
 
 	move_and_slide()
+
+
+## Exhaustion look: a short-lived grey tint ("out of breath" reads at a
+## glance without any new art).
+func _show_exhausted() -> void:
+	var tween := create_tween()
+	tween.tween_property(visuals, "modulate", Color(0.7, 0.7, 0.8), 0.15)
+
+
+## Breath recovered: back to plain bone-white.
+func _end_exhausted() -> void:
+	if not _is_flashing and not is_dead and is_instance_valid(visuals):
+		visuals.modulate = Color.WHITE
 
 
 func _is_player_alive() -> bool:

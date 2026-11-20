@@ -114,7 +114,39 @@ func _run() -> void:
 			"arrow at %s" % str(arrow.global_position))
 
 	# ----------------------------------------------------------------
-	# 4. DYING MID-AIM KILLS THE LINE TOO
+	# 4. PANIC EXHAUSTION - the guaranteed kill window
+	# ----------------------------------------------------------------
+	# Force a COOLDOWN state so the archer is free to flee (in REPOSITION
+	# inside shooting range it would instantly re-aim instead).
+	archer._attack_state = archer.AttackState.COOLDOWN
+	archer._attack_timer = 3.0
+	fake_player.position = Vector2(60, 0)   # closer than retreat_distance
+	await _tick(2)
+
+	var flee_speed: float = archer.velocity.length()
+	_check("Fleeing is slowed to retreat_speed_factor",
+		absf(flee_speed - archer.move_speed * archer.retreat_speed_factor) < 1.0,
+		"flee=%.1f expected=%.1f" % [flee_speed, archer.move_speed * archer.retreat_speed_factor])
+
+	archer._panic_time = archer.panic_exhaust_after   # panic fully built up
+	await _tick(2)
+	_check("Exhaustion window starts after fleeing too long",
+		archer._exhausted > 0.0)
+	_check("Exhausted archer stands still (no retreat)",
+		archer.velocity.length() < 1.0, "v=%s" % str(archer.velocity))
+	_check("Exhausted archer shows the grey tell",
+		archer.visuals.modulate.r < 1.0,
+		"modulate=%s" % str(archer.visuals.modulate))
+
+	await _wait(1.4)   # longer than panic_exhausted_duration (1.2)
+	await _tick(2)
+	_check("Breath recovers: can flee/act again",
+		archer._exhausted <= 0.0)
+	_check("Grey tell clears after recovery",
+		archer.is_dead or archer.visuals.modulate == Color.WHITE)
+
+	# ----------------------------------------------------------------
+	# 5. DYING MID-AIM KILLS THE LINE TOO
 	# ----------------------------------------------------------------
 	var fake_player2 := Node2D.new()
 	fake_player2.add_to_group("player")
