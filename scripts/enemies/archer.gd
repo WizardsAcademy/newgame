@@ -115,7 +115,12 @@ var _aim_line: Line2D = null
 # NODE REFERENCES
 # =====================================================================
 
-@onready var visuals: ArcherVisuals = $Visuals
+## Untyped on purpose: `ArcherVisuals` is a brand-new `class_name`, and the
+## global class cache (.godot/) is gitignored, so a typed reference would make
+## the very first headless run fail until an editor scan registered it. The
+## scene still loads archer_visuals.gd by path, so every call below is the same
+## dynamic call the slime does with its typed node.
+@onready var visuals = $Visuals
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var health_bar: Node2D = $HealthBar
 @onready var hit_sfx: AudioStreamPlayer = $HitSFX
