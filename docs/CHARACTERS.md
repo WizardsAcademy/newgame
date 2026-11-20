@@ -9,10 +9,10 @@
 
 | Character | Role | Reach | Speed | Learning curve | Implementation status |
 |-----------|------|-------|-------|----------------|-----------------------|
-| **Borzo** | Melee brawler, soft tank | Short | Heavy/slow | Easy | ✅ Phases 1–5 |
-| **Bahman** | Greatsword knight, "aura farmer" | Medium–long | Very heavy | Medium | ❌ |
-| **Shabnam** | Vampire, ranged (blood blades) | Long | Agile | Medium | ❌ |
-| **Pari** | Elf, bow, mobile kiter | Very long | Fast/fragile | Hard | ❌ |
+| **Borzo** | Melee brawler, soft tank | Short | Heavy/slow | Easy | ✅ Playable |
+| **Bahman** | Greatsword knight, "aura farmer" | Medium–long | Very heavy | Medium | ✅ Playable |
+| **Shabnam** | Vampire, ranged (blood blades) | Long | Agile | Medium | ✅ Playable |
+| **Pari** | Elf, bow, mobile kiter | Very long | Fast/fragile | Hard | ✅ Playable |
 
 ---
 
@@ -92,3 +92,20 @@ Every meaningful numeric change is logged here so we know what happened:
   red ring grows 0.9s on the player's spot, then 12 dmg burst; 2.5s
   cooldown). ENRAGE once below 30% HP: speed ×1.4, telegraphs ×0.6,
   permanent red tint.
+- 2026-11-16 — 4-Hero Roster + Universal Shift-Dash (`PlayerBase` +
+  `CharacterSelectMenu`):
+  - **Universal Shift-Dash (`KEY_SHIFT`)**: 1.0s cooldown, 0.16s burst,
+    phases through enemy bodies while respecting walls, grants dash
+    i-frames, and deals `dash_damage` on enemy pass-through (+ `razor_dash`
+    +8 dmg upgrade in `UpgradePool`).
+  - **Borzo (Brawler)**: 100 HP, 90 px/s, 18 base dmg, 3-hit combo
+    (×1.0 / ×1.15 / ×1.60 uppercut shockwave + knockback), 14 dash dmg.
+  - **Bahman (Knight)**: 120 HP, 76 px/s, 24 wide greatsword cleave dmg,
+    16 dash dmg, **Winter Aura** (r=56→82 px while standing still, slows
+    enemies 30%→55% + 5 frost pulse dmg/s at full charge).
+  - **Pari (Elf)**: 75 HP, 118 px/s, 14 arrow dmg (3-arrow fan every 4th
+    quick shot; hold ≥0.35s for 2× dmg piercing Great-Arrow), 390 dash
+    speed / 11 dash dmg.
+  - **Shabnam (Vampire)**: 85 HP, 104 px/s, 13×2 boomerang Blood Blade
+    dmg (outbound + return), +2 HP leech on hit (+3 HP on Bat-Mist Dash,
+    15 dash dmg), 5-orb Blood Pool detonates a 16-dmg AOE Blood Nova (+5 HP).

@@ -1,20 +1,13 @@
 extends Node2D
 ## Level root for the arena.
 ##
-## Its ONLY job is wiring: it listens to signals broadcast by the player
-## and the enemies and shows them on screen. It never touches health,
-## hitboxes or AI - that is the whole point of the signal-based design.
-##
-##   Player.attack_hit(enemy)     -> floating "-10" + "damage dealt" label
-##   Slime.died                   -> kill counter
-##   Slime.health_changed(hp,max) -> (nothing yet - a good place for a
-##                                   target health bar in a later phase)
-##   WaveSpawner.wave_started(n)  -> "Wave N" banner in the HUD
-##   WaveSpawner.wave_cleared(n)  -> "cleared" message in the HUD
-##   WaveSpawner.enemy_spawned(e) -> watch the new enemy like the others
-##
-## Because the level connects these signals, deleting the HUD cannot
-## break combat, and adding a combo counter does not touch player.gd.
+## Signal-based HUD & run orchestrator (docs/ARCHITECTURE.md):
+##   CharacterSelectMenu.character_selected -> spawn chosen hero + start waves
+##   Player.attack_hit(enemy)               -> floating damage number + stats
+##   Player.health_changed(hp, max_hp)      -> health bar + red flash / heal popup
+##   Player.dash_cooldown_changed(rem, dur) -> Shift-Dash cooldown bar
+##   Player.player_died                     -> Game Over overlay
+##   WaveSpawner.wave_started / cleared     -> wave banner + UpgradeMenu
 
 
 # =====================================================================
@@ -24,31 +17,31 @@ extends Node2D
 @onready var player: Node2D = $Player
 @onready var enemies_root: Node2D = $Enemies
 @onready var stats_label: Label = $UI/Stats
+@onready var hp_text_label: Label = $UI/HPText
 @onready var player_health_bar: Node2D = $UI/PlayerHealthBar
+@onready var dash_text_label: Label = $UI/DashText
+@onready var dash_bar: Node2D = $UI/DashBar
 @onready var game_over_screen: Control = $UI/GameOver
+@onready var game_over_subtitle: Label = $UI/GameOver/Subtitle
 @onready var wave_spawner: Node2D = $WaveSpawner
 @onready var wave_label: Label = $UI/WaveLabel
 @onready var hurt_flash: ColorRect = $UI/HurtFlash
 @onready var upgrade_menu: Control = $UI/UpgradeMenu
+@onready var character_select_menu: Control = $UI/CharacterSelectMenu
 
 
 # =====================================================================
-# STATE (shown in the debug label)
+# STATE
 # =====================================================================
 
 var total_damage_dealt: int = 0
 var last_hit_damage: int = 0
 var kills: int = 0
-## Current wave number, shown in the debug label.
 var wave_number: int = 0
-## Health from the previous health_changed signal - used to detect
-## whether the latest change was damage (a decrease) or healing.
 var _last_health: int = -1
-## Tween of the hurt flash, kept so a new hit can cancel the old fade
-## instead of fighting it.
 var _hurt_tween: Tween
-## True once the player died and the Game Over overlay is showing.
 var game_is_over: bool = false
+var _spawn_origin: Vector2 = Vector2(320, 180)
 
 
 # =====================================================================
@@ -56,38 +49,83 @@ var game_is_over: bool = false
 # =====================================================================
 
 func _ready() -> void:
-	# `connect` only stores a reference to the callable; nothing happens
-	# until the signal is emitted. If the signal already exists (it is
-	# declared with `signal attack_hit(enemy)` in player.gd), passing a
-	# Callable with the wrong number of arguments is an error, so the
-	# signatures must match.
-	player.attack_hit.connect(_on_player_attack_hit)
-	player.health_changed.connect(_on_player_health_changed)
-	player.player_died.connect(_on_player_died)
+	if player != null:
+		_spawn_origin = player.position
 
 	for enemy in enemies_root.get_children():
 		_watch_enemy(enemy)
 
 	# --- Wave system wiring -------------------------------------------
-	# The spawner owns the wave state machine; the level only listens.
 	wave_spawner.wave_started.connect(_on_wave_started)
 	wave_spawner.wave_cleared.connect(_on_wave_cleared)
 	wave_spawner.enemy_spawned.connect(_on_enemy_spawned)
 
-	# --- Upgrade system wiring (phase 7)-------------------------------
-	# Loop: wave cleared -> roll 3 -> player picks -> apply -> release
-	# the spawner. The pool applies the stats itself; Main only glues.
+	# --- Upgrade menu wiring ------------------------------------------
 	upgrade_menu.upgrade_chosen.connect(_on_upgrade_chosen)
-	upgrade_menu.hide_menu()  # start closed
+	upgrade_menu.hide_menu()
 
-	# Seed the health bar with the starting health BEFORE anything can
-	# hit us (the bar redraws on every health_changed anyway).
+	# --- Character Select wiring --------------------------------------
+	character_select_menu.character_selected.connect(_on_character_selected)
+
+	if CharacterRegistry.quick_retry_same_hero:
+		CharacterRegistry.quick_retry_same_hero = false
+		select_character(CharacterRegistry.selected_id)
+	else:
+		# Hold the default player still until the user picks their hero.
+		if player != null and "input_enabled" in player:
+			player.input_enabled = false
+		player_health_bar.set_health(100, 100)
+		dash_bar.set_health(1.0, 1.0)
+		_update_stats_label()
+		character_select_menu.show_menu(CharacterRegistry.selected_id)
+
+
+## Spawn the chosen hero (`"borzo"`, `"bahman"`, `"pari"`, `"shabnam"`),
+## wire all player signals into the HUD, and begin Wave 1.
+func select_character(char_id: String) -> void:
+	if character_select_menu != null and character_select_menu.is_open():
+		character_select_menu.hide_menu()
+
+	var entry := CharacterRegistry.get_entry(char_id)
+	CharacterRegistry.selected_id = String(entry["id"])
+
+	# Replace the placeholder Player node cleanly.
+	if player != null and is_instance_valid(player):
+		remove_child(player)
+		player.queue_free()
+
+	var new_player := CharacterRegistry.instantiate_hero(String(entry["id"]))
+	new_player.name = "Player"
+	new_player.position = _spawn_origin
+	add_child(new_player)
+	# Keep Player right above Enemies in draw order, matching main.tscn.
+	move_child(new_player, enemies_root.get_index())
+	player = new_player
+
+	player.attack_hit.connect(_on_player_attack_hit)
+	player.health_changed.connect(_on_player_health_changed)
+	player.player_died.connect(_on_player_died)
+	if player.has_signal("dash_cooldown_changed"):
+		player.dash_cooldown_changed.connect(_on_dash_cooldown_changed)
+
+	if "input_enabled" in player:
+		player.input_enabled = true
+
+	_last_health = player.current_health
+	hp_text_label.text = String(entry["name"]).to_upper()
 	player_health_bar.set_health(player.current_health, player.max_health)
+	dash_bar.set_health(1.0, 1.0)
+	dash_text_label.text = "DASH"
+	game_over_subtitle.text = "%s  Press R to retry  |  C / Esc: choose hero" % String(entry["death_line"])
 
 	_update_stats_label()
+	wave_spawner.start_spawning()
 
 
-## Called for enemies that appear later (spawners, waves, ...).
+func _on_character_selected(char_id: String) -> void:
+	select_character(char_id)
+
+
 func _watch_enemy(enemy: Node) -> void:
 	if not enemy.died.is_connected(_on_enemy_died):
 		enemy.died.connect(_on_enemy_died)
@@ -98,26 +136,35 @@ func _watch_enemy(enemy: Node) -> void:
 # =====================================================================
 
 func _on_player_attack_hit(enemy: Node) -> void:
-	# The player already applied the damage; we just present it.
-	last_hit_damage = player.attack_damage
-	total_damage_dealt += last_hit_damage
+	var dealt: int = player.attack_damage
+	if "last_dealt_damage" in player and int(player.last_dealt_damage) > 0:
+		dealt = int(player.last_dealt_damage)
+	var from_dash: bool = bool(player.get("last_hit_was_dash"))
 
-	_spawn_damage_number(enemy.global_position, last_hit_damage)
+	last_hit_damage = dealt
+	total_damage_dealt += dealt
+
+	if enemy != null and is_instance_valid(enemy):
+		var num_color := Color(0.45, 0.95, 1.0) if from_dash else Color(1.0, 0.95, 0.4)
+		_spawn_damage_number((enemy as Node2D).global_position, dealt, num_color)
 	_update_stats_label()
+
+
+func _on_dash_cooldown_changed(remaining: float, duration: float) -> void:
+	var total := maxf(duration, 0.01)
+	var ready_ratio := clampf(1.0 - remaining / total, 0.0, 1.0)
+	dash_bar.set_health(ready_ratio, 1.0)
+	dash_text_label.text = "DASH" if remaining <= 0.01 else "%.1fs" % remaining
 
 
 func _on_enemy_died() -> void:
 	kills += 1
-	# Tell the spawner an enemy is gone - the wave is "cleared" only
-	# when its live counter reaches zero, so every death must be
-	# reported back. This is the one place where the level feeds a
-	# signal *into* the spawner instead of only listening.
 	wave_spawner.notify_enemy_died()
 	_update_stats_label()
 
 
 # ---------------------------------------------------------------------
-# WAVE SIGNAL HANDLERS
+# WAVE & UPGRADE HANDLERS
 # ---------------------------------------------------------------------
 
 func _on_wave_started(number: int, _enemy_count: int) -> void:
@@ -127,13 +174,7 @@ func _on_wave_started(number: int, _enemy_count: int) -> void:
 
 
 func _on_wave_cleared(number: int) -> void:
-	# Green banner instead of the usual warm colour, so the eye can
-	# tell "you won this one" apart from "a new one begins".
 	_pop_wave_label("Wave %d cleared!" % number, Color(0.7, 1.0, 0.75))
-
-	# --- The roguelike reward: roll 1-of-3 upgrades ------------------
-	# (Only while the player is alive - a corpse gets no rewards and,
-	# when the run restarts, everything resets with the scene.)
 	if not game_is_over:
 		_show_upgrade_menu()
 
@@ -141,26 +182,21 @@ func _on_wave_cleared(number: int) -> void:
 func _show_upgrade_menu() -> void:
 	var options := UpgradePool.roll(player, 3)
 	if options.is_empty():
-		# Nothing left in the pool (all stats maxed): skip gracefully.
 		wave_spawner.continue_next_wave()
 		return
+	if player != null and "input_enabled" in player:
+		player.input_enabled = false
 	upgrade_menu.show_menu(options)
 
 
 func _on_upgrade_chosen(id: String) -> void:
 	var feedback := UpgradePool.apply(id, player)
 	print("[Upgrade] picked ", id, " -> ", feedback)
-	# Release the wave machine - the next wave rolls in.
+	if player != null and "input_enabled" in player and not game_is_over:
+		player.input_enabled = true
 	wave_spawner.continue_next_wave()
 
 
-## Set the banner text and play a quick "pop": it starts bigger and
-## transparent, then claps down to normal size.
-##
-## GOTCHA: scaling a Control pivots at its top-LEFT corner by default,
-## which looks like a slide instead of a pop - so we centre `pivot_offset`
-## first. The one-frame wait lets the label lay out its new text, because
-## `size` updates on the next layout pass, not the moment we set `text`.
 func _pop_wave_label(new_text: String, color := Color(1, 0.95, 0.75, 0.95)) -> void:
 	wave_label.text = new_text
 	wave_label.add_theme_color_override("font_color", color)
@@ -176,24 +212,19 @@ func _pop_wave_label(new_text: String, color := Color(1, 0.95, 0.75, 0.95)) -> v
 
 
 func _on_enemy_spawned(enemy: Node) -> void:
-	# Enemies spawned by the spawner get the same treatment as the
-	# static ones used to: kill counting + damage numbers.
 	_watch_enemy(enemy)
 
 
 func _on_player_health_changed(current: int, max_health: int) -> void:
 	player_health_bar.set_health(current, max_health)
-	# A DECREASE in health means Borzo took a hit: flash the whole
-	# screen red for a moment. (Healing would be an increase - ignored.)
 	if _last_health >= 0 and current < _last_health:
 		_flash_hurt()
+	elif _last_health >= 0 and current > _last_health and player != null:
+		_spawn_heal_number(player.global_position, current - _last_health)
 	_last_health = current
 
 
-## Brief full-screen red flash when the player takes damage.
 func _flash_hurt() -> void:
-	# Kill any flash still fading from the previous hit so two hits in
-	# a row don't make two tweens fight over the same alpha property.
 	if _hurt_tween and _hurt_tween.is_valid():
 		_hurt_tween.kill()
 	hurt_flash.color.a = 0.22
@@ -204,32 +235,43 @@ func _flash_hurt() -> void:
 func _on_player_died() -> void:
 	game_is_over = true
 	game_over_screen.visible = true
-	# A dead player picks no upgrades - close the menu if it was open.
 	if upgrade_menu != null:
 		upgrade_menu.hide_menu()
-		# And let the wave loop drain quietly (it checks _stopped).
 		wave_spawner.continue_next_wave()
-	# Stop the wave machine immediately - no point spawning enemies
-	# into an empty arena while the Game Over screen is up.
 	wave_spawner.stop_spawning()
-	# Optional juice: a last big shudder when Borzo hits the floor.
 	ScreenShake.shake(6.0, 0.35)
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Only meaningful on the Game Over screen: reload the whole scene.
-	# Everything (health, slimes, labels) resets with it, because all
-	# state lives in nodes of this scene or its children.
-	if game_is_over and event.is_action_pressed("restart"):
-		get_tree().reload_current_scene()
+	if character_select_menu != null and character_select_menu.is_open():
+		return
+
+	if game_is_over:
+		if event.is_action_pressed("restart"):
+			CharacterRegistry.quick_retry_same_hero = true
+			get_tree().reload_current_scene()
+			return
+		if event is InputEventKey and event.pressed and not event.echo:
+			var k := (event as InputEventKey).keycode
+			if k == KEY_C or k == KEY_ESCAPE:
+				CharacterRegistry.quick_retry_same_hero = false
+				get_tree().reload_current_scene()
+				return
+		return
+
+	# Press Esc anytime during a run to return to the Hero Select screen.
+	if event is InputEventKey and event.pressed and not event.echo:
+		if (event as InputEventKey).keycode == KEY_ESCAPE:
+			CharacterRegistry.quick_retry_same_hero = false
+			get_tree().reload_current_scene()
 
 
 func _update_stats_label() -> void:
 	if stats_label == null:
 		return
-	# Enemies are no longer static scene children (the spawner owns
-	# them), so we show the wave number instead of a live count.
-	stats_label.text = "damage dealt: %d   last hit: %d   kills: %d   wave: %d" % [
+	var hero_label := String(CharacterRegistry.get_entry(CharacterRegistry.selected_id)["name"])
+	stats_label.text = "hero: %s   dmg: %d   last: %d   kills: %d   wave: %d" % [
+		hero_label,
 		total_damage_dealt,
 		last_hit_damage,
 		kills,
@@ -238,25 +280,34 @@ func _update_stats_label() -> void:
 
 
 # =====================================================================
-# FLOATING DAMAGE NUMBERS
+# FLOATING NUMBERS
 # =====================================================================
 
-## A Label that pops out of the enemy, drifts up and fades, then frees
-## itself - the classic "-10" you see in every action game.
-## Created in code (no extra scene file) to keep this example compact.
-func _spawn_damage_number(at: Vector2, amount: int) -> void:
+func _spawn_damage_number(at: Vector2, amount: int, color := Color(1, 0.95, 0.4)) -> void:
 	var label := Label.new()
 	label.text = "-%d" % amount
-	label.add_theme_color_override("font_color", Color(1, 0.95, 0.4))
+	label.add_theme_color_override("font_color", color)
 	label.add_theme_font_size_override("font_size", 10)
-	# Centre the text so it appears to grow out of the enemy's head.
 	label.position = at + Vector2(-8, -22)
-	# Labels inside a Node2D world need to be behind the UI canvas;
-	# adding it to the level root puts it in world space.
 	add_child(label)
 
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(label, "position:y", label.position.y - 14.0, 0.5)
 	tween.tween_property(label, "modulate:a", 0.0, 0.5)
+	tween.chain().tween_callback(label.queue_free)
+
+
+func _spawn_heal_number(at: Vector2, amount: int) -> void:
+	var label := Label.new()
+	label.text = "+%d" % amount
+	label.add_theme_color_override("font_color", Color(0.45, 1.0, 0.58))
+	label.add_theme_font_size_override("font_size", 9)
+	label.position = at + Vector2(-6, -24)
+	add_child(label)
+
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "position:y", label.position.y - 12.0, 0.45)
+	tween.tween_property(label, "modulate:a", 0.0, 0.45)
 	tween.chain().tween_callback(label.queue_free)

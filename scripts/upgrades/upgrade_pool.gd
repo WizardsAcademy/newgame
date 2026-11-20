@@ -28,8 +28,8 @@ class_name UpgradePool
 const POOL: Array[Dictionary] = [
 	{
 		"id": "iron_fist",
-		"title": "Iron Fist",
-		"desc": "+5 punch damage",
+		"title": "Sharpened Strike",
+		"desc": "+5 attack damage",
 		"min": 1, "max": 100, "step": 5,
 	},
 	{
@@ -42,13 +42,13 @@ const POOL: Array[Dictionary] = [
 		"id": "swift_hooves",
 		"title": "Swift Hooves",
 		"desc": "+8 move speed",
-		"min": 90, "max": 220, "step": 8,
+		"min": 70, "max": 220, "step": 8,
 	},
 	{
 		"id": "quick_hands",
 		"title": "Quick Hands",
-		"desc": "Faster punches (-0.06s)",
-		"min": 0.18, "max": 0.45, "step": 0.06,
+		"desc": "Faster attacks (-0.05s)",
+		"min": 0.14, "max": 0.55, "step": 0.05,
 	},
 	{
 		"id": "ghost_feet",
@@ -59,8 +59,14 @@ const POOL: Array[Dictionary] = [
 	{
 		"id": "heavy_push",
 		"title": "Bulldozer Shoulder",
-		"desc": "+45 punch knockback (enemies fly farther)",
+		"desc": "+45 knockback power",
 		"min": 180, "max": 500, "step": 45,
+	},
+	{
+		"id": "razor_dash",
+		"title": "Razor Dash",
+		"desc": "+8 Shift-Dash damage",
+		"min": 8, "max": 64, "step": 8,
 	},
 ]
 
@@ -106,6 +112,8 @@ static func _has_room(entry: Dictionary, player: Node) -> bool:
 			return player.invulnerability_time < entry["max"]
 		"heavy_push":
 			return player.knockback_speed < entry["max"]
+		"razor_dash":
+			return ("dash_damage" in player) and player.dash_damage < entry["max"]
 	return false
 
 
@@ -149,6 +157,10 @@ static func apply(id: String, player: Node) -> String:
 		"heavy_push":
 			player.knockback_speed = minf(player.knockback_speed + step, float(entry["max"]))
 			return "stronger knockback"
+		"razor_dash":
+			if "dash_damage" in player:
+				player.dash_damage = mini(int(player.dash_damage + step), int(entry["max"]))
+			return "+%d dash damage" % step
 	return ""
 
 
