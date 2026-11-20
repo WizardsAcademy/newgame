@@ -47,6 +47,9 @@ static var _hit_cache: AudioStreamWAV = null
 static var _death_cache: AudioStreamWAV = null
 static var _footstep_cache: AudioStreamWAV = null
 static var _hurt_cache: AudioStreamWAV = null
+static var _dash_cache: AudioStreamWAV = null
+static var _bow_cache: AudioStreamWAV = null
+static var _blade_cache: AudioStreamWAV = null
 
 
 ## Short aggressive swing burst (0.10 s): low-frequency thump + airy noise.
@@ -197,6 +200,88 @@ static func create_hurt_sfx() -> AudioStreamWAV:
 
 	_hurt_cache = _build_wav(samples)
 	return _hurt_cache
+
+
+## Snappy dash burst (0.11 s): crisp airy wind-sweep from 480 Hz -> 160 Hz.
+static func create_dash_sfx() -> AudioStreamWAV:
+	if _dash_cache != null:
+		return _dash_cache
+
+	var duration := 0.11
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 505
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	var noise_lp := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		var freq := lerpf(480.0, 160.0, pow(progress, 0.75))
+		phase += TAU * freq / float(MIX_RATE)
+
+		var raw_noise := rng.randf_range(-1.0, 1.0)
+		noise_lp = lerpf(noise_lp, raw_noise, 0.55)
+
+		var envelope := pow(1.0 - progress, 1.6) * minf(1.0, progress * 20.0)
+		samples[i] = (sin(phase) * 0.45 + noise_lp * 0.65) * envelope * 0.65
+
+	_dash_cache = _build_wav(samples)
+	return _dash_cache
+
+
+## Crisp bowstring twang + arrow whoosh (0.09 s) for Pari the Elf Archer.
+static func create_bow_sfx() -> AudioStreamWAV:
+	if _bow_cache != null:
+		return _bow_cache
+
+	var duration := 0.09
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 606
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		var freq := lerpf(640.0, 290.0, pow(progress, 0.65))
+		phase += TAU * freq / float(MIX_RATE)
+
+		var air := rng.randf_range(-1.0, 1.0) * (1.0 - progress) * 0.35
+		var tone := sin(phase) * 0.7 + sin(phase * 2.0) * 0.25
+		var envelope := pow(1.0 - progress, 2.0)
+		samples[i] = (tone + air) * envelope * 0.6
+
+	_bow_cache = _build_wav(samples)
+	return _bow_cache
+
+
+## Metallic crescent / sword cleave resonance (0.11 s) for Knight & Vampire.
+static func create_blade_sfx() -> AudioStreamWAV:
+	if _blade_cache != null:
+		return _blade_cache
+
+	var duration := 0.11
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 707
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		var freq := lerpf(520.0, 240.0, progress)
+		phase += TAU * freq / float(MIX_RATE)
+
+		var shimmer := sin(phase * 2.7) * 0.3 + rng.randf_range(-1.0, 1.0) * 0.25
+		var envelope := pow(1.0 - progress, 1.7)
+		samples[i] = (sin(phase) * 0.6 + shimmer) * envelope * 0.65
+
+	_blade_cache = _build_wav(samples)
+	return _blade_cache
 
 
 ## Pack normalized `-1.0 .. 1.0` float samples into a 16-bit mono AudioStreamWAV.

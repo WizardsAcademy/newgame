@@ -1,58 +1,40 @@
-# Roguelike Brawler
+# Roguelike Brawler (Godot 4.7)
 
-A top-down 2D brawler built with **Godot 4.7** (GDScript, `gl_compatibility`
-renderer, placeholder art).
+A pixel-art top-down 2D action roguelike built in **Godot 4.7** with pure GDScript and procedural retro audio.
 
-## Run
+## Playable Heroes (Choose on Launch!)
 
-```bash
-godot --path .            # or open project.godot in the editor and hit F5
-```
+When the game opens, pick from **4 distinct heroes** via the Character Select screen (`Click`, `1–4`, or `Arrows + Enter/Space`):
 
-**Controls:** `WASD` / arrow keys to move, `Space` or left click to punch.
+1. **Borzo — Brawler (`100 HP`)**: Heavy melee brawler with a **3-Hit Escalating Combo** (*Jab → Cross → Shockwave Uppercut*) and a 14-damage **Shoulder Dash**.
+2. **Bahman — Frost Knight (`120 HP`)**: Armored tank wielding a wide frost greatsword (`24 DMG`) and his signature **Winter Aura** that chills & slows nearby enemies (charging wider + pulsing frost damage when standing firm).
+3. **Pari — Elf Ranger (`75 HP`)**: Fastest hero in the arena! Fires swift emerald arrows (3-arrow fan every 4th quick shot), or **hold Attack** (`≥0.35s`) to unleash a 2× damage **Piercing Great-Arrow**.
+4. **Shabnam — Crimson Vampire (`85 HP`)**: Hurls a spinning **Boomerang Blood Blade** that slices enemies going out *and* returning. Every hit **leeches HP** and builds Blood Orbs toward an explosive **Crimson Blood Nova**.
 
-## Phase 1 - movement baseline
+## Controls
 
-Tile-sized 16x16 player, 8-directional movement, idle/walk animation,
-smoothing camera with arena limits, wall collisions, and an attack flag
-that locks movement for the length of a swing.
+| Action | Keys / Mouse |
+|--------|--------------|
+| Move (8-directional) | `W A S D` or `Arrow Keys` |
+| Attack / Charge (Pari) | `Space` or `Left Mouse Click` |
+| **Dash** (`1.0s` cooldown, phases & damages enemies!) | `Shift` |
+| Pick Upgrade / Hero | `1` / `2` / `3` (`/ 4` on Hero Select) or `Click` |
+| Quick Retry (on Game Over, same hero) | `R` |
+| Change Hero (anytime or on Game Over) | `Esc` (or `C` on Game Over) |
 
-## Phase 2 - melee combat + first enemy
+## Core Features
 
-- **Melee hitbox:** `Player/Hitbox` (Area2D, 20x16) at the `AttackPoint`,
-  off by default, enabled for 0.1 s starting 0.05 s into a 0.2 s swing.
-- **Attack animation:** 4-frame 64x16 sprite sheet (`idle` = frame 0,
-  `walk` = frames 1-2, `attack` = frame 0 @ 0.0 s -> frame 3 punch pose @ 0.05 s
-  -> frame 0 @ 0.15 s, loop disabled) on a single `Visuals` sprite.
-- **Damage:** `attack_damage = 10`; hits call `enemy.take_damage()` once
-  per swing per enemy and broadcast `attack_hit(enemy)`.
-- **Feedback:** the enemy flashes white for 0.1 s, a 6x6 fist-colored hit spark
-  pops only on impact, `-10` floats up, and the HUD tracks damage and kills.
-- **Enemy:** `Slime` - 30 HP, custom health bar, follows the player at
-  40 px/s inside 200 px, stops at 24 px, and pops in 3 hits.
-- **Arena:** 3 slimes at (200, 200), (600, 400), (1000, 300).
+- **4 Playable Characters + `PlayerBase` Architecture** (`scripts/player/`): Shared input (`_read_input()`), health, i-frames, and Shift-Dash contract across all heroes.
+- **Shift-Dash Combat Mobility**: `1.0s` cooldown burst that phases through enemies while respecting walls, grants brief i-frames, leaves afterimages, and deals dash damage.
+- **Endless Escalating Waves & Elites** (`WaveSpawner`): Slimes, Skeleton Archers (with ground risk lines & panic exhaustion), Stone Golems, and golden-ring `3x HP` Elites.
+- **Boss Waves (`Forest Colossus`)**: Every 5th wave features a 1v1 boss fight with floor danger-zone telegraphs (`SLAM` / `SWEEP` / `ROOTS`) and `<30% HP` Enrage.
+- **Between-Wave Roguelike Upgrades** (`UpgradePool` + `UpgradeMenu`): Pick 1 of 3 stacking run upgrades after every cleared wave.
+- **Procedural Combat Juice**: `ScreenShake`, `HitStop`, and procedural 16-bit PCM synth SFX (`SFXGenerator` on the `"SFX"` bus — zero external audio files).
 
-## Phase 3 - game feel & juice
-
-- **Screen shake (`ScreenShake` autoload):** additive stacking camera shake
-  with exponential/linear decay (`max_intensity = 8.0`, `decay_rate = 4.0`) —
-  subtle nudge (`2.0`, `0.1 s`) on swing, heavier jolt (`3.0`, `0.15 s`) on hit.
-- **Hit stop (`HitStop` autoload):** `50 ms` impact freeze (`Engine.time_scale = 0.05`)
-  driven by an unscaled `Tween` (`TWEEN_PAUSE_PROCESS` + `set_ignore_time_scale(true)`).
-- **Procedural SFX (`SFXGenerator` + `"SFX"` audio bus):** synthesized 16-bit
-  `AudioStreamWAV` clips for punch swing (`0.1 s`), slime hit (`0.08 s`),
-  slime death slide (`0.3 s`), and walk-gated footsteps (`every 0.25 s`).
-
-Design notes and the full combat walkthrough: [`docs/combat.md`](docs/combat.md).
-
-## Verify
+## Automated Headless Tests
 
 ```bash
-godot --headless --path . tests/combat_test.tscn
+godot --headless --path . tests/heroes_and_dash_test.tscn
+godot --headless --path . tests/archer_test.tscn
+godot --headless --path . tests/boss_test.tscn
 ```
-
-94 automated checks (screen shake & stacking, hit stop `Engine.time_scale`,
-procedural SFX & `"SFX"` bus, footsteps, 4-frame sprite sheet & punch pose
-region, no duplicate body sprite during attack, hitbox timing, 3-hit kill math,
-single-hit-per-swing, white flash, 6x6 hit spark, signals, AI chase/stop,
-`queue_free()`, Phase 1 regression). Exit code `0` means everything passed.

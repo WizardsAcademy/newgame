@@ -103,6 +103,9 @@ signal enemy_spawned(enemy: Node)
 ## Delay after the scene boots before wave 1 starts (orientation time).
 @export var first_wave_delay: float = 1.5
 
+## When false (e.g. while Character Select is open), Main starts waves explicitly.
+@export var autostart: bool = true
+
 # --- Arena bounds (inset from the walls of the 1280x720 test arena) ---
 ## Spawn candidates are inside this rectangle.
 @export var arena_rect: Rect2 = Rect2(70, 70, 1140, 580)
@@ -143,7 +146,8 @@ var _continue_ok: bool = false
 # =====================================================================
 
 func _ready() -> void:
-	start_spawning()
+	if autostart:
+		start_spawning()
 
 
 ## Kicks off the async wave loop exactly once.
