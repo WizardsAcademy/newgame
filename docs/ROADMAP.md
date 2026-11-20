@@ -35,6 +35,11 @@
   archer VOLLEY (3-arrow fan), golem UPRISING (+50% slam radius, +5 dmg);
   chance grows with the wave (8% from wave 6, +2%/wave, 25% cap)
   (`Elite` helper + `become_elite()` per enemy)
+- [x] Golem art pass: the 24×24 grey blob became a 40×40, 12-pose brute
+  (stomp, roar, fists-overhead telegraph, fists-in-the-floor slam, stuck
+  recovery, elite flare, crumble → rubble) with footstep dust and camera
+  nudge, and the same HP/damage/radius — `docs/GOLEM_REDESIGN.md`,
+  generator in `tools/make_golem_sprites.py`
 - [x] Archer art pass: the 16×16 placeholder became a 32×32, 12-pose
   hooded skeleton (shamble, bone rattle, bow draw → release, mocking head
   tilt, white hit flash, collapse into a bone heap) with the same HP,

@@ -60,6 +60,8 @@ scripts/
   enemies/slime_visuals.gd the slime's look: poses, hop, squash, goo FX
   enemies/archer_visuals.gd the archer's look: shamble, rattle, bow draw,
                          mocking tilt, white flash, bone-heap death
+  enemies/golem_visuals.gd the golem's look: stomp + dust + footstep shake,
+                         arm-raise, slam, stuck recovery, crumble
   enemies/wave_spawner.gd wave system
   ui/                    health bar and HUD
   fx/                    effects
@@ -70,6 +72,7 @@ assets/textures/         pixel art (slime.png is a 12x8 family pose sheet;
                          1:1 hazard strips from tools/make_fx_sprites.py)
 docs/SLIME_REDESIGN.md   the slime art/animation bible
 docs/ARCHER_REDESIGN.md   the archer art/animation bible
+docs/GOLEM_REDESIGN.md    the golem art/animation bible
 docs/                    these documents
 tests/                   headless test scripts
 ```

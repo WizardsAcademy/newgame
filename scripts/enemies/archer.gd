@@ -139,6 +139,12 @@ func _ready() -> void:
 	hit_sfx.stream = SFXGenerator.create_hit_sfx()
 	death_sfx.stream = SFXGenerator.create_death_sfx()
 
+	# The 32 px hood needs the bar above it; the old 16x16 sprite fit under
+	# the scene default (-14), which would now sit on the skeleton's face.
+	if health_bar != null:
+		health_bar.bar_size = Vector2(16, 4)
+		health_bar.bar_offset = Vector2(0, -24)
+
 	player = get_tree().get_first_node_in_group("player")
 	_update_health_bar()
 	health_changed.emit(current_health, max_health)
