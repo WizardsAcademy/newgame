@@ -1,6 +1,5 @@
 extends CharacterBody2D
 ## Forest Colossus - the FIRST BOSS (Phase 8, ROADMAP.md).
-##
 ## Design in one line: a slow mountain whose three attacks cover all
 ## DISTANCES, so no position is safe forever - and every attack is
 ## loud enough to dodge (pillar 4: hard but fair).
@@ -97,12 +96,25 @@ var _timer: float = 0.0
 ## Where the ROOTS burst will happen (captured at telegraph START,
 ## painted with a growing red ring - move and you live).
 var _roots_target: Vector2 = Vector2.INF
-## The painted ground ring (spawned at telegraph, freed at the burst).
-var _roots_ring: Line2D = null
+## The painted danger circle on the floor (ALL three attacks now paint
+## one; freed at the strike). Stored outside the body in arena space
+## so a painted zone never moves once shown.
+var _danger_zone: Node2D = null
+## Full telegraph length of the current attack - the denominator the
+## danger zone's charge fill divides time against.
+var _telegraph_total: float = 1.0
+## The bouncing "!" warning that pops above the boss's head while an
+## attack charges. One look, and you know: MOVE.
+var _warn_marker: Label = null
 
 # =====================================================================
 # NODE REFERENCES
 # =====================================================================
+
+## The reusable floor-painter every attack telegraphs with (see
+## ground_telegraph.gd). Preloaded, not class_name: one less entry in
+## Godot's class cache to forget.
+const GroundTelegraphScript := preload("res://scripts/enemies/ground_telegraph.gd")
 
 @onready var visuals: Sprite2D = $Visuals
 @onready var anim_player: AnimationPlayer = $AnimPlayer
@@ -112,6 +124,7 @@ var _roots_ring: Line2D = null
 @onready var health_bar: Node2D = $HealthBar
 @onready var hit_sfx: AudioStreamPlayer = $HitSFX
 @onready var death_sfx: AudioStreamPlayer = $DeathSFX
+@onready var telegraph_sfx: AudioStreamPlayer = $TelegraphSFX
 
 var player: Node2D = null
 
@@ -125,6 +138,8 @@ func _ready() -> void:
 
 	hit_sfx.stream = SFXGenerator.create_hit_sfx()
 	death_sfx.stream = SFXGenerator.create_death_sfx()
+	# One shared "something is coming" sound; the PITCH tells you which.
+	telegraph_sfx.stream = SFXGenerator.create_punch_sfx()
 
 	player = get_tree().get_first_node_in_group("player")
 
@@ -158,6 +173,7 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector2.ZERO
 			move_and_slide()
 			_set_walking(false)
+			_update_danger_zone()
 			if _timer <= 0.0:
 				_perform_strike()
 		ColossusState.STRIKE:
@@ -230,80 +246,172 @@ func _start_telegraph(attack: BossAttack) -> void:
 	_current_attack = attack
 	_state = ColossusState.TELEGRAPH
 	_timer = _attack_telegraph_time(attack)
+	_telegraph_total = maxf(_timer, 0.01)
 	velocity = Vector2.ZERO
 	_set_walking(false)
-	_show_telegraph(0.5)
+	_paint_danger_zone(attack, global_position)
+	_play_attack_pose(attack)
+	_show_warn_marker(attack)
+	_play_telegraph_sound(attack)
 
 
-## ROOTS locks a SPOT, not the player: paint an expanding red ring on
+## ROOTS locks a SPOT, not the player: paint a growing green ring on
 ## the ground and burst there. Stored outside the body (arena-space)
 ## so pulling the boss around cannot drag the danger zone with it.
 func _start_roots_telegraph(target: Vector2) -> void:
 	_current_attack = BossAttack.ROOTS
 	_state = ColossusState.TELEGRAPH
 	_timer = _attack_telegraph_time(BossAttack.ROOTS)
+	_telegraph_total = maxf(_timer, 0.01)
 	_roots_target = target
 	_roots_timer = roots_cooldown
 	velocity = Vector2.ZERO
 	_set_walking(false)
-	_spawn_roots_ring(target)
-	_show_telegraph(0.6)
+	_paint_danger_zone(BossAttack.ROOTS, target)
+	_play_attack_pose(BossAttack.ROOTS)
+	_show_warn_marker(BossAttack.ROOTS)
+	_play_telegraph_sound(BossAttack.ROOTS)
 
 
-## Body warn: swell up + red glow (while the attack draws).
-func _show_telegraph(strength: float) -> void:
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(visuals, "scale",
-		Vector2(1.0 + 0.10 * strength, 1.0 - 0.08 * strength), _timer)
-	tween.tween_property(visuals, "modulate", Color(1.0, 0.55, 0.45), _timer)
+# =====================================================================
+# READABILITY LAYERS - the first playtest verdict was "I can't tell
+# what the boss is about to do". A sprite tint is a MOOD, not a warning,
+# so every attack now shouts in three channels at once:
+#   LAYER 1  the FLOOR   - a danger circle with a filling charge meter
+#   LAYER 2  the BODY    - a DIFFERENT pose per attack (read silhouette)
+#   LAYER 3  the MARKER  - a bouncing "!" tinted per attack
+#   (plus a distinct telegraph SFX pitch - see _play_telegraph_sound)
+# =====================================================================
 
-
-## The painted ring: expanding red circle exactly where roots will
-## erupt. Same z-order lesson as the archer's risk line (z 0 wins over
-## the background by tree order; NOT -1, which hides behind opaque sky).
-func _spawn_roots_ring(target: Vector2) -> void:
-	var ring := Line2D.new()
-	var segments := 28
-	var points := PackedVector2Array()
-	for i in segments + 1:
-		var angle := TAU * i / segments
-		points.append(Vector2(cos(angle), sin(angle)) * roots_radius)
-	ring.points = points
-	ring.width = 2.0
-	ring.default_color = Color(1.0, 0.3, 0.25, 0.5)
-	_install_ring(ring, target)
-	_roots_ring = ring
-	# Grow from nothing to full size over the whole telegraph: read the
-	# growth rate and you know exactly how long you have.
-	ring.scale = Vector2(0.2, 0.2)
-	var tween := ring.create_tween()
-	tween.tween_property(ring, "scale", Vector2.ONE, _timer)
-
-
-## Put the ring in the world (arena child so it does not move with us).
-func _install_ring(ring: Line2D, target: Vector2) -> void:
+## LAYER 1 - paint the attack's radius on the floor, colour-coded.
+## The charge fill (set every physics frame while TELEGRAPH) shows how
+## much time is left; the outline shows exactly where it will hurt.
+func _paint_danger_zone(attack: BossAttack, at: Vector2) -> void:
+	var zone: Node2D = GroundTelegraphScript.new()
+	match attack:
+		BossAttack.SLAM:
+			zone.radius = slam_radius
+			zone.fill_color = Color(1.0, 0.25, 0.20, 0.20)   # deep red
+			zone.edge_color = Color(1.0, 0.35, 0.25, 0.95)
+		BossAttack.SWEEP:
+			zone.radius = sweep_radius
+			zone.fill_color = Color(1.0, 0.55, 0.15, 0.20)   # orange
+			zone.edge_color = Color(1.0, 0.65, 0.25, 0.95)
+		BossAttack.ROOTS:
+			zone.radius = roots_radius
+			zone.fill_color = Color(0.45, 1.0, 0.40, 0.20)   # thorn green
+			zone.edge_color = Color(0.55, 1.0, 0.40, 0.95)
+	# Same z-order lesson as the archer's risk line: z 0 in tree order
+	# wins over the background (NOT -1, which hides behind opaque sky).
+	zone.add_to_group("boss_telegraph")   # tests + tooling find it here
 	var parent := get_parent()
 	if parent != null:
-		parent.add_child(ring)
-		ring.global_position = target
+		parent.add_child(zone)
+		zone.global_position = at
+	_danger_zone = zone
 
 
-## Free the painted ring. fade=false for an instant cut (boss died
-## mid-cast); fade=true for the consumed-after-burst outro.
-func _kill_roots_ring(fade: bool = false) -> void:
-	if _roots_ring == null:
+## Called every physics frame during TELEGRAPH so the fill tracks the
+## real timer (enrage shrinks it without any extra bookkeeping).
+func _update_danger_zone() -> void:
+	if _danger_zone != null and is_instance_valid(_danger_zone):
+		_danger_zone.set_charge(1.0 - _timer / _telegraph_total)
+
+
+## LAYER 2 - body language. SLAM rises up (a fist pulled to the sky),
+## SWEEP goes low and sways (a coiling swing), ROOTS stretches tall and
+## green (summoning). Three different silhouettes = three fast reads.
+func _play_attack_pose(attack: BossAttack) -> void:
+	visuals.rotation = 0.0   # sweep's later swings start clean
+	var pose_tween := create_tween()
+	pose_tween.set_parallel(true)
+	match attack:
+		BossAttack.SLAM:
+			var tn: float = _telegraph_total * 0.9
+			pose_tween.tween_property(visuals, "scale",
+				Vector2(0.88, 1.20), tn)
+			pose_tween.tween_property(visuals, "position:y", -4.0, tn)
+			pose_tween.tween_property(visuals, "modulate",
+				Color(1.0, 0.55, 0.45), tn * 0.6)
+		BossAttack.SWEEP:
+			pose_tween.tween_property(visuals, "scale",
+				Vector2(1.16, 0.90), _telegraph_total * 0.9)
+			pose_tween.tween_property(visuals, "modulate",
+				Color(1.0, 0.7, 0.4), _telegraph_total * 0.6)
+			# The coil/sway rotation is a SEPARATE tween below - running
+			# two tweens on one property makes them fight for it.
+		BossAttack.ROOTS:
+			pose_tween.tween_property(visuals, "scale",
+				Vector2(0.94, 1.24), _telegraph_total * 0.9)
+			pose_tween.tween_property(visuals, "modulate",
+				Color(0.65, 1.0, 0.65), _telegraph_total * 0.6)
+	if attack == BossAttack.SWEEP:
+		var sway := create_tween()
+		sway.tween_interval(_telegraph_total * 0.3)
+		sway.tween_property(visuals, "rotation", -0.14, 0.15)
+		sway.tween_property(visuals, "rotation", 0.10, 0.15)
+
+
+## LAYER 3 - the bouncing "!" above the head, tinted per attack. Even a
+## brand-new player reads this instantly: something happens NOW.
+func _show_warn_marker(attack: BossAttack) -> void:
+	_hide_warn_marker()
+	var marker := Label.new()
+	marker.text = "!"
+	var settings := LabelSettings.new()
+	settings.font_size = 10
+	match attack:
+		BossAttack.SLAM:  settings.font_color = Color(1.0, 0.35, 0.3)
+		BossAttack.SWEEP: settings.font_color = Color(1.0, 0.7, 0.3)
+		BossAttack.ROOTS: settings.font_color = Color(0.6, 1.0, 0.5)
+	marker.label_settings = settings
+	add_child(marker)
+	# -34 sits the "!" just over the crown; the bob keeps it magnetic.
+	marker.position = Vector2(-3, -34)
+	var bob := marker.create_tween().set_loops()
+	bob.tween_property(marker, "position:y", -39.0, 0.16) \
+		.set_trans(Tween.TRANS_SINE)
+	bob.tween_property(marker, "position:y", -33.0, 0.16) \
+		.set_trans(Tween.TRANS_SINE)
+	_warn_marker = marker
+
+
+func _hide_warn_marker() -> void:
+	if _warn_marker == null or not is_instance_valid(_warn_marker):
+		_warn_marker = null
 		return
-	var ring := _roots_ring
-	_roots_ring = null
-	if not is_instance_valid(ring) or not is_inside_tree():
+	var marker := _warn_marker
+	_warn_marker = null
+	var tween := create_tween()
+	tween.tween_property(marker, "modulate:a", 0.0, 0.1)
+	tween.tween_callback(marker.queue_free)
+
+
+## A distinct PITCH per attack (SLAM low roar, SWEEP mid, ROOTS high
+## chime): you can hear the difference before you even turn around.
+func _play_telegraph_sound(attack: BossAttack) -> void:
+	if telegraph_sfx == null or telegraph_sfx.stream == null:
 		return
-	if fade:
-		var tween := create_tween()
-		tween.tween_property(ring, "modulate:a", 0.0, 0.12)
-		tween.tween_callback(ring.queue_free)
+	match attack:
+		BossAttack.SLAM:  telegraph_sfx.pitch_scale = 0.65
+		BossAttack.SWEEP: telegraph_sfx.pitch_scale = 1.0
+		BossAttack.ROOTS: telegraph_sfx.pitch_scale = 1.45
+	telegraph_sfx.play()
+
+
+## Free the painted zone. consume=true for the kept-promise flash
+## after the hit; false for an instant cut (boss died mid-cast).
+func _kill_danger_zone(consume: bool = false) -> void:
+	if _danger_zone == null:
+		return
+	var zone := _danger_zone
+	_danger_zone = null
+	if not is_instance_valid(zone) or not is_inside_tree():
+		return
+	if consume and zone.has_method("flash_and_free"):
+		zone.flash_and_free()
 	else:
-		ring.queue_free()
+		zone.queue_free()
 
 
 # =====================================================================
@@ -328,6 +436,11 @@ func _begin_area_strike(area: Area2D, label: String) -> void:
 	_has_hit_this_strike = false
 	area.set_deferred("monitoring", true)
 
+	# The promise was kept: consume the danger zone with a bright flash
+	# so the zone's disappearance CONFIRMS the hit window opened.
+	_kill_danger_zone(true)
+	_hide_warn_marker()
+
 	# --- JUICE (pillar 1) -------------------------------------------
 	if _current_attack == BossAttack.SLAM:
 		ScreenShake.shake(9.0, 0.4)     # boss-high score
@@ -335,9 +448,13 @@ func _begin_area_strike(area: Area2D, label: String) -> void:
 		_spawn_slam_ring(slam_radius)
 		visuals.position = Vector2(0, 3)
 		visuals.scale = Vector2(1.25, 0.8)
-	else:
+	elif _current_attack == BossAttack.SWEEP:
 		ScreenShake.shake(5.0, 0.25)
 		visuals.scale = Vector2(1.12, 1.06)
+		# Finish the wind-up coil with the actual swing...
+		var swing := create_tween()
+		swing.tween_property(visuals, "rotation", -0.35, 0.06)
+		swing.tween_property(visuals, "rotation", 0.0, 0.12)
 	visuals.modulate = _rest_tint()
 
 	_state = ColossusState.STRIKE
@@ -350,8 +467,10 @@ func _begin_area_strike(area: Area2D, label: String) -> void:
 func _burst_roots() -> void:
 	_spawn_thorn_burst(_roots_target)
 	ScreenShake.shake(4.0, 0.2)
-	# The warning's job is done: consume the ring with a short fade.
-	_kill_roots_ring(true)
+	# The warning's job is done: consume the zone with a short flash,
+	# and take the "!" down with it.
+	_kill_danger_zone(true)
+	_hide_warn_marker()
 
 	if player != null and is_instance_valid(player) and not player.get("is_dead"):
 		var distance: float = player.global_position.distance_to(_roots_target)
@@ -399,6 +518,7 @@ func _reset_visuals() -> void:
 	tween.set_parallel(true)
 	tween.tween_property(visuals, "position:y", 0.0, 0.25)
 	tween.tween_property(visuals, "scale", Vector2.ONE, 0.25)
+	tween.tween_property(visuals, "rotation", 0.0, 0.25)
 	tween.tween_property(visuals, "modulate", _rest_tint(), 0.25)
 
 
@@ -542,7 +662,8 @@ func die() -> void:
 	print("[Colossus] ", name, " fell (the forest holds its breath)")
 
 	death_sfx.play()
-	_kill_roots_ring(false)
+	_kill_danger_zone(false)
+	_hide_warn_marker()
 
 	hurtbox.set_deferred("monitoring", false)
 	hurtbox.set_deferred("monitorable", false)

@@ -77,15 +77,24 @@ func _run() -> void:
 
 	var ring_found := false
 	for child in world.get_children():
-		if child is Line2D and child.get_parent() == world:
+		if child.is_in_group("boss_telegraph"):
 			ring_found = true
 	_check("Red roots ring painted in the arena", ring_found)
+	_check("Roots telegraph shows the '!' warning marker",
+		boss._warn_marker != null)
+
+	await _wait(0.45)   # mid-charge
+	_check("Danger zone charge fill is progressing",
+		boss._danger_zone != null and boss._danger_zone.charge > 0.2,
+		"charge=%.2f" % (boss._danger_zone.charge if boss._danger_zone != null else -1.0))
 
 	await _wait(1.2)   # roots_telegraph 0.9 + margin
 	await _tick(2)
 	_check_eq("Roots caught the standing player", fake_player.hit_count, 1)
 	_check_eq("Roots damage is 12", fake_player.last_damage, 12)
-	_check("Roots ring is consumed after the burst", boss._roots_ring == null)
+	_check("Roots danger zone is consumed after the burst",
+		boss._danger_zone == null)
+	_check("Warning marker hides after the burst", boss._warn_marker == null)
 
 	# ----------------------------------------------------------------
 	# 3. CLOSE PLAYER -> melee strikes alternate SLAM / SWEEP
@@ -99,6 +108,12 @@ func _run() -> void:
 		melee_check_done and (boss._current_attack == boss.BossAttack.SLAM
 			or boss._current_attack == boss.BossAttack.SWEEP),
 		"attack=%d" % boss._current_attack)
+
+	# The readability upgrade: melee attacks now paint the floor too.
+	_check("Melee telegraph paints a ground danger circle",
+		boss._danger_zone != null)
+	_check("Melee telegraph shows the '!' warning marker",
+		boss._warn_marker != null)
 
 	var first_attack: int = boss._current_attack
 	var strike_area: Area2D = boss.slam_area if first_attack == boss.BossAttack.SLAM \
@@ -117,6 +132,9 @@ func _run() -> void:
 	await _tick(1)
 	_check("The strike area went LIVE in its window", saw_live)
 	_check("The OTHER area stays asleep", other_area.monitoring == false)
+	_check("Melee danger zone is consumed at the strike",
+		boss._danger_zone == null)
+	_check("Melee '!' marker hides at the strike", boss._warn_marker == null)
 
 	# After the strike: the punish window. Poll for RECOVER, then check
 	# the timer is in the right ballpark for THIS attack.
