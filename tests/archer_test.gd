@@ -211,7 +211,11 @@ func _run() -> void:
 	rig.set_physics_process(false)
 	await _tick(2)
 
-	var vis: Node2D = rig.get_node("Visuals")
+	# UNTYPED on purpose: test scripts are not compiled against the game
+	# scripts, so a `Node2D`-typed variable would refuse `play_draw()` at
+	# parse time. A plain `var` keeps the calls dynamic (same trick as
+	# combat_test uses on the slime's visuals).
+	var vis = rig.get_node("Visuals")
 	var art: Sprite2D = vis.get_node("Body")
 
 	_check("Archer visuals expose the pose API",
@@ -221,13 +225,14 @@ func _run() -> void:
 		and vis.has_method("play_death") and vis.has_method("flash"))
 	_check("Archer keeps a ground shadow", vis.has_node("Shadow"))
 
+	var tex_detail: String = "no texture"
+	if art.texture != null:
+		tex_detail = "%dx%d" % [art.texture.get_width(), art.texture.get_height()]
 	_check("Sheet is 12 poses x 2 rows (384x64 at 32x32)",
 		art.hframes == 12 and art.vframes == 2
 		and art.texture != null
 		and art.texture.get_width() == 384 and art.texture.get_height() == 64,
-		"%dx%d grid, texture %s" % [art.hframes, art.vframes,
-			"%dx%d" % [art.texture.get_width(), art.texture.get_height()]
-			if art.texture != null else "none"])
+		"%dx%d grid, texture %s" % [art.hframes, art.vframes, tex_detail])
 
 	# Facing flips the sprite without moving the collision box.
 	vis.set_facing(-1.0)
