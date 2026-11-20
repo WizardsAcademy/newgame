@@ -164,8 +164,50 @@ func _run() -> void:
 	_check("Archer reported is_dead", archer2.is_dead)
 
 	# ----------------------------------------------------------------
+	# 6. ELITE ARCHER - 3x HP + golden ring + 3-arrow volley
+	# ----------------------------------------------------------------
+	var elite_world := Node2D.new()
+	add_child(elite_world)
+
+	var elite_player := Node2D.new()
+	elite_player.add_to_group("player")
+	elite_player.position = Vector2(150, 0)
+	elite_world.add_child(elite_player)
+
+	var elite_archer: CharacterBody2D = archer_scene.instantiate()
+	elite_archer.become_elite()          # spawner calls this BEFORE add_child
+	elite_world.add_child(elite_archer)
+	await _tick(3)
+
+	_check("Elite HP is 3x base (24 -> 72)", elite_archer.max_health == 72,
+		"hp=%d" % elite_archer.max_health)
+	var has_aura := false
+	for child in elite_archer.get_children():
+		if child is Line2D and child.points.size() >= 24:
+			has_aura = true
+	_check("Elite golden ring exists under the feet", has_aura)
+
+	# Count arrows strictly around this one shot: snapshot before the
+	# aim ends, compare after - earlier test arrows live in `world`,
+	# this elite archer lives in `elite_world`, so nothing overlaps.
+	var arrows_before := _count_children_arrows(elite_world)
+	await _wait(0.9)   # aim_duration 0.55 + margin
+	await _tick(5)
+	var arrows_after := _count_children_arrows(elite_world)
+	_check_eq("Elite volley spawns 3 arrows", arrows_after - arrows_before, 3)
+
+	# ----------------------------------------------------------------
 	print("\n%d/%d checks passed." % [_checks - _failures, _checks])
 	get_tree().quit(1 if _failures > 0 else 0)
+
+
+## How many "arrow" projectiles (Area2D with launch()) sit directly in a node.
+func _count_children_arrows(container: Node) -> int:
+	var count := 0
+	for child in container.get_children():
+		if child is Area2D and child.has_method("launch"):
+			count += 1
+	return count
 
 
 func _ready() -> void:

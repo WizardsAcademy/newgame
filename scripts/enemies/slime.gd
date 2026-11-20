@@ -110,6 +110,9 @@ var is_dead: bool = false
 ## True while the white flash is showing (used to not restart it).
 var _is_flashing: bool = false
 
+## Set by the wave spawner for hero versions (golden ring, 3x HP).
+var is_elite: bool = false
+
 # --- Phase 4 attack state machine --------------------------------------
 # CHASE      -> too far: walk to the player
 # TELEGRAPH  -> close: squash + tint red (the DODGE ME warning)
@@ -291,6 +294,17 @@ func _cancel_telegraph() -> void:
 	tween.set_parallel(true)
 	tween.tween_property(visuals, "scale", Vector2.ONE, 0.15)
 	tween.tween_property(visuals, "modulate", Color.WHITE, 0.15)
+
+
+## Called by the wave spawner for hero versions of this enemy.
+## Shared package (3x HP + golden ring) lives in Elite. The slime's
+## own extra: RAGE - a much faster telegraph and a snappier lunge,
+## so the elite jells before you think you have the time to dodge.
+func become_elite() -> void:
+	is_elite = true
+	Elite.make_enemy_elite(self)
+	telegraph_duration *= 0.6
+	lunge_speed *= 1.15
 
 
 ## The player is "usable" for attacking while it exists and is not dead.

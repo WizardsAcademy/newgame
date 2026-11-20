@@ -72,6 +72,9 @@ var is_dead: bool = false
 var _is_flashing: bool = false
 var _has_hit_this_slam: bool = false
 
+## Set by the wave spawner for hero versions (golden ring, 3x HP).
+var is_elite: bool = false
+
 enum AttackState { CHASE, TELEGRAPH, SLAM, RECOVER, COOLDOWN }
 var _attack_state: AttackState = AttackState.CHASE
 var _attack_timer: float = 0.0
@@ -210,6 +213,27 @@ func _end_slam() -> void:
 	_attack_state = AttackState.RECOVER
 	_attack_timer = recover_duration
 	_reset_visuals()
+
+
+## Called by the wave spawner for hero versions of this enemy.
+## Shared package (3x HP + golden ring) lives in Elite. The golem's
+## own extra: UPRISING - a much bigger slam (radius x1.5) and +5
+## damage. (The slam's live hitbox is the AttackArea circle from the
+## scene file - `slam_radius` is the exported reference value.)
+func become_elite() -> void:
+	is_elite = true
+	Elite.make_enemy_elite(self)
+	attack_damage += 5
+
+	# Enlarge the slam AOE. CAREFUL: the CircleShape2D from Golem.tscn
+	# is a SHARED resource - editing its radius directly would secretly
+	# buff every golem in the arena. Duplicate first, enlarge the copy.
+	var shape_node: CollisionShape2D = attack_area.get_node("CollisionShape2D")
+	var circle := shape_node.shape as CircleShape2D
+	if circle != null:
+		var elite_circle: CircleShape2D = circle.duplicate()
+		elite_circle.radius *= 1.5
+		shape_node.shape = elite_circle
 
 
 func _reset_visuals() -> void:

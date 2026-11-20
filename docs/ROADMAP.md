@@ -30,7 +30,11 @@
   later gets their own exclusive pool (`UpgradePool` + the 1/2/3 menu,
   tested: menu opens, stats apply, next wave unlocks)
 - [x] Arrows draw a risk line on the ground (linear telegraph, polish pass)
-- [ ] Elites (hero versions of enemies): golden aura, 3× HP, one extra ability
+- [x] Elites (hero versions of enemies): golden ring at the feet, 3x HP,
+  one exclusive ability per type — slime RAGE (60% telegraph, +15% lunge),
+  archer VOLLEY (3-arrow fan), golem UPRISING (+50% slam radius, +5 dmg);
+  chance grows with the wave (8% from wave 6, +2%/wave, 25% cap)
+  (`Elite` helper + `become_elite()` per enemy)
 - DoD: a 10-minute run should feel varied; death around waves 7–10 should
   feel natural; zero log errors
 

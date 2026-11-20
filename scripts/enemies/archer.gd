@@ -90,6 +90,9 @@ signal died
 var is_dead: bool = false
 var _is_flashing: bool = false
 
+## Set by the wave spawner for hero versions (golden ring, 3x HP).
+var is_elite: bool = false
+
 enum AttackState { REPOSITION, AIM, SHOOT, COOLDOWN }
 var _attack_state: AttackState = AttackState.REPOSITION
 var _attack_timer: float = 0.0
@@ -282,9 +285,31 @@ func _fire() -> void:
 	arrow.launch(global_position + Vector2(0, -2),
 		player.global_position - global_position)
 
+	# ELITE extra: a 3-arrow volley - the centre arrow behaves exactly
+	# like a normal shot, the two cone arrows fan out by +-10 degrees.
+	# The spread is the counterplay: standing between the beams dodges
+	# the whole fan, so the elite reads as dangerous but fair.
+	if is_elite:
+		for spread_deg in [-10.0, 10.0]:
+			var cone_arrow := arrow_scene.instantiate()
+			cone_arrow.damage = attack_damage
+			get_parent().add_child(cone_arrow)
+			var cone_dir: Vector2 = (
+				player.global_position - global_position
+			).rotated(deg_to_rad(spread_deg))
+			cone_arrow.launch(global_position + Vector2(0, -2), cone_dir)
+
 	# Whoosh/job juice: a quick lunge-lean opposite to the shot.
 	var tween := create_tween()
 	tween.tween_property(visuals, "scale", Vector2.ONE, 0.12)
+
+
+## Called by the wave spawner for hero versions of this enemy.
+## Shared package (3x HP + golden ring) lives in Elite; the archer's
+## own extra is the 3-arrow volley, applied at fire time above.
+func become_elite() -> void:
+	is_elite = true
+	Elite.make_enemy_elite(self)
 
 
 ## The skittish part: stand at <= retreat_distance? Walk away (slower

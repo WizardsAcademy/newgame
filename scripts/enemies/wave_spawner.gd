@@ -58,6 +58,16 @@ signal enemy_spawned(enemy: Node)
 @export var archer_chance: float = 0.3
 @export var golem_chance: float = 0.15
 
+## --- Elites (hero versions of enemies, Phase 7) -----------------------
+## First wave an elite can appear on, the base chance, how much the
+## chance grows per wave, and the ceiling. Rough landing curve:
+## wave 6 ≈ 8%, wave 10 ≈ 16%, wave 16+ ≈ 25% - by then the player is
+## comparing elite kill TIMES, not whether they survive them.
+@export var elite_start_wave: int = 6
+@export var elite_chance: float = 0.08
+@export var elite_chance_per_wave: float = 0.02
+@export var elite_chance_cap: float = 0.25
+
 ## Enemies in wave 1. wave N has base_count + (N - 1) * count_per_wave.
 @export var base_count: int = 3
 
@@ -210,11 +220,28 @@ func _spawn_enemy() -> void:
 	parent.add_child(enemy)
 
 	enemy.global_position = _pick_spawn_position()
+
+	# --- ELITE ROLL ------------------------------------------------
+	# From elite_start_wave on, every enemy has a growing chance to be
+	# a hero version: golden ring at the feet, 3x HP, one extra ability.
+	# The roll happens AFTER the wave stat bonus, so become_elite()
+	# triples the FINAL health - the elite really is boss-lite.
+	var is_elite_spawned: bool = false
+	if wave_number >= elite_start_wave:
+		var chance := minf(
+			elite_chance + (wave_number - elite_start_wave) * elite_chance_per_wave,
+			elite_chance_cap)
+		if randf() < chance and enemy.has_method("become_elite"):
+			enemy.become_elite()
+			is_elite_spawned = true
+
 	# Readable name: "<type>_W<wave>_<n>", e.g. Archer_W3_12. The scene's
 	# root node name ("Slime"/"Archer"/"Golem") is the type tag - read it
 	# BEFORE we overwrite enemy.name below.
 	total_spawned += 1
 	var type_name: String = String(enemy.name)
+	if is_elite_spawned:
+		type_name = "Elite" + type_name
 	enemy.name = "%s_W%d_%d" % [type_name, wave_number, total_spawned]
 	print("[Wave] Spawned ", enemy.name,
 		" hp=", enemy.max_health,
