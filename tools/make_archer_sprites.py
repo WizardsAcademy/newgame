@@ -175,12 +175,14 @@ def limb(img: Image.Image, p0, p1, shade: bool = False) -> None:
     darker, so two bones crossing each other never melt into one bright
     blob. That single trick is what makes the pose readable at 2x.
 
-    Widths: 3 px of outline + a 2 px core. The first draft used 4 + 3 + 2
-    (three bands) and the legs fused into a pair of trousers - a skeleton
-    has to be THIN before it can read as a skeleton.
+    Widths: 3 px of outline, a 2 px mid band and a 1 px highlight core.
+    The first draft used 4 + 3 + 2 (no highlight) and the legs fused into a
+    pair of trousers at gameplay zoom - a skeleton has to be THIN to read as
+    a skeleton, and the highlight is what keeps thin bones from going dark.
     """
     line(img, p0, p1, PAL["outline"], width=3)
     line(img, p0, p1, PAL["bone_lo"] if shade else PAL["bone"], width=2)
+    line(img, p0, p1, PAL["bone"] if shade else PAL["bone_hi"], width=1)
 
 
 def foot(img: Image.Image, at) -> None:

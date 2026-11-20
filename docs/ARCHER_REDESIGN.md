@@ -62,13 +62,16 @@ Three pillars, in priority order:
 - **32×32 frames**, ground line at `y = 30`, figure ~26 px tall, feet on the
   origin (the scene's `Shadow` stays where it is).
 - **One outline colour** (`#100E14`) closes the silhouette, like the slime.
-- **Thin before anything else.** The first rig drew 4/3/2 px limbs and the two
-  legs fused into a pair of trousers; a skeleton only reads as a skeleton when
-  the bones are thin. Limbs are 3 px of outline around a 2 px core.
+- **Thin before anything else.** The first rig drew fat limbs and the two legs
+  fused into a pair of trousers; a skeleton only reads as a skeleton when the
+  bones are thin — 1 px dark rim, 1 px mid, 1 px highlight.
 - **Bone is banded**, never a flat fill: `bone_hi #F0EAD4` / `bone #CEC6AC` /
-  `bone_lo #968E76`. Ribs, skull and pelvis use all three. Limbs are too thin
-  for three bands, so the *far* limb (the one behind the body) is drawn a band
-  darker — that is what keeps a wide stance from collapsing into one blob.
+  `bone_lo #968E76`. Ribs, skull, pelvis and every limb use all three. The
+  *far* limb (the one behind the body) is drawn one band darker — that is what
+  keeps a wide stance from collapsing into one blob.
+- **Check it at 2×, not at 10×.** Clean pixel art can still go muddy at the
+  camera's real zoom; `images/archer_game_zoom.png` is the sheet rendered at
+  exactly the size the player sees, with a slime next to it for scale.
 - **Cloak is the dark frame**: `#382C4A` base, `#54426C` highlight, so the pale
   bones pop out of it.
 - **Two embers per face**, `#FF8A30` with a `#FFE096` core pixel. The eyes are
@@ -185,6 +188,9 @@ every number in `archer.gd` and every existing archer test keeps its meaning.
 | `scripts/enemies/archer.gd` | AI only. Aim progress → `play_draw()`, shot → `play_release()` (+ a 1-in-3 head tilt), hit → `play_hurt()` + white flash, death → `play_death()` (no more 90° rotation). |
 | `scenes/enemies/Archer.tscn` | `Visuals` is a `Node2D` (script) with `Shadow` + `Body` (`hframes 12`, `vframes 2`). The old bob `AnimationPlayer` is gone. |
 | `tests/archer_test.gd` | section 7: sheet size, facing, walk/idle frames, draw → release → mock → hurt, flash row, collapse → bone heap, and a pin on every gameplay number the redesign promised to leave alone. |
+| `docs/images/archer_game_zoom.png` | the rig at the game's 2× camera zoom, next to a slime for scale. |
+
+![At gameplay zoom](images/archer_game_zoom.png)
 
 **Frame maths**: `frame = pose + (flashing ? 12 : 0)`, with
 `pose` in `0..11` in the order of section 5 and `hframes = 12`, `vframes = 2`.
