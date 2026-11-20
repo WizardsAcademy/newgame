@@ -29,7 +29,7 @@
   starts with generic upgrades (+HP, attack speed, dash); each character
   later gets their own exclusive pool (`UpgradePool` + the 1/2/3 menu,
   tested: menu opens, stats apply, next wave unlocks)
-- [ ] Arrows draw a risk line on the ground (linear telegraph, polish pass)
+- [x] Arrows draw a risk line on the ground (linear telegraph, polish pass)
 - [ ] Elites (hero versions of enemies): golden aura, 3× HP, one extra ability
 - DoD: a 10-minute run should feel varied; death around waves 7–10 should
   feel natural; zero log errors

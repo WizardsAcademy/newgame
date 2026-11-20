@@ -67,6 +67,10 @@ signal died
 ## working even if Arrow.tscn's path changes in one place only.
 @export var arrow_scene: PackedScene
 
+## Draw the red "risk line" on the ground while aiming (pillar 4:
+## hard-but-fair - the dodge is painted on the floor for you).
+@export var show_aim_line: bool = true
+
 # =====================================================================
 # STATE
 # =====================================================================
@@ -77,6 +81,10 @@ var _is_flashing: bool = false
 enum AttackState { REPOSITION, AIM, SHOOT, COOLDOWN }
 var _attack_state: AttackState = AttackState.REPOSITION
 var _attack_timer: float = 0.0
+
+## The ground risk line while aiming (created in _start_aim, killed in
+## _fire / die). Null whenever we are not aiming.
+var _aim_line: Line2D = null
 
 # =====================================================================
 # NODE REFERENCES
@@ -121,6 +129,7 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector2.ZERO   # planted feet while drawing the bow
 			move_and_slide()
 			_set_walking(false)
+			_update_aim_line()
 		AttackState.SHOOT:
 			# One physics frame of "release": spawn and move on.
 			_fire()
@@ -169,10 +178,74 @@ func _start_aim() -> void:
 	tween.tween_property(visuals, "modulate", Color(1.0, 0.5, 0.5), aim_duration)
 	tween.tween_property(visuals, "scale", Vector2(1.1, 0.95), aim_duration)
 
+	_spawn_aim_line()
+
+
+## The RISK LINE: a translucent red beam painted on the floor from the
+## bow to the player's CURRENT position. It re-aims every physics frame
+## during the aim (so the line never lies about where the shot will go)
+## and dies the instant the arrow leaves the bow. Drawn BEHIND actors -
+## it should read as a decal on the ground, not a floating laser.
+func _spawn_aim_line() -> void:
+	if not show_aim_line:
+		return
+	_aim_line = Line2D.new()
+	_aim_line.width = 1.5
+	_aim_line.z_index = -1
+	_aim_line.show_behind_parent = true
+	_aim_line.default_color = Color(1.0, 0.25, 0.2, 0.35)
+	add_child(_aim_line)
+
+	# Make the line "breathe" by pulsing its alpha: danger you can feel.
+	# Bound to the line node, so Godot auto-kills it when the line dies.
+	var pulse := _aim_line.create_tween()
+	pulse.set_loops()
+	pulse.tween_property(_aim_line, "default_color:a", 0.75, aim_duration * 0.5)
+	pulse.tween_property(_aim_line, "default_color:a", 0.35, aim_duration * 0.5)
+
+
+## Track the player every frame of the aim. The line length never
+## pretends to be longer than shooting_distance (the arrow flies a bit
+## past the target, but the THREAT is what we paint).
+func _update_aim_line() -> void:
+	if _aim_line == null or not is_instance_valid(_aim_line):
+		return
+	if not _is_player_alive():
+		_kill_aim_line()
+		return
+	var to_player := player.global_position - global_position
+	if to_player.length() < 1.0:
+		return
+	var length := minf(to_player.length(), shooting_distance)
+	_aim_line.points = PackedVector2Array([
+		Vector2(0, -2),                       # bow height, not feet level
+		to_player.normalized() * length,
+	])
+
+
+## Detach and free the line. fade=true for a short outro (the shot
+## "consumes" the line), fade=false for an instant cut (dead mid-aim).
+func _kill_aim_line(fade: bool = false) -> void:
+	if _aim_line == null:
+		return
+	var line := _aim_line
+	_aim_line = null
+	if not is_instance_valid(line):
+		return
+	if fade and is_inside_tree():
+		var tween := create_tween()
+		tween.tween_property(line, "modulate:a", 0.0, 0.12)
+		tween.tween_callback(line.queue_free)
+	else:
+		line.queue_free()
+
 
 ## Spawn the arrow aimed at where the player IS NOW (a small grace:
 ## strafing during the aim already makes the shot miss).
 func _fire() -> void:
+	# The shot consumed its own warning line.
+	_kill_aim_line(true)
+
 	# Reset visuals in case the player died mid-aim.
 	visuals.modulate = Color.WHITE
 	visuals.scale = Vector2.ONE
@@ -281,6 +354,7 @@ func die() -> void:
 
 	print("[Archer] ", name, " died (skeleton collapses)")
 	death_sfx.play()
+	_kill_aim_line(false)
 
 	hurtbox.set_deferred("monitoring", false)
 	hurtbox.set_deferred("monitorable", false)
