@@ -12,8 +12,11 @@ extends Node2D
 ##     (Distance checks are enough for a round puddle, need no collision
 ##     layers, and cannot be fooled by the player's hurtbox being a child
 ##     of a moving body.)
-##   * it is drawn with `_draw()` - no texture, no animation file, and the
-##     bubble positions are seeded so every pool looks slightly different.
+##   * it is PIXEL ART, not a `_draw()` circle. `draw_circle()` rasterises at
+##     the window resolution, so the old puddle looked like a smooth vector
+##     disc floating under a pixel-art world. `fx_acid_pool.png` is a
+##     4-frame strip drawn at 1 texture pixel = 1 game pixel by
+##     `tools/make_fx_sprites.py`; the pool just plays it.
 ##   * it lives in the ARENA (parented by the slime, not carried by it), so
 ##     the slime's queue_free() cannot take the puddle away mid-fight.
 ##   * MAX_POOLS caps how much purple soup a wave can put on screen.
@@ -33,27 +36,47 @@ extends Node2D
 ## The last part of the life is spent fading out (so it never pops).
 @export var fade_time: float = 0.9
 
-@export var fill_color: Color = Color(0.55, 0.25, 0.75, 0.32)
-@export var inner_color: Color = Color(0.68, 0.38, 0.90, 0.22)
-@export var edge_color: Color = Color(0.72, 0.42, 0.98, 0.90)
-
 ## Hard cap on how many pools may exist at once.
 const MAX_POOLS: int = 6
 
 const GROUP: String = "acid_pools"
 
+## Generated art: 4 x 64x64 frames of bubbling violet goo (see
+## tools/make_fx_sprites.py). Drawn at exactly the damage radius.
+const POOL_TEXTURE := preload("res://assets/textures/fx_acid_pool.png")
+const POOL_FRAMES: int = 4
+
+## Animation speed of the bubble loop (frames per second).
+const POOL_FPS: float = 7.0
+
 var _age: float = 0.0
 var _tick_timer: float = 0.0
 
-## Seeded bubble look: (angle, distance, size, phase).
-var _bubbles: Array = []
+## The puddle sprite. Every pool starts on a random frame so a wave full of
+## acid deaths does not bubble in lockstep.
+var _sprite: Sprite2D = null
+var _start_frame: int = 0
 
 
 func _ready() -> void:
 	add_to_group(GROUP)
 	_tick_timer = tick_interval * 0.5   # first tick lands quickly
-	_seed_bubbles()
+	_build_sprite()
 	_trim_old_pools()
+
+
+## One Sprite2D, one strip: no AnimationPlayer, no extra scene resources.
+func _build_sprite() -> void:
+	_sprite = Sprite2D.new()
+	_sprite.name = "Art"
+	_sprite.texture = POOL_TEXTURE
+	_sprite.hframes = POOL_FRAMES
+	_sprite.vframes = 1
+	_start_frame = randi() % POOL_FRAMES
+	_sprite.frame = _start_frame
+	# No z tricks: this project paints with tree order (z_index -1 tucks a
+	# node behind the opaque sky, the bug the archer's risk line hit).
+	add_child(_sprite)
 
 
 ## Keep the arena readable: when a 7th pool appears, the oldest one dries up.
@@ -75,14 +98,6 @@ func _trim_old_pools() -> void:
 		oldest.queue_free()
 
 
-func _seed_bubbles() -> void:
-	_bubbles.clear()
-	for i in 5:
-		var angle: float = randf() * TAU
-		var dist: float = sqrt(randf()) * radius * 0.72
-		_bubbles.append(Vector4(angle, dist, 1.2 + randf() * 1.4, randf()))
-
-
 func _process(delta: float) -> void:
 	_age += delta
 	_tick_timer -= delta
@@ -94,7 +109,8 @@ func _process(delta: float) -> void:
 	if _age >= lifetime - fade_time:
 		modulate.a = clampf((lifetime - _age) / maxf(fade_time, 0.001), 0.0, 1.0)
 
-	queue_redraw()
+	if _sprite != null:
+		_sprite.frame = (_start_frame + int(_age * POOL_FPS)) % POOL_FRAMES
 
 	if _age >= lifetime:
 		queue_free()
@@ -108,21 +124,3 @@ func _damage_players_inside() -> void:
 			continue
 		if global_position.distance_to((node as Node2D).global_position) <= radius:
 			node.take_damage(damage_per_tick, global_position)
-
-
-func _draw() -> void:
-	draw_circle(Vector2.ZERO, radius, fill_color)
-	draw_circle(Vector2.ZERO, radius * 0.62, inner_color)
-	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 28, edge_color, 1.5)
-
-	# Bubbles rise and pop: cheap, deterministic, no particles needed.
-	for bubble in _bubbles:
-		var angle: float = bubble.x
-		var dist: float = bubble.y
-		var size: float = bubble.z
-		var phase: float = bubble.w
-		var cycle: float = fmod(_age * 0.9 + phase, 1.0)
-		var centre := Vector2(cos(angle), sin(angle)) * dist
-		centre.y -= cycle * 5.0
-		var alpha: float = (1.0 - cycle) * 0.8
-		draw_circle(centre, size, Color(edge_color.r, edge_color.g, edge_color.b, alpha))

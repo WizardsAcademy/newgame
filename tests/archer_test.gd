@@ -183,7 +183,7 @@ func _run() -> void:
 		"hp=%d" % elite_archer.max_health)
 	var has_aura := false
 	for child in elite_archer.get_children():
-		if child is Line2D and child.points.size() >= 24:
+		if child is Sprite2D and child.name == "EliteAura" and child.texture != null:
 			has_aura = true
 	_check("Elite golden ring exists under the feet", has_aura)
 

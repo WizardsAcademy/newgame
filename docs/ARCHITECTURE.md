@@ -63,7 +63,9 @@ scripts/
   fx/                    effects
   audio/sfx_generator.gd procedural sound (static factories)
   upgrades/upgrade_pool.gd in-run roguelike upgrade pool
-assets/textures/         pixel art (slime.png is a 12x8 family pose sheet)
+assets/textures/         pixel art (slime.png is a 12x8 family pose sheet;
+                         fx_acid_pool / fx_blast_ring / fx_blast_burst are
+                         1:1 hazard strips from tools/make_fx_sprites.py)
 docs/SLIME_REDESIGN.md   the slime art/animation bible
 docs/                    these documents
 tests/                   headless test scripts

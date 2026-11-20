@@ -32,21 +32,23 @@ static func make_enemy_elite(enemy: Node) -> void:
 	_spawn_gold_aura(enemy)
 
 
-## A pulsing golden ring drawn in one Line2D loop - zero new art files.
-## Same z-order lesson as the archer's risk line: keep z_index 0, use
+## A pulsing golden ring at the feet.
+##
+## It used to be a 24-segment Line2D, which Godot rasterises as a smooth
+## vector ring - the one circle on screen that did not match the pixel-art
+## hazards (acid pool, ember fuse). It is now a 32x32 sprite from
+## `tools/make_fx_sprites.py`, drawn at 1 texture pixel = 1 game pixel.
+##
+## Same z-order lesson as the archer's risk line: keep z_index 0 and use
 ## show_behind_parent so the ring reads as painted on the floor.
+const AuraTexture := preload("res://assets/textures/fx_gold_ring.png")
+
 static func _spawn_gold_aura(enemy: Node) -> void:
-	var segments := 24
-	var radius := 14.0
-	var ring := Line2D.new()
-	var points := PackedVector2Array()
-	for i in segments + 1:
-		var angle := TAU * i / segments
-		points.append(Vector2(cos(angle), sin(angle)) * radius)
-	ring.points = points
-	ring.width = 2.0
+	var ring := Sprite2D.new()
+	ring.name = "EliteAura"
+	ring.texture = AuraTexture
 	ring.position = Vector2(0, 6)   # at the feet, not around the torso
-	ring.default_color = Color(1.0, 0.85, 0.25, _AURA_ALPHA_HIGH)
+	ring.modulate = Color(1.0, 1.0, 1.0, _AURA_ALPHA_HIGH)
 	ring.show_behind_parent = true
 	enemy.add_child(ring)
 
@@ -54,5 +56,5 @@ static func _spawn_gold_aura(enemy: Node) -> void:
 	# kills the tween automatically if the enemy dies mid-glow.
 	var pulse := ring.create_tween()
 	pulse.set_loops()
-	pulse.tween_property(ring, "default_color:a", _AURA_ALPHA_LOW, 0.6)
-	pulse.tween_property(ring, "default_color:a", _AURA_ALPHA_HIGH, 0.6)
+	pulse.tween_property(ring, "modulate:a", _AURA_ALPHA_LOW, 0.6)
+	pulse.tween_property(ring, "modulate:a", _AURA_ALPHA_HIGH, 0.6)
