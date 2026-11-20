@@ -56,13 +56,15 @@ scenes/
 scripts/
   main.gd                signal wiring + HUD + game over
   player/player.gd       input / movement / combo
-  enemies/slime.gd       enemy state machine
+  enemies/slime.gd       enemy state machine (AI, health, signals)
+  enemies/slime_visuals.gd the slime's look: poses, hop, squash, goo FX
   enemies/wave_spawner.gd wave system
   ui/                    health bar and HUD
   fx/                    effects
   audio/sfx_generator.gd procedural sound (static factories)
   upgrades/upgrade_pool.gd in-run roguelike upgrade pool
-assets/textures/         pixel art (white_pixel.png is a shared helper)
+assets/textures/         pixel art (slime.png is a 12x2 pose sheet)
+docs/SLIME_REDESIGN.md   the slime art/animation bible
 docs/                    these documents
 tests/                   headless test scripts
 ```
@@ -70,6 +72,8 @@ tests/                   headless test scripts
 ## Cookbook: Adding a New Enemy
 
 1. Build a 16×16 (or 24×24) sprite with Python/PIL → `assets/textures/`
+   (for multi-pose enemies, generate a sheet like `tools/make_slime_sprites.py`
+   and separate "look" from "brain" like `slime_visuals.gd` does)
 2. `scenes/enemies/<Name>.tscn` following the Slime.tscn skeleton: Body +
    HurtBox + AttackArea + health bar + SFX players
 3. Script under `scripts/enemies/` — state machine with a **clear telegraph**

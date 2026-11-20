@@ -35,6 +35,10 @@
   archer VOLLEY (3-arrow fan), golem UPRISING (+50% slam radius, +5 dmg);
   chance grows with the wave (8% from wave 6, +2%/wave, 25% cap)
   (`Elite` helper + `become_elite()` per enemy)
+- [x] Slime art pass: the green placeholder square became a rounded,
+  hand-generated 12-pose jelly (breath, blink, hop, splat, wind-up, lunge,
+  flinch, puddle) with a real white hit flash and goo death decal —
+  `docs/SLIME_REDESIGN.md`, generator in `tools/make_slime_sprites.py`
 - DoD: a 10-minute run should feel varied; death around waves 7–10 should
   feel natural; zero log errors
 
