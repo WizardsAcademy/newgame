@@ -7,7 +7,8 @@ extends PlayerBase
 ##     3-arrow Elven Fan!).
 ##   - Hold Space / Click (>= 0.35s) & release: **Hunter's Piercing Great-Arrow**
 ##     that deals 2x damage and pierces through ALL enemies in a line!
-##   - Shift Dash: nimble **Wind-Step Dash** (1.0s cooldown, 390 speed, 11 dmg).
+##   - Shift Dash: **Phantom Windstep** (1.0s CD, 390 speed, **0 damage**,
+##     phases cleanly THROUGH enemy bodies to escape surrounds!).
 
 const PLAYER_ARROW_SCENE := preload("res://scenes/player/PlayerArrow.tscn")
 
@@ -28,7 +29,9 @@ func _character_ready() -> void:
 	character_id = "sylvara"
 	character_name = "Sylvara"
 	dash_speed = 390.0
-	dash_damage = 11
+	dash_deals_damage = false
+	dash_phases_enemies = true
+	dash_damage = 0
 	dash_tint = Color(0.45, 0.98, 0.62, 0.78)
 	_setup_charge_ring()
 
@@ -54,7 +57,6 @@ func _on_attack_pressed(_event: InputEvent) -> void:
 	_is_drawing = true
 	is_attacking = true
 	_draw_time = 0.0
-	# Update facing toward mouse if clicked
 	get_aim_direction()
 	anim_player.stop()
 	anim_player.play("attack")
@@ -68,7 +70,6 @@ func _on_attack_released(_event: InputEvent) -> void:
 	_release_bow_shot()
 
 
-## Direct call fallback (e.g. automated tests calling `_start_attack()`).
 func _start_attack() -> void:
 	if is_dead or is_dashing or _shot_cooldown_left > 0.0:
 		return
@@ -87,11 +88,9 @@ func _character_physics_process(delta: float) -> void:
 			_cancel_draw()
 			return
 		_draw_time += delta
-		# Keep tracking cursor while holding mouse button
 		if _last_attack_used_mouse:
 			get_aim_direction()
 		_update_charge_ring()
-		# Safety: if the attack button is no longer held (e.g. focus loss), release!
 		if not (_read_input()["attack_held"] as bool) and _draw_time > 0.05:
 			_release_bow_shot()
 	elif _charge_ring != null and _charge_ring.visible:
@@ -129,7 +128,6 @@ func _release_bow_shot() -> void:
 	punch_sfx.pitch_scale = 0.82 if charged else 1.08
 	punch_sfx.play()
 
-	# Play release portion of bow animation (Frame 4 -> Frame 0).
 	anim_player.play("attack")
 	anim_player.seek(0.10, true)
 
@@ -140,7 +138,6 @@ func _release_bow_shot() -> void:
 	else:
 		_quick_shot_counter += 1
 		_spawn_arrow(dir, attack_damage, false, 390.0)
-		# Every 4th quick shot unleashes a 3-arrow Elven Fan!
 		if _quick_shot_counter % 4 == 0:
 			_spawn_arrow(dir.rotated(deg_to_rad(-9.0)), maxi(int(attack_damage * 0.75), 1), false, 375.0)
 			_spawn_arrow(dir.rotated(deg_to_rad(9.0)), maxi(int(attack_damage * 0.75), 1), false, 375.0)

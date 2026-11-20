@@ -50,6 +50,8 @@ static var _hurt_cache: AudioStreamWAV = null
 static var _dash_cache: AudioStreamWAV = null
 static var _bow_cache: AudioStreamWAV = null
 static var _blade_cache: AudioStreamWAV = null
+static var _shield_cache: AudioStreamWAV = null
+static var _blood_splash_cache: AudioStreamWAV = null
 
 
 ## Short aggressive swing burst (0.10 s): low-frequency thump + airy noise.
@@ -282,6 +284,59 @@ static func create_blade_sfx() -> AudioStreamWAV:
 
 	_blade_cache = _build_wav(samples)
 	return _blade_cache
+
+
+## Heavy steel-shield clang + metallic ring (0.11 s) for Knight's Shield Guard.
+static func create_shield_block_sfx() -> AudioStreamWAV:
+	if _shield_cache != null:
+		return _shield_cache
+
+	var duration := 0.11
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 808
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase1 := 0.0
+	var phase2 := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		phase1 += TAU * 780.0 / float(MIX_RATE)
+		phase2 += TAU * 1210.0 / float(MIX_RATE)
+		var impact := rng.randf_range(-1.0, 1.0) * pow(1.0 - progress, 4.0) * 0.45
+		var ring := (sin(phase1) * 0.55 + sin(phase2) * 0.35) * pow(1.0 - progress, 1.8)
+		samples[i] = (ring + impact) * 0.72
+
+	_shield_cache = _build_wav(samples)
+	return _shield_cache
+
+
+## Pressurized crimson liquid splash + dark pulse (0.13 s) for Velmira.
+static func create_blood_splash_sfx() -> AudioStreamWAV:
+	if _blood_splash_cache != null:
+		return _blood_splash_cache
+
+	var duration := 0.13
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 909
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	var lp := 0.0
+	for i in count:
+		var progress := float(i) / float(count)
+		var freq := lerpf(240.0, 420.0, sin(progress * PI))
+		phase += TAU * freq / float(MIX_RATE)
+		var raw := rng.randf_range(-1.0, 1.0)
+		lp = lerpf(lp, raw, 0.38)
+		var env := pow(1.0 - progress, 1.45) * minf(1.0, progress * 18.0)
+		samples[i] = (lp * 0.65 + sin(phase) * 0.40) * env * 0.70
+
+	_blood_splash_cache = _build_wav(samples)
+	return _blood_splash_cache
 
 
 ## Pack normalized `-1.0 .. 1.0` float samples into a 16-bit mono AudioStreamWAV.

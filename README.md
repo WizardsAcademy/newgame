@@ -1,34 +1,33 @@
 # Roguelike Brawler (Godot 4.7)
 
-A pixel-art top-down 2D action roguelike built in **Godot 4.7** with pure GDScript and procedural retro audio.
+A pixel-art top-down 2D action roguelike built in **Godot 4.7** with pure GDScript, high-detail `32×32` hero sprites, and procedural retro audio.
 
 ## Playable Heroes (Choose on Launch!)
 
-When the game opens, inspect and choose from **4 distinct heroes** on the Showcase Character Select screen (`Hover / A-D` to preview in the live Arena, `Click` or `1–4` / `Enter` to play):
+Inspect and choose from **4 distinct heroes** on the Showcase Character Select screen (`Hover / A-D` to preview live in the Arena, `Click` or `1–4` / `Enter` to play):
 
-1. **Behemoth — Brawler (`100 HP`)**: Heavy melee brawler with a **3-Hit Escalating Combo** (*Jab → Cross → Shockwave Uppercut*) and a 14-damage **Shoulder Dash**.
-2. **Knight — Frost Greatsword (`120 HP`)**: Armored tank wielding a wide frost greatsword (`24 DMG`) and his signature **Winter Aura** that chills & slows nearby enemies (charging wider + pulsing frost damage when standing firm).
-3. **Sylvara — Elven Ranger (`75 HP`)**: Fastest hero in the arena! Fires swift emerald arrows (3-arrow fan every 4th quick shot), or **hold Attack** (`≥0.35s`) to unleash a 2× damage **Piercing Great-Arrow**.
-4. **Velmira — Crimson Vampire (`85 HP`)**: Hurls a spinning **Boomerang Blood Blade** that slices enemies going out *and* returning. Every hit **leeches HP** and builds Blood Orbs toward an explosive **Crimson Blood Nova**.
+1. **Behemoth — Iron-Fist Brawler (`100 HP`)**: Heavy melee brawler with spiked iron gauntlets, a **3-Hit Escalating Combo** (*Jab → Cross → Shockwave Uppercut*), and a **16-DMG Shoulder-Smash Shift Dash**.
+2. **Knight — Shield & Greatsword (`120 HP`)**: Armored tank wielding a wide steel greatsword (`24 DMG`), a **14-DMG Shield Charge (`Shift`)**, and an active **Kite Shield (`Right-Click` or `E`)** that reduces incoming damage by **60%** (e.g. `10` damage → blocks `6`, takes `4`!).
+3. **Sylvara — Elven Ranger (`75 HP`)**: Fastest hero in the arena! Fires rapid recurve-bow shots (3-arrow fan every 4th quick shot) or **hold Attack** (`≥0.35s`) for a 2× damage **Piercing Great-Arrow**. Her `Shift` **Phantom Windstep** deals `0` damage and **phases cleanly through enemies**!
+4. **Velmira — Crimson Vampire (`85 HP`)**: Unleashes a mid-range **Crimson Blood Splash** cone (`17 DMG`). Every cast sacrifices **`-6 HP`** of her own blood, and hitting an enemy heals **`+8 HP`** (`+2 HP` net gain) — rewarding accuracy and punishing blind spam! (`Shift` is a `0`-damage Crimson Evade.)
 
 ## Controls
 
 | Action | Keys / Mouse |
 |--------|--------------|
 | Move (8-directional) | `W A S D` or `Arrow Keys` |
-| Attack / Charge (Sylvara) | `Space` or `Left Mouse Click` |
-| **Dash** (`1.0s` cooldown, phases & damages enemies!) | `Shift` |
-| Inspect Hero on Select Screen | `Mouse Hover`, `A / D`, or `Left / Right` |
+| Attack / Charge Bow (Sylvara) | `Space` or `Left Mouse Click` |
+| **Raise Kite Shield** (Knight — 60% DMG Reduction) | `Right Mouse Click` or `E` |
+| **Shift Dash** (`1.0s` CD — DMG on Behemoth/Knight; Enemy Phase on Sylvara) | `Shift` |
 | Confirm Hero / Pick Upgrade | `Click`, `1`–`4`, or `Enter / Space` |
 | Quick Retry (on Game Over, same hero) | `R` |
 | Change Hero (anytime or on Game Over) | `Esc` (or `C` on Game Over) |
 
 ## Core Features
 
-- **Showcase Character Select + Live Arena Preview** (`scripts/ui/character_select_menu.gd`): Animated 3× hero pedestal, graphical stat bars (`HP / ATK / SPD / DASH`), full kit breakdown, and translucent live-arena backdrop.
-- **Top-Right Tactical Mini-Map** (`scripts/ui/minimap.gd`): Exact `1:10` live radar of the `1280×720` arena showing stone obstacles, active camera window, player facing, and color-coded enemy blips (Slimes, Archers, Golems, golden-ring Elites, and Boss beacons).
-- **4 Playable Characters + `PlayerBase` Architecture** (`scripts/player/`): Shared input (`_read_input()`), health, i-frames, and `1.0s` Shift-Dash contract across all heroes.
-- **Endless Escalating Waves, Elites & Bosses** (`WaveSpawner` + `ForestColossus`): Slimes, Skeleton Archers, Stone Golems, `3x HP` Elites, and 5th-wave Boss encounters.
+- **High-Detail `32×32` Pixel-Art Heroes**: Custom-shaded spritesheets with dark pixel outlines, weapons, shields, quivers, and gothic cloaks.
+- **Tactical Proximity Mini-Map** (`scripts/ui/minimap.gd`): Top-right `1:10` arena map showing walls, obstacles, and player position (no camera box clutter). Distant enemies (`> 210 px`) only display **directional arrows (`➔`)** pointing their way until you close in (`<= 210 px`) to reveal their exact position!
+- **Endless Escalating Waves, Elites & Bosses** (`WaveSpawner` + `ForestColossus`): Slimes, Skeleton Archers, Stone Golems, `3x HP` Elites, and 5th-wave Boss fights.
 - **Between-Wave Roguelike Upgrades** (`UpgradePool` + `UpgradeMenu`): Pick 1 of 3 stacking run upgrades after every cleared wave.
 - **Procedural Combat Juice**: `ScreenShake`, `HitStop`, and procedural 16-bit PCM synth SFX (`SFXGenerator` on the `"SFX"` bus — zero external audio files).
 

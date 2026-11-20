@@ -117,15 +117,16 @@ func _ready() -> void:
 	subtitle.name = "Subtitle"
 	add_child(subtitle)
 
-	# Slice spritesheets once for all 4 heroes
+	# Slice 32x32 spritesheets once for all 4 heroes
 	for i in CharacterRegistry.CHARACTERS.size():
 		var entry: Dictionary = CharacterRegistry.CHARACTERS[i]
 		var sheet: Texture2D = load(entry["sheet_path"])
+		var fcount: int = int(entry.get("frame_count", 6))
 		var frames: Array[AtlasTexture] = []
-		for f in range(6):
+		for f in range(fcount):
 			var at := AtlasTexture.new()
 			at.atlas = sheet
-			at.region = Rect2(float(f * 24), 0.0, 24.0, 24.0)
+			at.region = Rect2(float(f * 32), 0.0, 32.0, 32.0)
 			frames.append(at)
 		_atlas_frames.append(frames)
 
@@ -457,15 +458,17 @@ func _process(delta: float) -> void:
 		_pedestal.queue_redraw()
 
 	_anim_timer += delta
-	if _anim_timer >= 0.22:
+	if _anim_timer >= 0.24:
 		_anim_timer = 0.0
-		_anim_step = (_anim_step + 1) % 6
-		var seq := [0, 1, 2, 1, 3, 4]
+		var hero_frames: Array = _atlas_frames[_selected_index]
+		var seq := [0, 1, 2, 3, 4, 6, 6] if hero_frames.size() >= 7 else [0, 1, 2, 1, 3, 4]
+		_anim_step = (_anim_step + 1) % seq.size()
 		var frame_idx: int = seq[_anim_step]
 		if _showcase_portrait != null:
-			_showcase_portrait.texture = _atlas_frames[_selected_index][frame_idx]
+			_showcase_portrait.texture = hero_frames[frame_idx]
 		for i in _card_portraits.size():
-			_card_portraits[i].texture = _atlas_frames[i][frame_idx if i == _selected_index else 0]
+			var cf: Array = _atlas_frames[i]
+			_card_portraits[i].texture = cf[mini(frame_idx, cf.size() - 1) if i == _selected_index else 0]
 
 
 # =====================================================================

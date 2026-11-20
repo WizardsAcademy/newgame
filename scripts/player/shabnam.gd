@@ -1,71 +1,101 @@
 extends PlayerBase
 ## Velmira - the Crimson Vampire (Hero 4 of 4, docs/CHARACTERS.md).
 ##
-## Role: Agile mid-range vampire predator (85 HP, sustained by Life Leech!).
-## Signature mechanic: **Blood Blade Boomerang + Life Leech & Blood Pool**
-##   - Throws a spinning crimson crescent that slices enemies going OUT and
-##     curves back to slice them AGAIN on the return!
-##   - Every hit leeches HP (+2 on blade hit, +3 on Bat-Mist Shift Dash) and
-##     builds 1 Blood Orb (up to 5).
-##   - At 5 Blood Orbs, unleashes a **Crimson Blood Nova** around Velmira!
+## Role: High-risk / precision crimson hemomancer (85 HP).
+## Signature mechanic: **Crimson Blood Splash (Self-Blood Cost + Tight Leech)**
+##   - Attack unleashes a pressurized cone burst of crimson blood (`splash_range`
+##     92 px) in front of Velmira — NO boomerang!
+##   - **Blood Price (`blood_self_cost = 6`):** Every cast sacrifices **6 HP**
+##     of Velmira's own health (down to 1 HP minimum) — spamming into empty air
+##     rapidly drains her lifeblood!
+##   - **Crimson Leech (`blood_hit_heal = 8`):** Landing the splash on an enemy
+##     heals **8 HP** (+2 net HP gain over the 6 HP cost, +2 HP per additional
+##     enemy splashed, up to 12 HP max per cast).
+##   - Shift Dash: **Crimson Evade** (1.0s CD, **0 damage**, quick dodge step).
 
-const BLOOD_BLADE_SCENE := preload("res://scenes/player/BloodBlade.tscn")
-
-@export var leech_per_hit: int = 2
-@export var dash_leech_per_hit: int = 3
-@export var max_blood_orbs: int = 5
-@export var blood_nova_radius: float = 58.0
-@export var blood_nova_damage: int = 16
-
-var blood_orbs: int = 0
-var _orb_angle: float = 0.0
-var _orb_drawer: Node2D = null
-var _in_blood_nova: bool = false
+@export var splash_range: float = 92.0
+@export var splash_half_angle_deg: float = 38.0
+@export var blood_self_cost: int = 6
+@export var blood_hit_heal: int = 8
+@export var blood_extra_target_heal: int = 2
+@export var blood_max_heal_per_cast: int = 12
 
 
-class BloodOrbRing extends Node2D:
-	var count: int = 0
-	var max_count: int = 5
-	var angle: float = 0.0
+## Animated crimson liquid cone + flying droplets spawned on each Blood Splash!
+class BloodSplashVisual extends Node2D:
+	var dir: Vector2 = Vector2.RIGHT
+	var max_reach: float = 92.0
+	var half_angle: float = deg_to_rad(38.0)
+	var progress: float = 0.0
+	var droplets: Array[Dictionary] = []
+
+	func setup(aim_dir: Vector2, reach: float, half_deg: float) -> void:
+		dir = aim_dir.normalized()
+		max_reach = reach
+		half_angle = deg_to_rad(half_deg)
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		for i in range(14):
+			var ang := dir.angle() + rng.randf_range(-half_angle * 0.95, half_angle * 0.95)
+			droplets.append({
+				"vec": Vector2(cos(ang), sin(ang)),
+				"dist": rng.randf_range(0.35, 1.05) * max_reach,
+				"r": rng.randf_range(1.6, 3.4),
+				"bright": i % 2 == 0,
+			})
+
+	func _process(delta: float) -> void:
+		progress += delta / 0.22
+		if progress >= 1.0:
+			queue_free()
+			return
+		queue_redraw()
 
 	func _draw() -> void:
-		if count <= 0:
-			return
-		for i in range(count):
-			var a := angle + TAU * float(i) / float(max_count)
-			var pos := Vector2(cos(a) * 14.0, sin(a) * 9.0 - 2.0)
-			draw_circle(pos, 2.2, Color(0.45, 0.04, 0.12, 0.85))
-			draw_circle(pos, 1.4, Color(1.0, 0.25, 0.38, 0.95))
+		var ease_t := 1.0 - pow(1.0 - clampf(progress, 0.0, 1.0), 2.2)
+		var alpha := 1.0 - pow(clampf(progress, 0.0, 1.0), 1.6)
+		var cur_r := lerpf(16.0, max_reach, ease_t)
+		var base_ang := dir.angle()
+
+		# Translucent dark-crimson splash cone wave
+		var poly := PackedVector2Array([dir * 8.0])
+		var steps := 12
+		for i in range(steps + 1):
+			var a := base_ang + lerpf(-half_angle, half_angle, float(i) / float(steps))
+			poly.append(Vector2(cos(a), sin(a)) * cur_r)
+		draw_colored_polygon(poly, Color(0.62, 0.04, 0.14, 0.34 * alpha))
+
+		# Bright scarlet leading splash crest arc
+		draw_arc(Vector2.ZERO, cur_r, base_ang - half_angle, base_ang + half_angle, 14,
+			Color(1.0, 0.20, 0.34, 0.92 * alpha), 2.6)
+		draw_arc(Vector2.ZERO, cur_r * 0.72, base_ang - half_angle * 0.8, base_ang + half_angle * 0.8, 12,
+			Color(0.88, 0.08, 0.22, 0.70 * alpha), 1.8)
+
+		# Pressurized blood droplets
+		for d in droplets:
+			var p: Vector2 = (d["vec"] as Vector2) * (float(d["dist"]) * ease_t)
+			var rad: float = float(d["r"]) * (1.0 - 0.35 * progress)
+			var col := Color(1.0, 0.32, 0.44, 0.95 * alpha) if bool(d["bright"]) \
+				else Color(0.55, 0.03, 0.12, 0.92 * alpha)
+			draw_circle(p, rad, col)
 
 
 func _create_attack_sfx() -> AudioStreamWAV:
-	return SFXGenerator.create_blade_sfx()
+	return SFXGenerator.create_blood_splash_sfx()
 
 
 func _character_ready() -> void:
 	character_id = "velmira"
 	character_name = "Velmira"
-	dash_speed = 365.0
-	dash_damage = 15
-	dash_tint = Color(0.95, 0.18, 0.34, 0.84)
-
-	_orb_drawer = BloodOrbRing.new()
-	_orb_drawer.name = "BloodOrbs"
-	add_child(_orb_drawer)
-
-
-func _character_physics_process(delta: float) -> void:
-	if _orb_drawer != null:
-		_orb_angle += delta * 3.0
-		_orb_drawer.count = 0 if is_dead else blood_orbs
-		_orb_drawer.max_count = max_blood_orbs
-		_orb_drawer.angle = _orb_angle
-		_orb_drawer.queue_redraw()
+	dash_speed = 360.0
+	dash_deals_damage = false
+	dash_phases_enemies = false
+	dash_damage = 0
+	dash_tint = Color(0.95, 0.18, 0.34, 0.82)
 
 
 func _get_attack_move_multiplier() -> float:
-	# Nimble thrower: brief 40% glide while tossing a Blood Blade.
-	return 0.40
+	return 0.38
 
 
 func _start_attack() -> void:
@@ -83,14 +113,18 @@ func _start_attack() -> void:
 
 	anim_player.stop()
 	anim_player.play("attack")
-	punch_sfx.pitch_scale = 1.12
+	punch_sfx.pitch_scale = randf_range(0.95, 1.08)
 	punch_sfx.play()
 
 	await get_tree().create_timer(attack_windup).timeout
 	if my_token != _attack_token or is_dead:
 		return
 
-	_throw_blood_blade(dir)
+	# 1. Pay her own lifeblood on EVERY cast (punishes blind spamming!)
+	_pay_blood_cost()
+
+	# 2. Unleash the Crimson Blood Splash cone & heal ONLY if enemies are hit!
+	_unleash_blood_splash(dir)
 
 	var remaining := maxf(attack_duration - attack_windup, 0.08)
 	await get_tree().create_timer(remaining).timeout
@@ -100,81 +134,75 @@ func _start_attack() -> void:
 	is_attacking = false
 
 
-func _throw_blood_blade(dir: Vector2) -> void:
-	var parent := get_parent()
-	if parent == null:
-		return
-	var blade: Area2D = BLOOD_BLADE_SCENE.instantiate()
-	parent.add_child(blade)
-	blade.launch(global_position + dir.normalized() * 12.0, dir, self, attack_damage)
+func _pay_blood_cost() -> int:
+	if is_dead or blood_self_cost <= 0:
+		return 0
+	# Self-blood sacrifice drops down to 1 HP minimum so spamming leaves Velmira
+	# one touch from death without granting enemy-hit invulnerability frames!
+	var paid := mini(blood_self_cost, maxi(current_health - 1, 0))
+	if paid > 0:
+		last_health_change_was_self_cost = true
+		current_health -= paid
+		health_changed.emit(current_health, max_health)
+	return paid
 
 
-func _on_dash_started() -> void:
-	# Crimson bat-mist burst on dash start!
-	var parent := get_parent()
-	if parent == null:
-		return
-	var bats := CPUParticles2D.new()
-	bats.one_shot = true
-	bats.amount = 10
-	bats.lifetime = 0.25
-	bats.explosiveness = 1.0
-	bats.spread = 180.0
-	bats.initial_velocity_min = 35.0
-	bats.initial_velocity_max = 85.0
-	bats.scale_amount_min = 1.5
-	bats.scale_amount_max = 3.0
-	bats.color = Color(0.92, 0.15, 0.30, 0.9)
-	bats.emitting = false
-	parent.add_child(bats)
-	bats.global_position = global_position
-	bats.emitting = true
-	bats.finished.connect(bats.queue_free)
-
-
-func _on_dealt_damage(_enemy: Node, _amount: int, from_dash: bool) -> void:
-	if _in_blood_nova or is_dead:
-		return
-
-	heal(dash_leech_per_hit if from_dash else leech_per_hit)
-
-	blood_orbs += 1
-	if blood_orbs >= max_blood_orbs:
-		blood_orbs = 0
-		call_deferred("_detonate_blood_nova")
-
-
-func _detonate_blood_nova() -> void:
-	if is_dead or not is_inside_tree():
-		return
-	_in_blood_nova = true
-	heal(5)
-	ScreenShake.shake(4.2, 0.18)
+func _unleash_blood_splash(dir: Vector2) -> void:
+	var aim := dir.normalized()
+	if aim.length() < 0.01:
+		aim = Vector2(facing, 0.0)
 
 	var parent := get_parent()
 	if parent != null:
-		var ring := Line2D.new()
-		ring.width = 2.5
-		ring.default_color = Color(1.0, 0.2, 0.35, 0.92)
-		var pts := PackedVector2Array()
-		var segs := 28
-		for i in segs + 1:
-			var a := TAU * float(i) / float(segs)
-			pts.append(Vector2(cos(a), sin(a)) * blood_nova_radius)
-		ring.points = pts
-		parent.add_child(ring)
-		ring.global_position = global_position
-		ring.scale = Vector2(0.25, 0.25)
-		var tw := ring.create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(ring, "scale", Vector2.ONE, 0.22)
-		tw.tween_property(ring, "modulate:a", 0.0, 0.26)
-		tw.chain().tween_callback(ring.queue_free)
+		var fx := BloodSplashVisual.new()
+		fx.setup(aim, splash_range, splash_half_angle_deg)
+		parent.add_child(fx)
+		fx.global_position = global_position + aim * 6.0
 
-	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if enemy == null or not is_instance_valid(enemy) or enemy.get("is_dead") == true:
+	var cos_limit := cos(deg_to_rad(splash_half_angle_deg))
+	var hits_landed := 0
+
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node == null or not is_instance_valid(node) or node.get("is_dead") == true:
 			continue
-		if global_position.distance_to((enemy as Node2D).global_position) <= blood_nova_radius:
-			deal_combat_damage(enemy, blood_nova_damage, false, 14.0, (enemy as Node2D).global_position)
+		if not (node is Node2D):
+			continue
+		var enemy := node as Node2D
+		var offset := enemy.global_position - global_position
+		var dist := offset.length()
+		if dist > splash_range:
+			continue
+		# Point-blank splash (< 22 px) always connects; further out checks cone angle.
+		var in_cone := dist <= 22.0 or (offset / maxf(dist, 0.001)).dot(aim) >= cos_limit
+		if in_cone:
+			hits_landed += 1
+			deal_combat_damage(enemy, attack_damage, false, 9.0, enemy.global_position)
 
-	_in_blood_nova = false
+	if hits_landed > 0 and not is_dead:
+		var total_heal := mini(
+			blood_hit_heal + (hits_landed - 1) * blood_extra_target_heal,
+			blood_max_heal_per_cast
+		)
+		heal(total_heal)
+
+
+func _on_dash_started() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var mist := CPUParticles2D.new()
+	mist.one_shot = true
+	mist.amount = 8
+	mist.lifetime = 0.22
+	mist.explosiveness = 1.0
+	mist.spread = 180.0
+	mist.initial_velocity_min = 30.0
+	mist.initial_velocity_max = 70.0
+	mist.scale_amount_min = 1.5
+	mist.scale_amount_max = 2.6
+	mist.color = Color(0.92, 0.15, 0.30, 0.85)
+	mist.emitting = false
+	parent.add_child(mist)
+	mist.global_position = global_position
+	mist.emitting = true
+	mist.finished.connect(mist.queue_free)

@@ -6,12 +6,13 @@ class_name PlayerBase
 ## core plumbing:
 ##  - Centralized `_read_input()` (multiplayer-ready rule #1),
 ##  - 8-directional top-down movement + knockback decay + footstep dust/SFX,
-##  - Shift DASH (`dash` action): 1.0s cooldown, phases through enemies while
-##    staying inside arena walls, brief dash i-frames, ghost afterimages, AND
-##    deals `dash_damage` to every enemy dashed through!
-##  - Health, post-hit invulnerability blink, death collapse, and the unified
-##    signal contract (`attack_hit`, `health_changed`, `player_died`,
-##    `dash_cooldown_changed`) wired by `scripts/main.gd`.
+##  - Shift DASH (`dash` action, 1.0s cooldown):
+##      * ONLY Behemoth & Knight deal damage with Shift (`dash_deals_damage = true`)!
+##      * Sylvara (Elf) phases cleanly through enemies (`dash_phases_enemies = true`)
+##        without dealing Shift damage!
+##      * Velmira (Vampire) performs a quick crimson evade step (0 Shift damage).
+##  - Subclass hooks for active defense (Knight's 60% damage-reduction Shield)
+##    and self-blood cost (Velmira's Blood Splash).
 
 
 # =====================================================================
@@ -22,6 +23,7 @@ signal attack_hit(enemy)
 signal health_changed(current_health: int, max_health: int)
 signal player_died
 signal dash_cooldown_changed(remaining: float, duration: float)
+signal damage_mitigated(blocked_amount: int, final_amount: int)
 
 
 # =====================================================================
@@ -42,11 +44,13 @@ signal dash_cooldown_changed(remaining: float, duration: float)
 @export var knockback_speed: float = 180.0
 @export var footstep_interval: float = 0.25
 
-## --- Shift Dash (universal ability across all 4 heroes) ----------------
+## --- Shift Dash (1.0s cooldown; per-hero rules!) -----------------------
 @export var dash_speed: float = 340.0
 @export var dash_duration: float = 0.16
 @export var dash_cooldown: float = 1.0
-@export var dash_damage: int = 12
+@export var dash_deals_damage: bool = false
+@export var dash_phases_enemies: bool = false
+@export var dash_damage: int = 0
 @export var dash_hit_radius: float = 16.0
 @export var dash_tint: Color = Color(0.55, 0.9, 1.0, 0.72)
 
@@ -58,7 +62,6 @@ signal dash_cooldown_changed(remaining: float, duration: float)
 # STATE
 # =====================================================================
 
-## Disabled while Character Select is open so inputs don't move the body.
 var input_enabled: bool = true
 
 var is_attacking: bool = false
@@ -68,27 +71,23 @@ var is_dashing: bool = false
 var current_health: int = 100
 var facing: float = 1.0
 
-## Exact damage dealt by the most recent hit (read by Main for floating
-## numbers so normal hits, dash hits, charged shots, and combos all display
-## their true damage without breaking `signal attack_hit(enemy)`).
 var last_dealt_damage: int = 18
 var last_hit_was_dash: bool = false
+var last_health_change_was_self_cost: bool = false
 
-## Dash timers & per-dash hit de-duplication.
 var dash_cooldown_left: float = 0.0
 var _dash_time_left: float = 0.0
 var _dash_dir: Vector2 = Vector2.RIGHT
 var _dash_ghost_timer: float = 0.0
 var _enemies_hit_this_dash: Dictionary = {}
 
+var _base_visual_scale: Vector2 = Vector2.ONE
 var _invulnerable: bool = false
 var _knockback: Vector2 = Vector2.ZERO
 var _is_flashing: bool = false
 var _enemies_hit_this_swing: Dictionary = {}
 var _footstep_timer: float = 0.0
-## Monotonic token incremented whenever an async swing is cancelled/restarted.
 var _attack_token: int = 0
-## Tracks whether the latest attack press came from the mouse button (for ranged aim).
 var _last_attack_used_mouse: bool = false
 
 const HIT_SPARK_SCENE := preload("res://scenes/fx/HitSpark.tscn")
@@ -121,6 +120,8 @@ var _dash_sfx: AudioStreamPlayer = null
 
 func _ready() -> void:
 	_ensure_input_actions()
+	if visuals != null:
+		_base_visual_scale = Vector2(absf(visuals.scale.x), visuals.scale.y)
 	_disable_hitbox()
 	_setup_dash_nodes()
 
@@ -139,18 +140,16 @@ func _ready() -> void:
 	_character_ready()
 
 
-## Subclass hook called at the end of `_ready()`.
 func _character_ready() -> void:
 	pass
 
 
-## Subclass hook to customize weapon swing / bow / blade SFX.
 func _create_attack_sfx() -> AudioStreamWAV:
 	return SFXGenerator.create_punch_sfx()
 
 
-## Guarantee the `"dash"` action is bound to `KEY_SHIFT` (Left & Right Shift)
-## even in standalone test harnesses.
+## Guarantee `"dash"` (`KEY_SHIFT`) and `"shield"` (`Right-Click` + `E`) exist
+## even in standalone headless test scenes.
 static func _ensure_input_actions() -> void:
 	if not InputMap.has_action("dash"):
 		InputMap.add_action("dash")
@@ -163,6 +162,16 @@ static func _ensure_input_actions() -> void:
 		var shift_ev := InputEventKey.new()
 		shift_ev.keycode = KEY_SHIFT
 		InputMap.action_add_event("dash", shift_ev)
+
+	if not InputMap.has_action("shield"):
+		InputMap.add_action("shield")
+	if InputMap.action_get_events("shield").is_empty():
+		var rmb := InputEventMouseButton.new()
+		rmb.button_index = MOUSE_BUTTON_RIGHT
+		InputMap.action_add_event("shield", rmb)
+		var key_e := InputEventKey.new()
+		key_e.keycode = KEY_E
+		InputMap.action_add_event("shield", key_e)
 
 
 func _setup_dash_nodes() -> void:
@@ -204,11 +213,13 @@ func _read_input() -> Dictionary:
 		return {
 			"move": Vector2.ZERO,
 			"attack_held": false,
+			"shield_held": false,
 			"aim_world": global_position + Vector2(facing * 64.0, 0.0),
 		}
 	return {
 		"move": Input.get_vector("move_left", "move_right", "move_up", "move_down"),
 		"attack_held": Input.is_action_pressed("attack"),
+		"shield_held": Input.is_action_pressed("shield"),
 		"aim_world": get_global_mouse_position(),
 	}
 
@@ -244,19 +255,21 @@ func _physics_process(delta: float) -> void:
 		_process_dash(delta)
 	else:
 		_handle_movement()
+	_character_physics_process(delta)
 	_update_animation()
 	_update_footsteps(delta)
-	_character_physics_process(delta)
 
 
-## Subclass per-physics-frame hook (auras, bow charge rings, combo timers).
 func _character_physics_process(_delta: float) -> void:
 	pass
 
 
-## Subclass multiplier on movement speed while attacking/charging (0.0 = locked).
 func _get_attack_move_multiplier() -> float:
 	return 0.0
+
+
+func _get_stance_move_multiplier() -> float:
+	return 1.0
 
 
 # =====================================================================
@@ -273,6 +286,8 @@ func _handle_movement() -> void:
 	var input_dir: Vector2 = input_state["move"]
 	if is_attacking:
 		input_dir *= _get_attack_move_multiplier()
+	else:
+		input_dir *= _get_stance_move_multiplier()
 
 	_knockback = _knockback.move_toward(
 		Vector2.ZERO, 800.0 * get_physics_process_delta_time()
@@ -291,13 +306,14 @@ func _handle_movement() -> void:
 
 
 func _sync_facing_nodes() -> void:
-	visuals.scale.x = facing
+	if visuals != null:
+		visuals.scale = Vector2(_base_visual_scale.x * facing, _base_visual_scale.y)
 	attack_point.position.x = attack_point_offset_x * facing
 	hitbox.position.x = attack_point_offset_x * facing
 
 
 # =====================================================================
-# SHIFT DASH (1.0s cooldown + enemy pass-through damage)
+# SHIFT DASH (1.0s cooldown; hero-specific damage & phasing!)
 # =====================================================================
 
 func can_dash() -> bool:
@@ -316,8 +332,6 @@ func _try_start_dash() -> bool:
 	else:
 		_dash_dir = Vector2(facing, 0.0)
 
-	# If the player dashes out of an attack windup to dodge a boss slam,
-	# cancel the melee swing cleanly so the player always feels in control.
 	if is_attacking:
 		_attack_token += 1
 		is_attacking = false
@@ -331,11 +345,14 @@ func _try_start_dash() -> bool:
 	_enemies_hit_this_dash.clear()
 	_knockback = Vector2.ZERO
 
-	# Phase cleanly through enemies (layer 4) while still respecting walls (layer 1).
-	collision_layer = 0
-	collision_mask = _BODY_MASK_DASH
+	if dash_phases_enemies:
+		collision_layer = 0
+		collision_mask = _BODY_MASK_DASH
+	else:
+		collision_layer = _BODY_LAYER_NORMAL
+		collision_mask = _BODY_MASK_NORMAL
 
-	_dash_hitbox.monitoring = true
+	_dash_hitbox.monitoring = dash_deals_damage and dash_damage > 0
 	_dash_sfx.play()
 	dust.restart()
 	ScreenShake.shake(2.0, 0.09)
@@ -359,9 +376,7 @@ func _process_dash(delta: float) -> void:
 	velocity = _dash_dir * dash_speed
 	move_and_slide()
 
-	# Poll overlapping hurtboxes every physics frame so fast dashes never
-	# tunnel past an enemy between frames.
-	if _dash_hitbox != null and _dash_hitbox.monitoring:
+	if dash_deals_damage and dash_damage > 0 and _dash_hitbox != null and _dash_hitbox.monitoring:
 		for area in _dash_hitbox.get_overlapping_areas():
 			_try_dash_hit(area)
 		for body in _dash_hitbox.get_overlapping_bodies():
@@ -407,7 +422,7 @@ func _on_dash_hitbox_body_entered(body: Node2D) -> void:
 
 
 func _try_dash_hit(touched: Node) -> void:
-	if not is_dashing or is_dead:
+	if not is_dashing or is_dead or not dash_deals_damage or dash_damage <= 0:
 		return
 	var enemy := _find_damageable(touched)
 	if enemy == null:
@@ -463,7 +478,7 @@ func _update_footsteps(delta: float) -> void:
 
 
 # =====================================================================
-# DEFAULT MELEE COMBAT (overridden or extended by subclasses)
+# DEFAULT MELEE COMBAT
 # =====================================================================
 
 func _start_attack() -> void:
@@ -558,7 +573,6 @@ func _compute_melee_knockback_px() -> float:
 	return maxf((knockback_speed - 180.0) * 0.06, 0.0)
 
 
-## Unified authoritative damage delivery for melee, dash, arrows, blades, & auras.
 func deal_combat_damage(enemy: Node, amount: int, from_dash: bool = false, knockback_px: float = 0.0, spark_pos: Vector2 = Vector2.INF) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
@@ -588,7 +602,6 @@ func deal_combat_damage(enemy: Node, amount: int, from_dash: bool = false, knock
 	attack_hit.emit(enemy)
 
 
-## Subclass hook called whenever this hero deals confirmed damage to an enemy.
 func _on_dealt_damage(_enemy: Node, _amount: int, _from_dash: bool) -> void:
 	pass
 
@@ -614,7 +627,6 @@ func _spawn_hit_spark_at(world_pos: Vector2) -> void:
 	spark.global_position = world_pos
 
 
-## Compute an aim unit vector toward mouse cursor (if mouse clicked) or facing/move dir.
 func get_aim_direction() -> Vector2:
 	var state := _read_input()
 	if _last_attack_used_mouse:
@@ -632,7 +644,7 @@ func get_aim_direction() -> Vector2:
 
 
 # =====================================================================
-# HEALTH, HEALING & TAKING DAMAGE
+# HEALTH, HEALING, MITIGATION & TAKING DAMAGE
 # =====================================================================
 
 func heal(amount: int) -> void:
@@ -641,28 +653,44 @@ func heal(amount: int) -> void:
 	var before := current_health
 	current_health = clampi(current_health + amount, 0, max_health)
 	if current_health != before:
+		last_health_change_was_self_cost = false
 		health_changed.emit(current_health, max_health)
 
 
+## Subclass hook to reduce incoming enemy damage (e.g. Knight's 60% Shield Guard).
+func _mitigate_incoming_damage(amount: int, _from_position: Vector2) -> int:
+	return amount
+
+
+func _get_incoming_knockback_multiplier() -> float:
+	return 1.0
+
+
 func take_damage(amount: int, from_position: Vector2 = Vector2.INF) -> void:
-	# Invulnerable during dash i-frames AND post-hit blink i-frames!
 	if is_dead or _invulnerable or is_dashing:
 		return
 
-	current_health = clampi(current_health - amount, 0, max_health)
-	print("[", character_name, "] took ", amount, " damage  ->  HP ",
+	var final_amount := _mitigate_incoming_damage(amount, from_position)
+	if final_amount < amount:
+		damage_mitigated.emit(amount - final_amount, final_amount)
+	if final_amount <= 0:
+		return
+
+	last_health_change_was_self_cost = false
+	current_health = clampi(current_health - final_amount, 0, max_health)
+	print("[", character_name, "] took ", final_amount, " damage  ->  HP ",
 		current_health, "/", max_health)
 
 	health_changed.emit(current_health, max_health)
 	hurt_sfx.play()
 
 	HitStop.freeze(0.04)
-	ScreenShake.shake(4.0, 0.2)
+	ScreenShake.shake(4.0 * _get_incoming_knockback_multiplier(), 0.2)
 
 	if from_position != Vector2.INF:
 		var away := global_position - from_position
 		if away.length() > 1.0:
-			_knockback = away.normalized() * knockback_speed
+			_knockback = away.normalized() * (knockback_speed * _get_incoming_knockback_multiplier())
 
 	_flash_red()
 
