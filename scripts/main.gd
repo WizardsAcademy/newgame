@@ -131,6 +131,8 @@ func _replace_player_instance(char_id: String, enable_combat: bool) -> Dictionar
 		player.player_died.connect(_on_player_died)
 		if player.has_signal("dash_cooldown_changed"):
 			player.dash_cooldown_changed.connect(_on_dash_cooldown_changed)
+		if player.has_signal("damage_mitigated"):
+			player.damage_mitigated.connect(_on_player_damage_mitigated)
 
 	return entry
 
@@ -151,6 +153,7 @@ func select_character(char_id: String) -> void:
 		minimap.set_player_accent(entry["accent"])
 
 	_last_health = player.current_health
+	hint_label.text = String(entry.get("hud_hint", "WASD: Move   Space/Click: Attack   Shift: Dash   Esc: Heroes"))
 	hp_text_label.text = String(entry["name"]).to_upper()
 	player_health_bar.set_health(player.current_health, player.max_health)
 	dash_bar.set_health(1.0, 1.0)
@@ -254,10 +257,20 @@ func _on_enemy_spawned(enemy: Node) -> void:
 	_watch_enemy(enemy)
 
 
+func _on_player_damage_mitigated(blocked_amount: int, _final_amount: int) -> void:
+	if player != null and is_instance_valid(player) and blocked_amount > 0:
+		_spawn_status_popup(player.global_position + Vector2(0.0, -8.0),
+			"SHIELD -%d" % blocked_amount, Color(0.62, 0.88, 1.0))
+
+
 func _on_player_health_changed(current: int, max_health: int) -> void:
 	player_health_bar.set_health(current, max_health)
 	if _last_health >= 0 and current < _last_health:
-		_flash_hurt()
+		if player != null and bool(player.get("last_health_change_was_self_cost")):
+			_spawn_status_popup(player.global_position + Vector2(-4.0, -6.0),
+				"-%d" % (_last_health - current), Color(0.96, 0.24, 0.38))
+		else:
+			_flash_hurt()
 	elif _last_health >= 0 and current > _last_health and player != null:
 		_spawn_heal_number(player.global_position, current - _last_health)
 	_last_health = current
@@ -349,4 +362,21 @@ func _spawn_heal_number(at: Vector2, amount: int) -> void:
 	tween.set_parallel(true)
 	tween.tween_property(label, "position:y", label.position.y - 12.0, 0.45)
 	tween.tween_property(label, "modulate:a", 0.0, 0.45)
+	tween.chain().tween_callback(label.queue_free)
+
+
+func _spawn_status_popup(at: Vector2, text_str: String, color: Color) -> void:
+	var label := Label.new()
+	label.text = text_str
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	label.add_theme_constant_override("outline_size", 2)
+	label.add_theme_font_size_override("font_size", 8)
+	label.position = at + Vector2(-12, -22)
+	add_child(label)
+
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "position:y", label.position.y - 11.0, 0.42)
+	tween.tween_property(label, "modulate:a", 0.0, 0.42)
 	tween.chain().tween_callback(label.queue_free)

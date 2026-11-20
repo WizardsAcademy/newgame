@@ -1,17 +1,21 @@
 extends Control
 class_name MiniMap
-## Tactical Top-Right Mini-Map (`128x72`, exact 1:10 scale of `1280x720` arena).
+## Tactical Top-Right Mini-Map (`128x72`, 1:10 scale of `1280x720` arena).
 ##
-## Displays in real time:
-##   - Arena perimeter walls, tactical grid, and stone pillar obstacles,
-##   - Current Camera2D visible frame (`320x180` world slice),
-##   - Player position, hero accent pulse, and facing direction,
-##   - Every living enemy in `"enemies"` (color-coded for Slime, Archer,
-##     Golem, golden-ring Elites, and pulsing Boss beacon!).
+## Rules:
+##   - Shows Arena walls, obstacles, and our Player marker (NO camera box!).
+##   - Fog-of-Proximity enemy tracking:
+##       * Distant enemies (`distance > enemy_reveal_distance`) DO NOT reveal
+##         their exact spot on the map — instead, a crisp directional arrow
+##         (`➔`) orbits the player pointing in the direction of the enemy!
+##       * Nearby enemies (`distance <= enemy_reveal_distance`) reveal their
+##         exact map position and enemy type!
 
 @export var world_size: Vector2 = Vector2(1280.0, 720.0)
 @export var map_size: Vector2 = Vector2(128.0, 72.0)
 @export var top_right_margin: Vector2 = Vector2(10.0, 8.0)
+@export var enemy_reveal_distance: float = 210.0
+@export var arrow_orbit_radius: float = 12.5
 
 var player_ref: Node2D = null
 var level_ref: Node2D = null
@@ -87,11 +91,20 @@ func world_to_map(world_pos: Vector2) -> Vector2:
 	)
 
 
-## Returns live enemy radar blips (`[{enemy, world_pos, map_pos, kind, is_elite}, ...]`).
+## Returns radar entries for living enemies:
+##   - If `distance <= enemy_reveal_distance`: `revealed = true`, `exact_map_pos` holds true map coords.
+##   - If `distance > enemy_reveal_distance`: `revealed = false`, `exact_map_pos = Vector2(-1, -1)`,
+##     and ONLY a directional arrow (`direction`, `arrow_pos`) is shown!
 func get_enemy_blips() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	if not is_inside_tree():
 		return result
+
+	var player_world := world_size * 0.5
+	if player_ref != null and is_instance_valid(player_ref):
+		player_world = player_ref.global_position
+	var player_map := world_to_map(player_world)
+
 	for node in get_tree().get_nodes_in_group("enemies"):
 		if node == null or not is_instance_valid(node):
 			continue
@@ -107,10 +120,26 @@ func get_enemy_blips() -> Array[Dictionary]:
 			kind = "golem"
 		elif "shooting_distance" in enemy:
 			kind = "archer"
+
+		var offset := enemy.global_position - player_world
+		var dist := offset.length()
+		var dir := offset / maxf(dist, 0.001) if dist > 0.01 else Vector2.RIGHT
+		var is_revealed := dist <= enemy_reveal_distance
+
+		var raw_arrow := player_map + dir * arrow_orbit_radius
+		var arrow_pos := Vector2(
+			clampf(raw_arrow.x, 4.5, map_size.x - 4.5),
+			clampf(raw_arrow.y, 4.5, map_size.y - 4.5)
+		)
+
 		result.append({
 			"enemy": enemy,
 			"world_pos": enemy.global_position,
-			"map_pos": world_to_map(enemy.global_position),
+			"distance": dist,
+			"direction": dir,
+			"revealed": is_revealed,
+			"exact_map_pos": world_to_map(enemy.global_position) if is_revealed else Vector2(-1.0, -1.0),
+			"arrow_pos": arrow_pos,
 			"kind": kind,
 			"is_elite": bool(enemy.get("is_elite")),
 		})
@@ -124,10 +153,32 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+func _draw_direction_arrow(center: Vector2, dir: Vector2, col: Color, is_boss_or_elite: bool) -> void:
+	var u := dir.normalized()
+	var perp := Vector2(-u.y, u.x)
+	var scale_k := 1.22 if is_boss_or_elite else 1.0
+
+	var tip := center + u * (3.6 * scale_k)
+	var wing_l := center - u * (1.8 * scale_k) + perp * (2.4 * scale_k)
+	var wing_r := center - u * (1.8 * scale_k) - perp * (2.4 * scale_k)
+	var stem_tail := center - u * (3.8 * scale_k)
+
+	# Dark contrast outline + stem + sharp arrowhead (`➔`)
+	draw_line(stem_tail, center, Color(0.03, 0.03, 0.05, 0.95), 2.6)
+	draw_colored_polygon(PackedVector2Array([
+		tip + u * 0.8,
+		wing_l + (wing_l - center).normalized() * 0.8,
+		wing_r + (wing_r - center).normalized() * 0.8,
+	]), Color(0.03, 0.03, 0.05, 0.95))
+
+	draw_line(stem_tail, center, col, 1.4)
+	draw_colored_polygon(PackedVector2Array([tip, wing_l, wing_r]), col)
+
+
 func _draw() -> void:
 	var pulse := 0.5 + 0.5 * sin(_pulse_time * 5.0)
 
-	# 1. Drop shadow + outer tactical bezel
+	# 1. Drop shadow + dark slate background
 	draw_rect(Rect2(Vector2(-2.0, -2.0), map_size + Vector2(4.0, 4.0)), Color(0.02, 0.03, 0.05, 0.90))
 	draw_rect(Rect2(Vector2.ZERO, map_size), Color(0.09, 0.11, 0.15, 0.88))
 
@@ -140,7 +191,7 @@ func _draw() -> void:
 		var y := map_size.y * float(gy) / 3.0
 		draw_line(Vector2(1.0, y), Vector2(map_size.x - 1.0, y), grid_col, 1.0)
 
-	# 3. Arena perimeter stone walls + obstacles
+	# 3. Arena perimeter stone walls + obstacles (NO camera box!)
 	draw_rect(Rect2(Vector2(1.0, 1.0), map_size - Vector2(2.0, 2.0)), Color(0.32, 0.35, 0.42, 0.85), false, 1.5)
 	var scale_vec := Vector2(map_size.x / world_size.x, map_size.y / world_size.y)
 	for obs in _obstacle_rects:
@@ -148,26 +199,37 @@ func _draw() -> void:
 		draw_rect(mrect, Color(0.38, 0.41, 0.48, 0.95))
 		draw_rect(mrect, Color(0.56, 0.60, 0.68, 0.85), false, 1.0)
 
-	# 4. Active Camera2D view box (shows what part of the arena is currently on screen)
-	var cam := get_viewport().get_camera_2d()
-	if cam != null and is_instance_valid(cam):
-		var vp_world := get_viewport_rect().size / cam.zoom
-		var center := cam.get_screen_center_position()
-		var tl := Vector2(
-			clampf(center.x - vp_world.x * 0.5, 0.0, maxf(world_size.x - vp_world.x, 0.0)),
-			clampf(center.y - vp_world.y * 0.5, 0.0, maxf(world_size.y - vp_world.y, 0.0))
-		)
-		var cam_rect := Rect2(tl * scale_vec, vp_world * scale_vec)
-		draw_rect(cam_rect, Color(0.75, 0.92, 1.0, 0.24), false, 1.0)
-
-	# 5. Enemy blips
+	# 4. Enemies: directional arrow when far, exact position when close!
 	var blips := get_enemy_blips()
 	last_enemy_count = blips.size()
+	var drawn_arrow_angles: Array[float] = []
+
 	for b in blips:
-		var mp: Vector2 = b["map_pos"]
 		var kind: String = b["kind"]
 		var elite: bool = b["is_elite"]
 
+		if not bool(b["revealed"]):
+			# Distant enemy -> DO NOT show exact spot; draw directional arrow (`➔`)!
+			var dir: Vector2 = b["direction"]
+			var ang := dir.angle()
+			# Avoid stacking identical arrows if 2 far enemies share the exact same bearing
+			var duplicate_bearing := false
+			if kind != "boss" and not elite:
+				for prev_a in drawn_arrow_angles:
+					if absf( angle_difference(ang, prev_a) ) < deg_to_rad(13.0):
+						duplicate_bearing = true
+						break
+			if duplicate_bearing:
+				continue
+			drawn_arrow_angles.append(ang)
+
+			var arrow_col := Color(1.0, 0.86, 0.26, 0.96) if (elite or kind == "boss") \
+				else Color(1.0, 0.38, 0.32, 0.94)
+			_draw_direction_arrow(b["arrow_pos"], dir, arrow_col, elite or kind == "boss")
+			continue
+
+		# Close enemy (`distance <= enemy_reveal_distance`) -> exact position revealed!
+		var mp: Vector2 = b["exact_map_pos"]
 		if elite:
 			draw_arc(mp, 3.8 + pulse * 0.6, 0.0, TAU, 16, Color(1.0, 0.86, 0.22, 0.95), 1.2)
 
@@ -193,22 +255,22 @@ func _draw() -> void:
 				draw_circle(mp, 2.7, Color(0.06, 0.02, 0.03, 0.95))
 				draw_circle(mp, 2.0, Color(1.0, 0.26, 0.30, 1.0))
 
-	# 6. Player marker (always drawn on top)
+	# 5. Player marker
 	if player_ref != null and is_instance_valid(player_ref):
 		var pp := world_to_map(player_ref.global_position)
 		var face_x := 1.0
 		if "facing" in player_ref:
 			face_x = float(player_ref.facing)
-		draw_circle(pp, 4.0 + pulse * 1.0, Color(player_accent.r, player_accent.g, player_accent.b, 0.28))
+		draw_circle(pp, 4.0 + pulse * 0.9, Color(player_accent.r, player_accent.g, player_accent.b, 0.26))
 		draw_line(pp, pp + Vector2(face_x * 4.2, 0.0), player_accent.lightened(0.25), 1.3)
 		draw_circle(pp, 3.1, Color(0.03, 0.05, 0.07, 0.98))
 		draw_circle(pp, 2.2, player_accent.lightened(0.15))
 		draw_circle(pp, 0.9, Color.WHITE)
 
-	# 7. Crisp outer border
+	# 6. Crisp outer border
 	draw_rect(Rect2(Vector2(-1.0, -1.0), map_size + Vector2(2.0, 2.0)), Color(0.56, 0.64, 0.76, 0.92), false, 1.0)
 
-	# 8. Update caption
+	# 7. Update caption
 	if _caption != null:
 		if is_in_menu:
 			_caption.text = "ARENA MAP"

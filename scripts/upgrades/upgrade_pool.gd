@@ -113,7 +113,7 @@ static func _has_room(entry: Dictionary, player: Node) -> bool:
 		"heavy_push":
 			return player.knockback_speed < entry["max"]
 		"razor_dash":
-			return ("dash_damage" in player) and player.dash_damage < entry["max"]
+			return bool(player.get("dash_deals_damage")) and ("dash_damage" in player) and player.dash_damage < entry["max"]
 	return false
 
 

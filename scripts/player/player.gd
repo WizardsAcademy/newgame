@@ -5,7 +5,7 @@ extends PlayerBase
 ## Signature mechanic: **3-Hit Brawler Combo** (Jab -> Cross -> Uppercut!).
 ##   - Chaining punches within `combo_window` escalates into a 3rd-hit
 ##     Uppercut Finisher (1.6x damage + golden shockwave + heavy launch).
-##   - Shift Dash: heavy **Shoulder Dash** (1.0s cooldown, 14 dash damage).
+##   - Shift Dash: **Shoulder-Smash Dash** (1.0s CD, deals 16 Shift damage!).
 
 @export var combo_window: float = 0.95
 
@@ -17,7 +17,9 @@ var _active_combo_step: int = 0
 func _character_ready() -> void:
 	character_id = "behemoth"
 	character_name = "Behemoth"
-	dash_damage = 14
+	dash_deals_damage = true
+	dash_phases_enemies = true
+	dash_damage = 16
 	dash_tint = Color(1.0, 0.74, 0.32, 0.78)
 
 
@@ -41,7 +43,6 @@ func _start_attack() -> void:
 	is_attacking = true
 	_enemies_hit_this_swing.clear()
 
-	# Slight pitch & speed flair across the 3-hit combo!
 	match _active_combo_step:
 		0: punch_sfx.pitch_scale = 1.00
 		1: punch_sfx.pitch_scale = 1.15
@@ -98,7 +99,6 @@ func _compute_melee_knockback_px() -> float:
 	return base_kb + 5.0
 
 
-## Golden shockwave burst on the 3rd-hit Uppercut finisher!
 func _spawn_uppercut_wave() -> void:
 	var parent := get_parent()
 	if parent == null:

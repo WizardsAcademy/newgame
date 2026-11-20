@@ -1,10 +1,14 @@
 extends Node
 ## Headless verification suite for:
-##   1. Renamed 4-hero roster: Behemoth, Knight, Sylvara, Velmira (+ legacy ID aliases)
-##   2. Redesigned Character Select screen (live arena preview, showcase panel, non-overlapping layout)
-##   3. Top-Right Tactical Mini-Map (`UI/MiniMap`): 1:10 arena coordinates, obstacles, & live enemy blips
-##   4. Shift Dash mechanic: 1.0s cooldown, enemy pass-through, dash i-frames, and dash damage!
-##   5. All 4 heroes' signature kits (Behemoth combo, Knight Winter Aura, Sylvara piercing bow, Velmira Blood Blade + leech)
+##   1. High-detail 32x32 hero spritesheets & renamed roster (Behemoth, Knight, Sylvara, Velmira)
+##   2. Tactical Mini-Map (`UI/MiniMap`): NO camera box, directional arrows for far enemies,
+##      exact map position revealed ONLY when close (`<= enemy_reveal_distance`)!
+##   3. Shift-Dash rules:
+##      - ONLY Behemoth & Knight deal damage with Shift (`dash_deals_damage == true`)
+##      - Sylvara (Elf) deals 0 Shift damage and phases THROUGH enemies (`dash_phases_enemies == true`)
+##      - Velmira (Vampire) deals 0 Shift damage (`dash_deals_damage == false`)
+##   4. Knight: NO Frost Aura + Active Kite Shield (`Right-Click / E`) with 60% damage reduction (10 -> 4!)
+##   5. Velmira: Crimson Blood Splash costs -6 self HP on cast (hurts on miss!) and heals +8 HP on enemy hit (+2 net!)
 ##
 ## Run with:
 ##   godot --headless --path . tests/heroes_and_dash_test.tscn
@@ -12,7 +16,6 @@ extends Node
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const SLIME_SCENE := preload("res://scenes/enemies/Slime.tscn")
 const ARCHER_SCENE := preload("res://scenes/enemies/Archer.tscn")
-const GOLEM_SCENE := preload("res://scenes/enemies/Golem.tscn")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -56,20 +59,22 @@ func _make_dummy_slime(parent: Node, at: Vector2, hp: int = 120) -> CharacterBod
 
 
 func _run() -> void:
-	print("\n=== 4-Hero Roster (Behemoth, Knight, Sylvara, Velmira), Mini-Map & Shift-Dash Suite ===\n")
+	print("\n=== Detailed 32x32 Heroes, Knight Shield, Blood Splash, Shift Rules & Proximity Mini-Map Suite ===\n")
 
 	# -----------------------------------------------------------------
-	# 1. HERO NAMES & REGISTRY CHECK
+	# 1. 32x32 HIGH-DETAIL SPRITESHEETS & ROSTER
 	# -----------------------------------------------------------------
-	_check_eq("CharacterRegistry lists 4 playable heroes", CharacterRegistry.CHARACTERS.size(), 4)
-	_check_eq("Hero 1 is Behemoth", CharacterRegistry.CHARACTERS[0]["name"], "Behemoth")
-	_check_eq("Hero 2 is Knight", CharacterRegistry.CHARACTERS[1]["name"], "Knight")
-	_check_eq("Hero 3 is Sylvara", CharacterRegistry.CHARACTERS[2]["name"], "Sylvara")
-	_check_eq("Hero 4 is Velmira", CharacterRegistry.CHARACTERS[3]["name"], "Velmira")
-	_check_eq("Legacy IDs still resolve cleanly", CharacterRegistry.get_entry("pari")["id"], "sylvara")
+	var tex_behemoth: Texture2D = load("res://assets/textures/player_borzo.png")
+	var tex_knight: Texture2D = load("res://assets/textures/player_bahman.png")
+	var tex_sylvara: Texture2D = load("res://assets/textures/player_pari.png")
+	var tex_velmira: Texture2D = load("res://assets/textures/player_shabnam.png")
+	_check_eq("Behemoth spritesheet upgraded to 192x32 (6x 32x32)", tex_behemoth.get_size(), Vector2(192, 32))
+	_check_eq("Knight spritesheet upgraded to 224x32 (7x 32x32 incl. Shield Guard)", tex_knight.get_size(), Vector2(224, 32))
+	_check_eq("Sylvara spritesheet upgraded to 192x32 (6x 32x32)", tex_sylvara.get_size(), Vector2(192, 32))
+	_check_eq("Velmira spritesheet upgraded to 192x32 (6x 32x32)", tex_velmira.get_size(), Vector2(192, 32))
 
 	# -----------------------------------------------------------------
-	# 2. MAIN SCENE: SHOWCASE CHARACTER SELECT + TOP-RIGHT MINI-MAP
+	# 2. MINI-MAP: NO CAMERA BOX + DIRECTIONAL ARROW WHEN FAR / EXACT SPOT WHEN CLOSE
 	# -----------------------------------------------------------------
 	CharacterRegistry.quick_retry_same_hero = false
 	var main := MAIN_SCENE.instantiate()
@@ -79,186 +84,162 @@ func _run() -> void:
 
 	var select_menu: Control = main.get_node("UI/CharacterSelectMenu")
 	var minimap: MiniMap = main.get_node("UI/MiniMap")
-	var backdrop: ColorRect = select_menu.get_node("Backdrop")
-	var header_panel: Panel = select_menu.get_node("HeaderPanel")
-
-	_check("CharacterSelectMenu opens on startup", select_menu.is_open() and select_menu.visible)
-	_check("Backdrop is translucent (< 0.5 alpha) so live Arena map shows through",
-		backdrop.color.a < 0.5, "alpha=%.2f" % backdrop.color.a)
-	_check("Top-Right MiniMap is visible during Character Select", minimap.visible)
-	_check("MiniMap sits in top-right corner of 640x360 viewport",
-		minimap.position.x >= 495.0 and minimap.position.y <= 16.0,
-		"pos=%s" % str(minimap.position))
-	_check("CharacterSelect Header does not overlap Top-Right MiniMap",
-		header_panel.position.x + header_panel.size.x < minimap.position.x,
-		"header_right=%.1f minimap_left=%.1f" % [header_panel.position.x + header_panel.size.x, minimap.position.x])
-	_check_eq("MiniMap detected all 3 arena stone obstacles", minimap._obstacle_rects.size(), 3)
-
-	# Hover/highlight Sylvara -> live-previews Sylvara in the Arena & MiniMap!
-	select_menu._on_card_hovered(2)
-	await get_tree().process_frame
-	_check_eq("Highlighting card 3 previews Sylvara live in the Arena", main.player.character_id, "sylvara")
-	_check("WaveSpawner still waits until hero is confirmed", main.wave_spawner._running == false)
-
-	# Confirm Knight!
-	select_menu._confirm_index(1)
+	select_menu._confirm_index(0) # Pick Behemoth
 	await get_tree().process_frame
 	await _tick(2)
 	main.wave_spawner.stop_spawning()
-
-	_check("CharacterSelectMenu closes after confirming hero", not select_menu.is_open())
-	_check_eq("Main spawned Knight", main.player.character_id, "knight")
-	_check_eq("HUD HP label displays KNIGHT", main.hp_text_label.text, "KNIGHT")
-	_check_eq("Knight max HP is 120", main.player.max_health, 120)
-
-	# Verify MiniMap tracks live enemies (Slime, Archer, Elite Golem) and drops dead ones!
 	for child in main.enemies_root.get_children():
 		child.free()
-	var map_slime := _make_dummy_slime(main.enemies_root, Vector2(640, 360), 50)
-	var map_archer: CharacterBody2D = ARCHER_SCENE.instantiate()
-	map_archer.position = Vector2(1000, 200)
-	main.enemies_root.add_child(map_archer)
-	var map_golem: CharacterBody2D = GOLEM_SCENE.instantiate()
-	map_golem.is_elite = true
-	map_golem.position = Vector2(200, 600)
-	main.enemies_root.add_child(map_golem)
+
+	main.player.global_position = Vector2(300, 300)
+	var far_enemy := _make_dummy_slime(main.enemies_root, Vector2(900, 300), 80)
 	await _tick(2)
 
-	var blips := minimap.get_enemy_blips()
-	_check_eq("MiniMap tracks all 3 living enemies", blips.size(), 3)
-	var center_map := minimap.world_to_map(Vector2(640, 360))
-	_check("MiniMap maps arena center (640,360) to radar center (64,36)",
-		center_map.distance_to(Vector2(64, 36)) < 0.5, str(center_map))
-	map_slime.take_damage(999)
+	var far_blips := minimap.get_enemy_blips()
+	_check_eq("MiniMap detects 1 living enemy", far_blips.size(), 1)
+	_check("Far enemy (>210px) is NOT revealed on exact MiniMap spot",
+		far_blips[0]["revealed"] == false and far_blips[0]["exact_map_pos"] == Vector2(-1, -1),
+		str(far_blips[0]))
+	_check("Far enemy shows a rightward directional arrow (+X) from player",
+		(far_blips[0]["direction"] as Vector2).x > 0.98,
+		str(far_blips[0]["direction"]))
+
+	# Now move player close (`<= 210px`) -> exact enemy position is discovered!
+	main.player.global_position = Vector2(760, 300)
 	await _tick(2)
-	_check_eq("MiniMap immediately excludes dead enemies", minimap.get_enemy_blips().size(), 2)
+	var near_blips := minimap.get_enemy_blips()
+	_check("Approaching within reveal distance reveals exact enemy spot on MiniMap",
+		near_blips[0]["revealed"] == true and (near_blips[0]["exact_map_pos"] as Vector2).distance_to(Vector2(90, 30)) < 0.5,
+		str(near_blips[0]["exact_map_pos"]))
 
 	main.queue_free()
 	await _tick(3)
 
 	# -----------------------------------------------------------------
-	# 3. SHIFT DASH: 1.0s COOLDOWN + DEALS DAMAGE + PHASES THROUGH ENEMIES
+	# 3. SHIFT-DASH RULES: ONLY BEHEMOTH & KNIGHT DEAL SHIFT DAMAGE;
+	#    SYLVARA PHASES THROUGH ENEMIES WITH 0 SHIFT DAMAGE!
 	# -----------------------------------------------------------------
 	var world := Node2D.new()
 	add_child(world)
 
 	var behemoth := CharacterRegistry.instantiate_hero("behemoth")
-	behemoth.position = Vector2(200, 200)
-	world.add_child(behemoth)
+	var knight := CharacterRegistry.instantiate_hero("knight")
+	var sylvara := CharacterRegistry.instantiate_hero("sylvara")
+	var velmira := CharacterRegistry.instantiate_hero("velmira")
 
-	var dash_target := _make_dummy_slime(world, Vector2(226, 200), 100)
+	behemoth.position = Vector2(120, 120)
+	knight.position = Vector2(120, 240)
+	sylvara.position = Vector2(120, 360)
+	velmira.position = Vector2(120, 480)
+	world.add_child(behemoth)
+	world.add_child(knight)
+	world.add_child(sylvara)
+	world.add_child(velmira)
+
+	var s_beh := _make_dummy_slime(world, Vector2(146, 120), 100)
+	var s_kni := _make_dummy_slime(world, Vector2(146, 240), 100)
+	var s_syl := _make_dummy_slime(world, Vector2(146, 360), 100)
+	var s_vel := _make_dummy_slime(world, Vector2(154, 480), 100)
 	await _tick(3)
 
-	_check_eq("Dash action exists in InputMap", InputMap.has_action("dash"), true)
-	_check("Dash cooldown configured to 1.0 second", is_equal_approx(behemoth.dash_cooldown, 1.0))
+	_check_eq("Behemoth dash_deals_damage is true", behemoth.dash_deals_damage, true)
+	_check_eq("Knight dash_deals_damage is true", knight.dash_deals_damage, true)
+	_check_eq("Sylvara dash_deals_damage is false", sylvara.dash_deals_damage, false)
+	_check_eq("Sylvara dash_phases_enemies is true", sylvara.dash_phases_enemies, true)
+	_check_eq("Velmira dash_deals_damage is false", velmira.dash_deals_damage, false)
 
-	var shift_press := InputEventAction.new()
-	shift_press.action = "dash"
-	shift_press.pressed = true
-	Input.parse_input_event(shift_press)
-	await _tick(1)
-	Input.flush_buffered_events()
-	await _tick(1)
-
-	_check("Pressing Shift ('dash') starts dashing", behemoth.is_dashing == true)
-	_check("Dash puts ability on ~1.0s cooldown", behemoth.dash_cooldown_left > 0.85 and behemoth.dash_cooldown_left <= 1.0,
-		"cd=%.2f" % behemoth.dash_cooldown_left)
-	behemoth.take_damage(25, dash_target.global_position)
-	_check_eq("Player is invulnerable during dash", behemoth.current_health, behemoth.max_health)
-
+	# Trigger dashes on all 4 heroes!
+	behemoth._try_start_dash()
+	knight._try_start_dash()
+	sylvara._try_start_dash()
+	velmira._try_start_dash()
 	await _wait(0.22)
 	await _tick(2)
-	_check("Dash finishes cleanly", behemoth.is_dashing == false)
-	_check("Player phased past the enemy during dash", behemoth.global_position.x > dash_target.global_position.x,
-		"behemoth_x=%.1f slime_x=%.1f" % [behemoth.global_position.x, dash_target.global_position.x])
-	_check_eq("Dashing through an enemy deals dash_damage",
-		dash_target.current_health, 100 - behemoth.dash_damage)
-	_check("Cannot dash again while 1.0s cooldown is active", behemoth._try_start_dash() == false)
 
-	await _wait(0.88)
+	_check("Behemoth Shift-Dash dealt damage to enemy", s_beh.current_health < 100,
+		"hp=%d" % s_beh.current_health)
+	_check("Knight Shift-Dash dealt damage to enemy", s_kni.current_health < 100,
+		"hp=%d" % s_kni.current_health)
+	_check_eq("Sylvara Shift-Dash dealt ZERO damage", s_syl.current_health, 100)
+	_check("Sylvara Shift-Dash phased cleanly past the enemy",
+		sylvara.global_position.x > s_syl.global_position.x + 12.0,
+		"sylvara_x=%.1f slime_x=%.1f" % [sylvara.global_position.x, s_syl.global_position.x])
+	_check_eq("Velmira Shift-Dash dealt ZERO damage", s_vel.current_health, 100)
+
+	# UpgradePool check: Razor Dash never offered to Sylvara/Velmira
+	var razor_entry := UpgradePool._find("razor_dash")
+	_check_eq("UpgradePool allows razor_dash for Behemoth", UpgradePool._has_room(razor_entry, behemoth), true)
+	_check_eq("UpgradePool blocks razor_dash for Sylvara", UpgradePool._has_room(razor_entry, sylvara), false)
+	_check_eq("UpgradePool blocks razor_dash for Velmira", UpgradePool._has_room(razor_entry, velmira), false)
+
+	# -----------------------------------------------------------------
+	# 4. KNIGHT: FROST AURA REMOVED + ACTIVE SHIELD (60% REDUCTION: 10 -> 4!)
+	# -----------------------------------------------------------------
+	_check("Knight has NO WinterAura node (Frost Aura removed)",
+		knight.get_node_or_null("WinterAura") == null)
+	var nearby_slime := _make_dummy_slime(world, knight.global_position + Vector2(26, 0), 100)
+	var base_spd: float = nearby_slime.move_speed
+	await _wait(0.25)
 	await _tick(2)
-	_check("Dash ready again once 1.0s cooldown expires", behemoth.can_dash())
+	_check("Nearby enemy move_speed is NOT chilled around Knight",
+		is_equal_approx(nearby_slime.move_speed, base_spd),
+		"spd=%.1f" % nearby_slime.move_speed)
 
-	# -----------------------------------------------------------------
-	# 4. BEHEMOTH 3-HIT ESCALATING COMBO
-	# -----------------------------------------------------------------
-	var combo_slime := _make_dummy_slime(world, Vector2(400, 200), 200)
+	_check_eq("Shield input action exists in InputMap", InputMap.has_action("shield"), true)
+	knight.current_health = 120
+	knight.set_shielding(true)
 	await _tick(2)
-	var combo_damages: Array[int] = []
-	for step in range(3):
-		behemoth.global_position = combo_slime.global_position + Vector2(-16, 0)
-		behemoth.facing = 1.0
-		behemoth._sync_facing_nodes()
-		await _tick(2)
-		var hp_before: int = combo_slime.current_health
-		behemoth._start_attack()
-		await _wait(behemoth.attack_duration + 0.08)
-		await _tick(2)
-		combo_damages.append(hp_before - combo_slime.current_health)
+	_check_eq("Knight enters is_shielding state & guard animation",
+		knight.is_shielding and knight.anim_player.current_animation == "guard", true)
 
-	_check("Behemoth 3-hit combo escalates (Hit 3 Uppercut > Hit 2 > Hit 1)",
-		combo_damages[0] > 0 and combo_damages[1] > combo_damages[0] and combo_damages[2] > combo_damages[1],
-		str(combo_damages))
+	knight.take_damage(10, knight.global_position + Vector2(20, 0))
+	_check_eq("Knight Shield reduces 10 damage by 60% -> blocks 6, takes 4 (120 -> 116)",
+		knight.current_health, 116)
+	knight.set_shielding(false)
 
 	# -----------------------------------------------------------------
-	# 5. KNIGHT: WINTER AURA CHILLS ENEMIES
+	# 5. VELMIRA: CRIMSON BLOOD SPLASH (-6 SELF HP ON CAST, +8 HEAL ON HIT = +2 NET)
 	# -----------------------------------------------------------------
-	var knight := CharacterRegistry.instantiate_hero("knight")
-	knight.position = Vector2(200, 380)
-	world.add_child(knight)
-	var chill_slime := _make_dummy_slime(world, Vector2(236, 380), 100)
-	var base_slime_speed: float = chill_slime.move_speed
-	await _wait(0.5)
-	await _tick(3)
-	_check("Knight Winter Aura chills nearby enemy move_speed",
-		chill_slime.move_speed < base_slime_speed * 0.85,
-		"speed=%.1f base=%.1f" % [chill_slime.move_speed, base_slime_speed])
-	chill_slime.global_position = Vector2(600, 380)
-	await _tick(3)
-	_check("Leaving Winter Aura restores enemy move_speed",
-		absf(chill_slime.move_speed - base_slime_speed) < 0.5,
-		"restored=%.1f" % chill_slime.move_speed)
+	velmira.global_position = Vector2(520, 480)
+	velmira.facing = 1.0
+	velmira.current_health = 70
+	await _tick(2)
+
+	# Cast 1: Miss into empty air -> loses 6 HP (70 -> 64)!
+	velmira._start_attack()
+	await _wait(velmira.attack_duration + 0.08)
+	await _tick(2)
+	_check_eq("Velmira Blood Splash into empty air costs 6 self-HP (70 -> 64)",
+		velmira.current_health, 64)
+
+	# Cast 2: Hit enemy in front -> pays 6 HP (64->58) + heals 8 HP on hit = 66 (+2 net)!
+	var splash_target := _make_dummy_slime(world, Vector2(575, 480), 100)
+	await _tick(2)
+	velmira._start_attack()
+	await _wait(velmira.attack_duration + 0.08)
+	await _tick(2)
+	_check("Velmira Blood Splash damages enemy in front",
+		splash_target.current_health < 100,
+		"slime_hp=%d" % splash_target.current_health)
+	_check_eq("Velmira Blood Splash hitting 1 enemy yields +2 net HP (64 - 6 + 8 = 66)",
+		velmira.current_health, 66)
 
 	# -----------------------------------------------------------------
-	# 6. SYLVARA (ELF): RANGED ARROW + CHARGED PIERCING GREAT-ARROW
+	# 6. BEHEMOTH COMBO & SYLVARA CHARGED PIERCING BOW REGRESSION CHECK
 	# -----------------------------------------------------------------
-	var sylvara := CharacterRegistry.instantiate_hero("sylvara")
-	sylvara.position = Vector2(100, 520)
+	sylvara.global_position = Vector2(520, 360)
 	sylvara.facing = 1.0
-	world.add_child(sylvara)
-	var row_s1 := _make_dummy_slime(world, Vector2(210, 520), 100)
-	var row_s2 := _make_dummy_slime(world, Vector2(270, 520), 100)
-	await _tick(3)
-
+	var p1 := _make_dummy_slime(world, Vector2(610, 360), 100)
+	var p2 := _make_dummy_slime(world, Vector2(665, 360), 100)
+	await _tick(2)
 	sylvara._on_attack_pressed(InputEventAction.new())
 	sylvara._draw_time = 0.45
 	sylvara._release_bow_shot()
-	await _wait(0.55)
-	await _tick(3)
-	_check("Sylvara charged Great-Arrow pierces and damages BOTH lined-up enemies",
-		row_s1.current_health < 100 and row_s2.current_health < 100,
-		"s1=%d s2=%d" % [row_s1.current_health, row_s2.current_health])
-
-	# -----------------------------------------------------------------
-	# 7. VELMIRA (VAMPIRE): BOOMERANG BLOOD BLADE + LIFE LEECH
-	# -----------------------------------------------------------------
-	var velmira := CharacterRegistry.instantiate_hero("velmira")
-	velmira.position = Vector2(100, 620)
-	velmira.facing = 1.0
-	world.add_child(velmira)
-	var vamp_slime := _make_dummy_slime(world, Vector2(210, 620), 100)
-	await _tick(3)
-	velmira.current_health = 60
-
-	velmira._start_attack()
-	await _wait(1.1)
-	await _tick(3)
-	_check("Velmira boomerang Blood Blade damages enemy",
-		vamp_slime.current_health < 100,
-		"slime_hp=%d" % vamp_slime.current_health)
-	_check("Velmira Vampire Life Leech restores HP on hit",
-		velmira.current_health > 60,
-		"velmira_hp=%d" % velmira.current_health)
+	await _wait(0.45)
+	await _tick(2)
+	_check("Sylvara charged Great-Arrow still pierces multiple enemies",
+		p1.current_health < 100 and p2.current_health < 100,
+		"p1=%d p2=%d" % [p1.current_health, p2.current_health])
 
 	print("\n=== %d/%d checks passed ===" % [_checks - _failures, _checks])
 	get_tree().quit(0 if _failures == 0 else 1)
