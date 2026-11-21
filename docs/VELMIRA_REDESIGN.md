@@ -60,16 +60,43 @@ The `.py` is the single source of truth; the PNG is never hand-edited.
 
 | frame | role in `Shabnam.tscn` | what it says |
 |---|---|---|
-| 0 | idle | the base bitmap, untouched |
+| 0 | idle | the base bitmap, without the ambient decor |
 | 1 | walk A | right leg stepped up 3 px, whole figure bobbed 1 px |
 | 2 | walk B | left leg stepped up 3 px, whole figure bobbed 1 px |
 | 3 | cast A | irises blaze bright crimson + a blood bead cupped at the chest |
 | 4 | cast B | folded hands leave (corset shows), a sleeve-clad arm thrusts right with a droplet fan |
-| 5 | idle blink | irises → skin, warm shadow lid line (played at 2.20–2.40 s) |
+| 5 | idle blink | irises → skin, warm shadow lid line (blinks are randomised in code, see below) |
 
 Walk legs live in the strip `y 76..94` (right leg `x 48..60`, left `x 37..48`).
 Eyes: irises `x 40..44` / `x 52..56`, rows `y 38..46`, iris tones are the three
 crimson entries of `BASE_PAL`.
+
+## 4b. The ambient layer (`velmira_ambient.png`, 288×96 = 3 × 96×96)
+
+The bat and the three crimson sparkle crosses the player drew AROUND her are
+**not** part of the character frames — the generator erases their exact pixels
+(and only those) from every frame and emits them on their own sheet:
+
+| frame | bat | sparkles |
+|---|---|---|
+| 0 | wings as drawn | all three bright |
+| 1 | wing tips 2 px down / mid-wing 1 px (`BAT_CGX` = 82.5 pivot) | TOP + R dimmed to a dash |
+| 2 | wing tips 2 px up | L dimmed to a dash |
+
+`Shabnam.tscn` plays `0,1,2,1` at 7 fps on an `AmbientBat` AnimatedSprite2D
+(child of `Visuals`, behind her, so facing flips mirror it too). Three alive
+effects run without touching any gameplay number:
+
+- the whole figure floats ±1 px and breathes (a hair of scale wobble) —
+  `shabnam.gd `_process()`;
+- the ambient layer drifts on its own phase (±2/±4 px), never in lockstep
+  with the body;
+- blinking is **randomised** (every 2.2–6.0 s, ~35 % double blinks) in
+  `shabnam.gd` instead of the fixed 2.20–2.40 s beat that used to be baked
+  into the idle animation.
+
+(The ambient frames are built by the same `tools/make_velmira_sprites.py`
+run — one command emits both sheets.)
 
 ## 5. In-game scale compensation
 
@@ -91,10 +118,15 @@ node, not by redrawing:
 
 Changed:
 
-- `tools/make_velmira_sprites.py` — rewritten (RLE base + derived frames).
-- `assets/textures/player_shabnam.png` — 576×96.
+- `tools/make_velmira_sprites.py` — rewritten (RLE base + derived frames +
+  the `DECOR_*` ambient maps).
+- `assets/textures/player_shabnam.png` — 576×96 (ambient decor erased).
+- `assets/textures/velmira_ambient.png` — 288×96, new ambient layer.
 - `scenes/player/Shabnam.tscn` — atlas regions `Rect2(f*96, 0, 96, 96)`,
-  `Visuals` scale, `Shadow` position/scale.
+  `Visuals` scale, `Shadow` position/scale, `AmbientBat` node, idle animation
+  de-baked (blink is code-driven now).
+- `scripts/player/shabnam.gd` — alive idle: float/breath, ambient drift,
+  randomised blink. No gameplay number touched.
 - `scripts/ui/character_select_menu.gd` — slicing made size-agnostic.
 - `tests/heroes_and_dash_test.gd` — Velmira sheet assertion is `576×96`.
 

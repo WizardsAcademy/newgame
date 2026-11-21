@@ -20,6 +20,14 @@ extends PlayerBase
 @export var blood_extra_target_heal: int = 2
 @export var blood_max_heal_per_cast: int = 12
 
+## --- "Alive idle" state: floaty breathing + a natural, random blink -------
+var _rest_tex: Texture2D = null        ## idle frame (what eyes open to)
+var _blink_tex: Texture2D = null       ## shut-eyes frame (sprite frame 5)
+var _blink_state: int = 0              ## 0 open, 1 shut, 2 open-gap (double)
+var _blink_hold: float = 0.0
+var _double_pending: bool = false
+var _next_blink: float = 3.0
+
 
 ## Animated crimson liquid cone + flying droplets spawned on each Blood Splash!
 class BloodSplashVisual extends Node2D:
@@ -92,6 +100,76 @@ func _character_ready() -> void:
 	dash_phases_enemies = false
 	dash_damage = 0
 	dash_tint = Color(0.95, 0.18, 0.34, 0.82)
+
+	# Alive idle: grab the idle + blink frames off the sheet for the random blink.
+	if visuals != null and visuals.texture is AtlasTexture:
+		_rest_tex = visuals.texture
+		var sheet := (visuals.texture as AtlasTexture).atlas
+		var blink := AtlasTexture.new()
+		blink.atlas = sheet
+		blink.region = Rect2(480.0, 0.0, 96.0, 96.0)
+		_blink_tex = blink
+	_next_blink = randf_range(1.6, 4.0)
+
+
+## Makes the idle feel alive instead of a static sprite:
+##   - the whole figure floats +-1 px and "breathes" (a hair of scale wobble)
+##   - the ambient bat/sparkle layer drifts on its own phase (never in
+##     lockstep with the body)
+##   - blinking happens naturally: random 2.2-6.0 s, sometimes a double blink
+func _process(delta: float) -> void:
+	if visuals == null or is_dead:
+		return
+	var t := float(Time.get_ticks_msec()) / 1000.0
+
+	# Floaty breathing (visual only - collisions stay fixed).
+	visuals.position.y = 1.0 * sin(t * 1.9)
+	visuals.scale.y = _base_visual_scale.y * (1.0 + 0.022 * sin(t * 1.9 + 0.7))
+
+	# The bat and sparkles drift on their own rhythm.
+	var amb := get_node_or_null("Visuals/AmbientBat") as AnimatedSprite2D
+	if amb != null:
+		amb.position.y = 4.0 * sin(t * 2.4 + 1.3)
+		amb.position.x = 2.0 * sin(t * 1.3)
+
+	_tick_blink(delta)
+
+
+func _tick_blink(delta: float) -> void:
+	if _blink_tex == null:
+		return
+	var idle := anim_player != null and anim_player.current_animation == "idle"
+	if _blink_state == 0:
+		if idle:
+			_next_blink -= delta
+			if _next_blink <= 0.0:
+				_blink_state = 1
+				_blink_hold = 0.09
+				_double_pending = randf() < 0.35
+				visuals.texture = _blink_tex
+	elif _blink_state == 1:
+		_blink_hold -= delta
+		if _blink_hold <= 0.0:
+			_blink_state = 2
+			_blink_hold = 0.06
+			if _double_pending:
+				visuals.texture = _rest_tex   # a beat open, then shuts again
+			else:
+				_finish_blink()
+	elif _blink_state == 2:
+		_blink_hold -= delta
+		if _blink_hold <= 0.0:
+			_finish_blink()
+	if not idle and _blink_state != 0:
+		_blink_state = 0   # walk/attack retakes the face; no stuck shut eyes
+
+
+func _finish_blink() -> void:
+	_blink_state = 0
+	_double_pending = false
+	if visuals != null and is_instance_valid(visuals):
+		visuals.texture = _rest_tex
+	_next_blink = randf_range(2.2, 6.0)
 
 
 func _get_attack_move_multiplier() -> float:

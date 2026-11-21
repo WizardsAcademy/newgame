@@ -1,8 +1,9 @@
-[gd_scene load_steps=17 format=3 uid="uid://cshabnamscn01"]
+[gd_scene load_steps=22 format=3 uid="uid://cshabnamscn01"]
 
 [ext_resource type="Script" path="res://scripts/player/shabnam.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/textures/player_shabnam.png" id="2_sheet"]
 [ext_resource type="Texture2D" path="res://assets/textures/white_pixel.png" id="3_white"]
+[ext_resource type="Texture2D" path="res://assets/textures/velmira_ambient.png" id="4_ambient"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(15, 16)
@@ -31,6 +32,26 @@ region = Rect2(384, 0, 96, 96)
 atlas = ExtResource("2_sheet")
 region = Rect2(480, 0, 96, 96)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_amb0"]
+atlas = ExtResource("4_ambient")
+region = Rect2(0, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_amb1"]
+atlas = ExtResource("4_ambient")
+region = Rect2(96, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_amb2"]
+atlas = ExtResource("4_ambient")
+region = Rect2(192, 0, 96, 96)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_amb"]
+animations = [{
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_amb0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_amb1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_amb2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_amb1")}],
+"loop": true,
+"name": &"flap",
+"speed": 7.0
+}]
+
 [sub_resource type="Animation" id="Animation_idle"]
 resource_name = "idle"
 length = 2.5
@@ -42,10 +63,10 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 2.2, 2.4),
-"transitions": PackedFloat32Array(1, 1, 1),
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame0"), SubResource("AtlasTexture_frame5"), SubResource("AtlasTexture_frame0")]
+"values": [SubResource("AtlasTexture_frame0")]
 }
 
 [sub_resource type="Animation" id="Animation_walk"]
@@ -118,6 +139,12 @@ shape = SubResource("RectangleShape2D_body")
 [node name="Visuals" type="Sprite2D" parent="."]
 scale = Vector2(0.28, 0.28)
 texture = SubResource("AtlasTexture_frame0")
+
+[node name="AmbientBat" type="AnimatedSprite2D" parent="Visuals"]
+show_behind_parent = true
+sprite_frames = SubResource("SpriteFrames_amb")
+animation = &"flap"
+autoplay = "flap"
 
 [node name="Shadow" type="Sprite2D" parent="Visuals"]
 show_behind_parent = true

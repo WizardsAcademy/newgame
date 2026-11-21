@@ -10,7 +10,12 @@ derived from it in code, so a change to one edit moves the sheet in one run:
 
 Writes:
     assets/textures/player_shabnam.png   576 x 96 (6 frames of 96x96)
+    assets/textures/velmira_ambient.png  288 x 96 (3 ambient frames: bat + sparkles)
     docs/images/velmira_preview.png      review sheet
+
+The bat and sparkle crosses the player drew around her are erased from the
+character frames and live on their own ambient layer (see DECOR_* below) so
+the scene can flap / twinkle / drift them independently of the body.
 
 SHEET LAYOUT  (matches scenes/player/Shabnam.tscn - do not reorder!)
     frame 0 : idle                  (the base bitmap, untouched)
@@ -62,6 +67,55 @@ EXTRA = {
 }
 
 SYMS = "ABCDEFGHIJKLMNOPQ"
+
+# ---------------------------------------------------------------------------
+# The ambient decor the player drew AROUND her (top-right bat, three crimson
+# sparkle crosses). Stored as tiny symbol maps and erased from the character
+# frames - they live on a separate ambient layer so they can flap, twinkle and
+# drift while she moves. Coordinates are absolute in the 96x96 frame.
+# ---------------------------------------------------------------------------
+DECOR_SPARK_TOP = (74, 11, [
+    "..PP..",
+    "..MJ..",
+    "..MJ..",
+    "KGGGGC",
+    ".CMMC.",
+    "..MJ..",
+    "..JP..",
+])
+DECOR_BAT = (72, 19, [
+    "................CMMP",
+    "...............OGOC.",
+    ".PJJJJJ.......OGGP..",
+    ".CJGGGOKC....KGGGC..",
+    "...CMOGGJ...KGGJJC..",
+    "....JOGGGKKMKGGK....",
+    "....J.JGGGGGGGOK....",
+    "......JJCOGGOP......",
+    "..........GGJ.......",
+    "..........MJ........",
+    "..........CP........",
+])
+DECOR_SPARK_L = (11, 29, [
+    ".CK..",
+    ".PO..",
+    ".PO..",
+    "MOGOK",
+    "PMOPC",
+    ".PO..",
+    ".PM..",
+])
+DECOR_SPARK_R = (81, 49, [
+    ".KO..",
+    ".KO..",
+    "MGGGK",
+    ".KO..",
+    ".KO..",
+])
+DECOR_ALL = (DECOR_SPARK_TOP, DECOR_BAT, DECOR_SPARK_L, DECOR_SPARK_R)
+# a dimmed sparkle keeps only its horizontal bar (a dash) - the twinkle state
+DECOR_DIM_ROW = {"SPARK_TOP": 3, "BAT": 3, "SPARK_L": 3, "SPARK_R": 2}
+BAT_CGX = 82.5  # bat bend pivot: wings tilt about the body
 
 BASE_RLE = [
     "",
@@ -166,8 +220,13 @@ BASE_RLE = [
 # ---------------------------------------------------------------------------
 # Base bitmap
 # ---------------------------------------------------------------------------
+def pal_color(ch: str):
+    """Map a BASE_RLE/décor symbol letter to its palette colour."""
+    return (BASE_PAL + list(EXTRA.values()))[SYMS.index(ch)]
+
+
 def decode_base() -> Image.Image:
-    """BASE_RLE -> the 96x96 idle frame."""
+    """BASE_RLE -> the 96x96 idle frame, ambient decor removed."""
     pal = BASE_PAL + list(EXTRA.values())
     img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
     px = img.load()
@@ -187,6 +246,7 @@ def decode_base() -> Image.Image:
                 for k in range(run):
                     px[x + k, y] = pal[idx]
             x += run
+    erase_decor(img)
     return img
 
 
@@ -202,6 +262,44 @@ def shift_strip(img, x0, y0, x1, y1, dx=0, dy=0, clear=True) -> None:
         blank = Image.new("RGBA", strip.size, (0, 0, 0, 0))
         img.paste(blank, (x0, y0))
     blit(img, strip, x0 + dx, y0 + dy)
+
+
+def _each_decor_pt(snip, dim=False):
+    """(x, y, sym) for one DECOR_* snippet; dim keeps only the bar row."""
+    x0, y0, rows = snip
+    key = {id(DECOR_SPARK_TOP): "SPARK_TOP", id(DECOR_BAT): "BAT",
+           id(DECOR_SPARK_L): "SPARK_L", id(DECOR_SPARK_R): "SPARK_R"}[id(snip)]
+    bar = DECOR_DIM_ROW[key]
+    for j, row in enumerate(rows):
+        if dim and key != "BAT" and j != bar:
+            continue
+        for i, ch in enumerate(row):
+            if ch != ".":
+                yield x0 + i, y0 + j, ch
+
+
+def erase_decor(img) -> None:
+    """Remove the ambient decor from a character frame (exact pixels only,
+    the surrounding hair / droplets stay untouched)."""
+    for snip in DECOR_ALL:
+        for x, y, _ch in _each_decor_pt(snip):
+            img.putpixel((x, y), (0, 0, 0, 0))
+
+
+def draw_decor(img, bat_dir, spark_state) -> None:
+    """Draw decor onto a blank ambient frame.
+
+    bat_dir: -1 wings up, 0 as drawn, +1 wings down - wing tips tilt about the
+    bat's body (tips move 2 px, mid-wing 1 px). spark_state: dict
+    {\"TOP\"/\"L\"/\"R\": dim?} - a dimmed sparkle is just its dash bar."""
+    for x, y, ch in _each_decor_pt(DECOR_BAT):
+        d = abs(x - BAT_CGX)
+        dy = bat_dir * (2 if d >= 7 else 1 if d >= 3.5 else 0)
+        img.putpixel((x, y - dy), pal_color(ch))
+    for name, snip in (("TOP", DECOR_SPARK_TOP), ("L", DECOR_SPARK_L),
+                       ("R", DECOR_SPARK_R)):
+        for x, y, ch in _each_decor_pt(snip, dim=spark_state.get(name, False)):
+            img.putpixel((x, y), pal_color(ch))
 
 
 # ---------------------------------------------------------------------------
@@ -355,11 +453,35 @@ def build_sheet() -> Image.Image:
     return sheet
 
 
-def build_preview(sheet: Image.Image) -> Image.Image:
+# ---------------------------------------------------------------------------
+# Ambient layer: 3 frames - [wings mid, wings down, wings up] - the scene
+# plays the sequence 0,1,2,1 at 7 fps so the bat flaps while the three
+# sparkles twinkle out of phase with each other.
+# ---------------------------------------------------------------------------
+AMBIENT_FRAMES = [
+    (0, {"TOP": False, "L": False, "R": False}),
+    (1, {"TOP": True, "L": False, "R": True}),
+    (-1, {"TOP": False, "L": True, "R": True}),
+]
+
+
+def build_ambient_sheet() -> Image.Image:
+    sheet = Image.new("RGBA", (FRAME * len(AMBIENT_FRAMES), FRAME), (0, 0, 0, 0))
+    for i, (bat_dir, spark_state) in enumerate(AMBIENT_FRAMES):
+        fr = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+        draw_decor(fr, bat_dir, spark_state)
+        sheet.alpha_composite(fr, (i * FRAME, 0))
+    return sheet
+
+
+def build_preview(sheet: Image.Image, ambient: Image.Image) -> Image.Image:
     zoom, pad = 4, 16
     labels = ["idle", "walk A", "walk B", "cast A", "cast B", "idle blink"]
-    w = pad + FRAMES * (FRAME * zoom + pad)
-    h = 34 + FRAME * zoom + pad + 18
+    amb_labels = ["wings mid", "wings down", "wings up"]
+    n_amb = ambient.width // FRAME
+    w = max(pad + FRAMES * (FRAME * zoom + pad),
+            pad + n_amb * (FRAME * zoom + pad))
+    h = 34 + FRAME * zoom + pad + 30 + FRAME * zoom // 2 + 18
     img = Image.new("RGBA", (w, h), (22, 18, 26, 255))
     d = ImageDraw.Draw(img)
     d.text((pad, 10), "VELMIRA - 6 frames, 96x96 (the player's reference, full res)",
@@ -369,7 +491,16 @@ def build_preview(sheet: Image.Image) -> Image.Image:
         frame = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
         img.alpha_composite(frame.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST),
                             (x, 34))
-        d.text((x, h - 14), labels[i], fill=(200, 168, 186, 255))
+        d.text((x, 34 + FRAME * zoom + 2), labels[i], fill=(200, 168, 186, 255))
+    y2 = 34 + FRAME * zoom + pad + 30
+    d.text((pad, y2 - 26), "AMBIENT LAYER - bat flap + sparkle twinkle (plays 0,1,2,1 at 7 fps)",
+           fill=(226, 198, 210, 255))
+    for i in range(n_amb):
+        x = pad + i * (FRAME * zoom + pad)
+        frame = ambient.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
+        img.alpha_composite(frame.resize((FRAME * zoom // 2, FRAME * zoom // 2), Image.NEAREST),
+                            (x, y2))
+        d.text((x, y2 + FRAME * zoom // 2 + 2), amb_labels[i], fill=(160, 140, 156, 255))
     return img
 
 
@@ -378,7 +509,11 @@ def main() -> None:
     sheet.save("assets/textures/player_shabnam.png")
     print("wrote assets/textures/player_shabnam.png", sheet.size,
           "-> %d frames of %d" % (FRAMES, FRAME))
-    build_preview(sheet).save("docs/images/velmira_preview.png")
+    ambient = build_ambient_sheet()
+    ambient.save("assets/textures/velmira_ambient.png")
+    print("wrote assets/textures/velmira_ambient.png", ambient.size,
+          "-> %d ambient frames of %d" % (len(AMBIENT_FRAMES), FRAME))
+    build_preview(sheet, ambient).save("docs/images/velmira_preview.png")
     print("wrote docs/images/velmira_preview.png")
 
 
