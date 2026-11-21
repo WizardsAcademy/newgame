@@ -40,12 +40,13 @@
   recovery, elite flare, crumble → rubble) with footstep dust and camera
   nudge, and the same HP/damage/radius — `docs/GOLEM_REDESIGN.md`,
   generator in `tools/make_golem_sprites.py`
-- [x] Velmira art pass: the cloak-and-hood blob became a clearly female
-  32×32, six-frame vampire — long lilac hair with two falls to her waist, a
-  pale face with crimson eyes, a dark violet gown cut 13/9/17 px with a
-   crimson sash and gold hem, blood orb + droplet cast frames, and the same
-  85 HP / 104 speed / 17 DMG Blood Splash — `docs/VELMIRA_REDESIGN.md`,
-  generator in `tools/make_velmira_sprites.py`
+- [x] Velmira art pass (gothic): the lilac redesign became a near-black
+  purple, six-frame vampire from the reference sheet — huge hair mass with a
+  crimson rose and two falls to her ankles, pale face with crimson eyes and
+  fangs, black bodice with crimson collar/cape/brooch and silver belt,
+  thigh-high boots with a crimson cross-band, blood orb + droplet cast
+  frames, and the same 85 HP / 104 speed / 17 DMG Blood Splash —
+  `docs/VELMIRA_REDESIGN.md`, generator in `tools/make_velmira_sprites.py`
 - [x] Archer art pass: the 16×16 placeholder became a 32×32, 12-pose
   hooded skeleton (shamble, bone rattle, bow draw → release, mocking head
   tilt, white hit flash, collapse into a bone heap) with the same HP,
