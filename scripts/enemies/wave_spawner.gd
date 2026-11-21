@@ -42,9 +42,10 @@ signal enemy_spawned(enemy: Node)
 @export var autostart: bool = true
 
 @export var arena_rect: Rect2 = Rect2(70, 70, 1140, 580)
-@export var min_spawn_distance: float = 165.0
-@export var max_spawn_distance: float = 340.0
+@export var min_spawn_distance: float = 195.0
+@export var max_spawn_distance: float = 360.0
 @export var max_spawn_tries: int = 24
+@export var full_map_aggro: bool = false
 
 var wave_number: int = 0
 var enemies_alive: int = 0
@@ -155,18 +156,18 @@ func _spawn_enemy() -> void:
 		enemy.max_move_speed)
 	enemy.attack_damage += floori((wave_number - 1) / float(damage_step))
 
-	# Ensure wave/sandbox enemies ALWAYS detect and actively chase the player across the whole map!
-	if "detection_range" in enemy:
-		enemy.detection_range = 2400.0
+	# In SANDBOX (`full_map_aggro == true`), enemies see the player from anywhere on the map & chase!
+	# In STAGES (`full_map_aggro == false`), enemies keep their normal default detection radius (`adi`).
+	if full_map_aggro and "detection_range" in enemy:
+		enemy.detection_range = 2500.0
 
 	var parent := get_parent().get_node_or_null("Enemies")
 	if parent == null:
 		parent = get_parent()
 	parent.add_child(enemy)
 
-	#Re-assert detection_range after _ready() in case _apply_variant touched anything
-	if "detection_range" in enemy:
-		enemy.detection_range = 2400.0
+	if full_map_aggro and "detection_range" in enemy:
+		enemy.detection_range = 2500.0
 
 	enemy.global_position = _pick_spawn_position()
 
@@ -242,16 +243,18 @@ func _is_clear_of_obstacles(pt: Vector2) -> bool:
 
 func _pick_spawn_position() -> Vector2:
 	var player_node: Node2D = get_tree().get_first_node_in_group("player")
-	if player_node != null and is_instance_valid(player_node):
-		var ppos := player_node.global_position
-		for _i in range(max_spawn_tries):
-			var ang := randf() * TAU
-			var dist := randf_range(min_spawn_distance, max_spawn_distance)
-			var candidate := ppos + Vector2(cos(ang), sin(ang)) * dist
-			candidate.x = clampf(candidate.x, arena_rect.position.x, arena_rect.end.x)
-			candidate.y = clampf(candidate.y, arena_rect.position.y, arena_rect.end.y)
-			if candidate.distance_to(ppos) >= min_spawn_distance * 0.85 and _is_clear_of_obstacles(candidate):
-				return candidate
+	var ppos := player_node.global_position if (player_node != null and is_instance_valid(player_node)) else Vector2(-9999.0, -9999.0)
+
+	# In STAGES (`full_map_aggro == false`), spawn normally across the whole arena (`>= 220 px` away).
+	# In SANDBOX (`full_map_aggro == true`), spawn across the arena too — every enemy has `detection_range = 2500`
+	# so they spot the player from EVERYWHERE on the map and chase immediately!
+	for _i in range(max_spawn_tries):
+		var candidate := Vector2(
+			randf_range(arena_rect.position.x, arena_rect.end.x),
+			randf_range(arena_rect.position.y, arena_rect.end.y),
+		)
+		if candidate.distance_to(ppos) >= min_spawn_distance and _is_clear_of_obstacles(candidate):
+			return candidate
 
 	return Vector2(
 		randf_range(arena_rect.position.x, arena_rect.end.x),

@@ -349,11 +349,83 @@ def build_sylvara_pose(pose: str) -> Image.Image:
     return img
 
 
+def build_sylvara_vertical_pose(pose: str) -> Image.Image:
+    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Sylvara!"""
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = 48, 50
+    is_up = pose.startswith("up_")
+    step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
+    l_dy = -3 * step
+    r_dy = 3 * step
+
+    if not is_up:
+        # Front: blonde hair + emerald cloak + ranger bodice + front face + Recurve Bow at side!
+        d.polygon([(cx - 11, cy - 8), (cx + 11, cy - 8), (cx + 15, cy + 18), (cx - 15, cy + 18)], fill=CLOAK_DEEP, outline=OUTLINE)
+        for side, dy in ((-5, l_dy), (5, r_dy)):
+            lx, ly = cx + side, cy + 26 + min(0, dy)
+            pill_limb(img, cx + side // 2, cy + 12, lx, ly - 6, 3, SKIN_SHA, SKIN, SKIN)
+            d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+            d.line([(lx - 3, ly - 7), (lx + 3, ly - 7)], fill=GOLD_MID)
+        d.polygon([(cx - 9, cy + 5), (cx + 9, cy + 5), (cx + 13, cy + 16), (cx - 13, cy + 16)], fill=CLOAK_MID, outline=OUTLINE)
+        d.polygon([(cx - 9, cy - 8), (cx + 9, cy - 8), (cx + 7, cy + 7), (cx - 7, cy + 7)], fill=LEATHER_MID, outline=OUTLINE)
+        d.polygon([(cx - 11, cy - 9), (cx + 11, cy - 9), (cx + 9, cy - 1), (cx, cy + 2), (cx - 9, cy - 1)], fill=CLOAK_LIT, outline=OUTLINE)
+        d.ellipse([cx - 2, cy - 6, cx + 2, cy - 2], fill=GOLD_HI, outline=OUTLINE)
+        pill_limb(img, cx - 10, cy - 4, cx - 14, cy + 3 + l_dy, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        pill_limb(img, cx + 10, cy - 4, cx + 16, cy + 2 + r_dy, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 18, cy + 2 + r_dy, 24, pull_px=0.0)
+        # Symmetrical front blonde elven head
+        hy = cy - 18
+        d.ellipse([cx - 11, hy - 11, cx + 11, hy + 10], fill=BLONDE_MID, outline=OUTLINE)
+        d.polygon([(cx - 10, hy - 2), (cx - 16, hy - 5), (cx - 10, hy + 2)], fill=SKIN, outline=OUTLINE)
+        d.polygon([(cx + 10, hy - 2), (cx + 16, hy - 5), (cx + 10, hy + 2)], fill=SKIN, outline=OUTLINE)
+        d.rounded_rectangle([cx - 8, hy - 7, cx + 8, hy + 8], radius=4, fill=SKIN, outline=OUTLINE)
+        d.polygon([(cx - 9, hy - 10), (cx + 9, hy - 10), (cx + 9, hy - 3), (cx, hy - 5), (cx - 9, hy - 3)], fill=BLONDE_LIT, outline=OUTLINE)
+        d.line([(cx - 8, hy - 6), (cx + 8, hy - 6)], fill=GOLD_HI, width=1)
+        put(img, cx, hy - 6, EMERALD_BRIGHT)
+        for ex in (cx - 4, cx + 3):
+            put(img, ex, hy, EMERALD_DARK)
+            put(img, ex + 1, hy, EMERALD_BRIGHT)
+    else:
+        # Back: ranger boots + emerald cloak from behind + flowing golden-blonde hair + feathered quiver!
+        for side, dy in ((-5, l_dy), (5, r_dy)):
+            lx, ly = cx + side, cy + 26 + min(0, dy)
+            pill_limb(img, cx + side // 2, cy + 12, lx, ly - 6, 3, SKIN_SHA, SKIN, SKIN)
+            d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        draw_recurve_bow(img, cx + 16, cy + 1 + r_dy, 28, pull_px=0.0)
+        d.polygon([
+            (cx - 11, cy - 9), (cx + 11, cy - 9),
+            (cx + 15 + step, cy + 18), (cx - 15 + step, cy + 18),
+        ], fill=CLOAK_MID, outline=OUTLINE)
+        d.line([(cx - 12 + step, cy + 17), (cx + 12 + step, cy + 17)], fill=GOLD_HI, width=1)
+        # Feathered leather quiver strapped diagonally across back!
+        d.polygon([(cx + 2, cy - 8), (cx + 8, cy - 6), (cx + 2, cy + 12), (cx - 4, cy + 10)], fill=LEATHER_MID, outline=OUTLINE)
+        for fx in (cx + 4, cx + 7):
+            d.line([(fx, cy - 8), (fx + 2, cy - 14)], fill=EMERALD_BRIGHT, width=2)
+        # Lush golden-blonde wavy hair cascading down her back!
+        hy = cy - 18
+        d.polygon([(cx - 10, hy - 2), (cx - 16, hy - 5), (cx - 10, hy + 2)], fill=SKIN_SHA, outline=OUTLINE)
+        d.polygon([(cx + 10, hy - 2), (cx + 16, hy - 5), (cx + 10, hy + 2)], fill=SKIN_SHA, outline=OUTLINE)
+        hair_pts = [
+            (cx - 10, hy - 10), (cx + 10, hy - 10),
+            (cx + 12 + step, hy + 16), (cx + 5 + step, hy + 21),
+            (cx + step, hy + 18), (cx - 6 + step, hy + 21), (cx - 12 + step, hy + 16),
+        ]
+        d.polygon(hair_pts, fill=BLONDE_MID, outline=OUTLINE)
+        d.line([(cx - 6, hy - 7), (cx - 5 + step, hy + 15)], fill=BLONDE_LIT, width=2)
+        d.line([(cx + 4, hy - 7), (cx + 5 + step, hy + 15)], fill=BLONDE_HI, width=2)
+    return img
+
+
 def main() -> None:
-    poses = ["idle", "walk_a", "walk_b", "draw", "charge", "release", "vault", "hurt", "blink"]
+    poses = [
+        "idle", "walk_a", "walk_b", "draw", "charge", "release", "vault", "hurt", "blink",
+        "down_idle", "down_walk_a", "down_walk_b", "up_idle", "up_walk_a", "up_walk_b",
+    ]
     sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
     for i, p in enumerate(poses):
-        sheet.alpha_composite(build_sylvara_pose(p), (i * FRAME, 0))
+        fr = build_sylvara_vertical_pose(p) if p.startswith(("down_", "up_")) else build_sylvara_pose(p)
+        sheet.alpha_composite(fr, (i * FRAME, 0))
     sheet.save("assets/textures/player_pari.png")
     print("wrote assets/textures/player_pari.png", sheet.size)
 

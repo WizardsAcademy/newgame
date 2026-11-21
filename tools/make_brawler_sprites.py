@@ -289,11 +289,82 @@ def build_brawler_pose(pose: str) -> Image.Image:
     return img
 
 
+def build_brawler_vertical_pose(pose: str) -> Image.Image:
+    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Behemoth!"""
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = 48, 49
+    is_up = pose.startswith("up_")
+    step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
+    l_dy = -3 * step
+    r_dy = 3 * step
+
+    # Legs & heavy studded boots (locked to y=76 baseline when idle!)
+    for side, dy in ((-7, l_dy), (7, r_dy)):
+        lx, ly = cx + side, cy + 27 + min(0, dy)
+        pill_limb(img, cx + side // 2, cy + 12, lx, ly - 5, 4, PANTS_DARK, PANTS_MID, PANTS_MID)
+        d.rounded_rectangle([lx - 5, ly - 6, lx + 5, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        d.line([(lx - 4, ly - 5), (lx + 4, ly - 5)], fill=LEATHER_HI)
+
+    # Symmetrical broad brigandine torso
+    torso = [(cx - 13, cy - 9), (cx + 13, cy - 9), (cx + 10, cy + 13), (cx - 10, cy + 13)]
+    d.polygon(torso, fill=LEATHER_MID, outline=OUTLINE)
+    if not is_up:
+        # Front: bare V-chest + lion buckle + crimson sash
+        d.polygon([(cx - 4, cy - 8), (cx + 4, cy - 8), (cx, cy + 1)], fill=SKIN_MID)
+        d.polygon([(cx - 8, cy + 11), (cx - 3, cy + 11), (cx - 6, cy + 21), (cx - 11, cy + 19)], fill=SASH_RED, outline=OUTLINE)
+        d.rectangle([cx - 10, cy + 9, cx + 10, cy + 14], fill=LEATHER_DARK, outline=OUTLINE)
+        d.rounded_rectangle([cx - 4, cy + 8, cx + 4, cy + 14], radius=1, fill=BRASS_HI, outline=OUTLINE)
+    else:
+        # Back: X-strapped leather harness + knotted headband tails!
+        d.line([(cx - 9, cy - 7), (cx + 8, cy + 9)], fill=LEATHER_DARK, width=3)
+        d.line([(cx + 9, cy - 7), (cx - 8, cy + 9)], fill=LEATHER_DARK, width=3)
+        d.rectangle([cx - 10, cy + 9, cx + 10, cy + 14], fill=LEATHER_DARK, outline=OUTLINE)
+
+    # Iron pauldron on left shoulder (`cx - 12` when front, `cx + 12` when viewed from behind!)
+    psh = cx - 12 if not is_up else cx + 12
+    d.ellipse([psh - 6, cy - 11, psh + 6, cy - 1], fill=IRON_MID, outline=OUTLINE)
+    d.arc([psh - 5, cy - 10, psh + 5, cy - 2], 190, 350, fill=IRON_HI)
+
+    # Both Iron-Cestus arms swinging naturally with stride
+    l_arm_y = cy + 2 + r_dy
+    r_arm_y = cy + 2 + l_dy
+    draw_arm_with_cestus(img, cx - 12, cy - 4, cx - 17, cy + 2, cx - 14, l_arm_y)
+    draw_arm_with_cestus(img, cx + 12, cy - 4, cx + 17, cy + 2, cx + 14, r_arm_y)
+
+    # Head (front beard & eyes vs back hair & tied crimson headband tails!)
+    hy = cy - 18
+    if not is_up:
+        d.rounded_rectangle([cx - 9, hy - 11, cx + 9, hy + 9], radius=4, fill=SKIN_MID, outline=OUTLINE)
+        d.rounded_rectangle([cx - 9, hy - 12, cx + 9, hy - 5], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+        d.rectangle([cx - 9, hy - 7, cx + 9, hy - 3], fill=SASH_RED, outline=OUTLINE)
+        for rx in (cx - 5, cx, cx + 5):
+            put(img, rx, hy - 5, BRASS_HI)
+        for ex in (cx - 4, cx + 3):
+            put(img, ex, hy - 1, OUTLINE)
+            put(img, ex + 1, hy - 1, BRASS_HI)
+        d.rounded_rectangle([cx - 8, hy + 3, cx + 8, hy + 10], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+        put(img, cx, hy + 9, BRASS_HI)
+    else:
+        d.rounded_rectangle([cx - 9, hy - 12, cx + 9, hy + 8], radius=4, fill=HAIR_DARK, outline=OUTLINE)
+        d.line([(cx - 6, hy - 9), (cx + 6, hy - 9)], fill=HAIR_MID, width=2)
+        d.rectangle([cx - 9, hy - 6, cx + 9, hy - 2], fill=SASH_RED, outline=OUTLINE)
+        # Streaming crimson headband knot & twin tails down his back!
+        d.ellipse([cx - 3, hy - 5, cx + 3, hy + 1], fill=SASH_HI, outline=OUTLINE)
+        d.polygon([(cx - 2, hy), (cx - 7 + step, hy + 12), (cx - 3 + step, hy + 13), (cx, hy + 1)], fill=SASH_RED, outline=OUTLINE)
+        d.polygon([(cx + 2, hy), (cx + 7 + step, hy + 12), (cx + 3 + step, hy + 13), (cx, hy + 1)], fill=SASH_RED, outline=OUTLINE)
+    return img
+
+
 def main() -> None:
-    poses = ["idle", "walk_a", "walk_b", "windup", "jab", "cross", "uppercut", "charge", "hurt", "blink"]
+    poses = [
+        "idle", "walk_a", "walk_b", "windup", "jab", "cross", "uppercut", "charge", "hurt", "blink",
+        "down_idle", "down_walk_a", "down_walk_b", "up_idle", "up_walk_a", "up_walk_b",
+    ]
     sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
     for i, p in enumerate(poses):
-        sheet.alpha_composite(build_brawler_pose(p), (i * FRAME, 0))
+        fr = build_brawler_vertical_pose(p) if p.startswith(("down_", "up_")) else build_brawler_pose(p)
+        sheet.alpha_composite(fr, (i * FRAME, 0))
     sheet.save("assets/textures/player_borzo.png")
     print("wrote assets/textures/player_borzo.png", sheet.size)
 

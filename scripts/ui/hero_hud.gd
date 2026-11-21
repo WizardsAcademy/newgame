@@ -37,20 +37,42 @@ var _rim_overlay: MedallionRim = null
 var _ouch_label: Label = null
 
 
+## Circular 2D Clipping Shader so NO portrait corner ever pokes outside the golden medallion!
+const PORTRAIT_CIRCLE_SHADER_CODE: String = """
+shader_type canvas_item;
+void fragment() {
+	vec4 tex = texture(TEXTURE, UV);
+	float d = distance(UV, vec2(0.5, 0.5));
+	float mask = 1.0 - smoothstep(0.455, 0.478, d);
+	COLOR = vec4(tex.rgb, tex.a * mask) * COLOR;
+}
+"""
+
 class MedallionRim extends Control:
 	var rim_color: Color = Color(0.88, 0.72, 0.34, 0.98)
 	var inner_accent: Color = Color(1, 1, 1, 0.5)
+	var is_bg: bool = false
 
 	func _draw() -> void:
 		var c := Vector2(30.0, 30.0)
-		draw_arc(c, 26.8, 0.0, TAU, 36, Color(0.07, 0.05, 0.08, 0.98), 4.0)
-		draw_arc(c, 25.4, 0.0, TAU, 36, rim_color, 2.2)
-		draw_arc(c, 23.8, 0.0, TAU, 36, inner_accent, 1.0)
+		if is_bg:
+			draw_circle(c, 25.0, Color(0.08, 0.06, 0.10, 0.96))
+			return
+		draw_arc(c, 26.8, 0.0, TAU, 40, Color(0.07, 0.05, 0.08, 0.98), 4.0)
+		draw_arc(c, 25.4, 0.0, TAU, 40, rim_color, 2.2)
+		draw_arc(c, 23.8, 0.0, TAU, 40, inner_accent, 1.0)
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	size = Vector2(226.0, 62.0)
+
+	var bg_disc := MedallionRim.new()
+	bg_disc.name = "MedallionBacking"
+	bg_disc.is_bg = true
+	bg_disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg_disc.size = Vector2(62.0, 62.0)
+	add_child(bg_disc)
 
 	_portrait_rect = TextureRect.new()
 	_portrait_rect.name = "FacePortrait"
@@ -60,6 +82,11 @@ func _ready() -> void:
 	_portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_portrait_rect.position = Vector2(5.0, 5.0)
 	_portrait_rect.size = Vector2(50.0, 50.0)
+	var clip_shader := Shader.new()
+	clip_shader.code = PORTRAIT_CIRCLE_SHADER_CODE
+	var clip_mat := ShaderMaterial.new()
+	clip_mat.shader = clip_shader
+	_portrait_rect.material = clip_mat
 	add_child(_portrait_rect)
 
 	_rim_overlay = MedallionRim.new()

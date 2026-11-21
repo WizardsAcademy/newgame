@@ -369,11 +369,72 @@ def build_knight_pose(pose: str) -> Image.Image:
     return img
 
 
+def build_knight_vertical_pose(pose: str) -> Image.Image:
+    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Fallen Knight!"""
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = 48, 48
+    is_up = pose.startswith("up_")
+    step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
+    l_dy = -3 * step
+    r_dy = 3 * step
+
+    if not is_up:
+        # Front: tattered cape behind legs + greaves + scarred breastplate + visor eyes + shield & sword!
+        d.polygon([(cx - 13, cy - 8), (cx + 13, cy - 8), (cx + 16, cy + 22), (cx - 16, cy + 22)], fill=CAPE_DEEP, outline=OUTLINE)
+        for side, dy in ((-6, l_dy), (6, r_dy)):
+            lx, ly = cx + side, cy + 28 + min(0, dy)
+            pill_limb(img, lx, cy + 13, lx, ly, 4, STEEL_DARK, STEEL_MID, STEEL_LIT)
+            d.rounded_rectangle([lx - 5, ly - 2, lx + 5, ly + 4], radius=2, fill=STEEL_MID, outline=OUTLINE)
+        outlined_poly(img, [(cx - 12, cy - 8), (cx + 12, cy - 8), (cx + 9, cy + 14), (cx - 9, cy + 14)], STEEL_MID, STEEL_HI)
+        d.line([(cx - 6, cy - 5), (cx + 6, cy + 8)], fill=SCAR_GLOW, width=2)
+        for sx in (cx - 13, cx + 13):
+            d.ellipse([sx - 6, cy - 10, sx + 6, cy + 1], fill=STEEL_MID, outline=OUTLINE)
+        # Symmetrical front Greathelm with glowing cyan visor T-slit!
+        hy = cy - 17
+        d.rounded_rectangle([cx - 9, hy - 11, cx + 9, hy + 8], radius=3, fill=STEEL_MID, outline=OUTLINE)
+        d.rectangle([cx - 6, hy - 2, cx + 6, hy + 1], fill=OUTLINE)
+        d.line([(cx - 4, hy - 1), (cx + 4, hy - 1)], fill=EYE_CYAN, width=1)
+        d.line([(cx, hy - 2), (cx, hy + 6)], fill=OUTLINE, width=2)
+        draw_colossal_greatsword(img, cx - 15, cy + 4 + l_dy, 108)
+        draw_tower_shield(img, cx + 13, cy + 3 + r_dy, front_facing=True)
+    else:
+        # Back: greaves + greatsword & shield at sides + full tattered crimson cloak & betrayal spear!
+        for side, dy in ((-6, l_dy), (6, r_dy)):
+            lx, ly = cx + side, cy + 28 + min(0, dy)
+            pill_limb(img, lx, cy + 13, lx, ly, 4, STEEL_DARK, STEEL_MID, STEEL_LIT)
+            d.rounded_rectangle([lx - 5, ly - 2, lx + 5, ly + 4], radius=2, fill=STEEL_DARK, outline=OUTLINE)
+        draw_tower_shield(img, cx - 14, cy + 3 + l_dy, front_facing=False)
+        draw_colossal_greatsword(img, cx + 15, cy + 4 + r_dy, 72)
+        for sx in (cx - 13, cx + 13):
+            d.ellipse([sx - 6, cy - 10, sx + 6, cy + 1], fill=STEEL_MID, outline=OUTLINE)
+        # Full tattered crimson cape draped down his back!
+        cape_pts = [
+            (cx - 13, cy - 9), (cx + 13, cy - 9),
+            (cx + 17 + step, cy + 21), (cx + 9 + step, cy + 17),
+            (cx + step, cy + 23), (cx - 9 + step, cy + 18), (cx - 17 + step, cy + 21),
+        ]
+        d.polygon(cape_pts, fill=CAPE_MID, outline=OUTLINE)
+        d.line([(cx - 6, cy - 6), (cx - 8 + step, cy + 16)], fill=CAPE_DEEP, width=2)
+        d.line([(cx + 5, cy - 6), (cx + 7 + step, cy + 16)], fill=CAPE_HI, width=1)
+        # Broken betrayal spear jutting from back shoulder
+        d.line([(cx + 3, cy - 3), (cx + 13, cy - 17)], fill=WOOD_DARK, width=3)
+        # Back of Greathelm
+        hy = cy - 17
+        d.rounded_rectangle([cx - 9, hy - 11, cx + 9, hy + 8], radius=3, fill=STEEL_DARK, outline=OUTLINE)
+        d.line([(cx, hy - 10), (cx, hy + 6)], fill=STEEL_HI, width=2)
+    return img
+
+
 def main() -> None:
-    poses = ["idle", "walk_a", "walk_b", "windup", "sweep", "spin", "guard", "charge", "hurt", "blink"]
+    poses = [
+        "idle", "walk_a", "walk_b", "windup", "sweep", "spin", "guard", "charge", "hurt", "blink",
+        "down_idle", "down_walk_a", "down_walk_b", "up_idle", "up_walk_a", "up_walk_b",
+    ]
     sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
     for i, p in enumerate(poses):
-        sheet.alpha_composite(build_knight_pose(p), (i * FRAME, 0))
+        fr = build_knight_vertical_pose(p) if p.startswith(("down_", "up_")) else build_knight_pose(p)
+        sheet.alpha_composite(fr, (i * FRAME, 0))
     sheet.save("assets/textures/player_bahman.png")
     print("wrote assets/textures/player_bahman.png", sheet.size)
 
