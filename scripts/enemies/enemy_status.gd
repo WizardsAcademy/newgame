@@ -184,31 +184,49 @@ func _spawn_fang_explosion_fx() -> void:
 	sfx.play()
 	sfx.finished.connect(sfx.queue_free)
 
-	# Spawn authentic Row-6 Ground Crimson Blood Fountain Eruption (`frames 2 -> 3` of 224x224 `velmira_fx.png`)!
+	# Spawn 100% hand-crafted 3-frame Pixel-Art Ground Crimson Blood Fountain (`frames 5 -> 6 -> 7` of `velmira_fx.png`)!
 	if ResourceLoader.exists(VELMIRA_FX_PATH):
 		var fx_tex: Texture2D = load(VELMIRA_FX_PATH)
 		if fx_tex != null:
 			var fcell := float(maxi(fx_tex.get_height(), 1))
-			var spire := Sprite2D.new()
-			spire.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			var total_cols := maxi(int(fx_tex.get_width() / fcell), 1)
+			var idx0 := mini(5, total_cols - 1)
+			var idx1 := mini(6, total_cols - 1)
+			var idx2 := mini(7, total_cols - 1)
+
+			var at_surge := AtlasTexture.new()
+			at_surge.atlas = fx_tex
+			at_surge.region = Rect2(fcell * float(idx0), 0.0, fcell, fcell)
+
 			var at_peak := AtlasTexture.new()
 			at_peak.atlas = fx_tex
-			at_peak.region = Rect2(fcell * 2.0, 0.0, fcell, fcell)
-			var at_settle := AtlasTexture.new()
-			at_settle.atlas = fx_tex
-			at_settle.region = Rect2(fcell * 3.0, 0.0, fcell, fcell)
-			spire.texture = at_peak
-			spire.scale = Vector2(0.16, 0.08)
+			at_peak.region = Rect2(fcell * float(idx1), 0.0, fcell, fcell)
+
+			var at_rain := AtlasTexture.new()
+			at_rain.atlas = fx_tex
+			at_rain.region = Rect2(fcell * float(idx2), 0.0, fcell, fcell)
+
+			var spire := Sprite2D.new()
+			spire.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			spire.texture = at_surge
+			spire.offset = Vector2(0.0, -42.0)
+			spire.scale = Vector2(0.38, 0.32)
 			spire.z_index = 5
 			world.add_child(spire)
-			spire.global_position = host.global_position + Vector2(0.0, -6.0)
+			spire.global_position = host.global_position + Vector2(0.0, 8.0)
+
 			var stw := spire.create_tween()
-			stw.tween_property(spire, "scale", Vector2(0.32, 0.34), 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			stw.tween_property(spire, "scale", Vector2(0.50, 0.54), 0.09).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			stw.tween_callback(func() -> void:
 				if is_instance_valid(spire):
-					spire.texture = at_settle
+					spire.texture = at_peak
 			)
-			stw.tween_property(spire, "modulate:a", 0.0, 0.24)
+			stw.tween_interval(0.14)
+			stw.tween_callback(func() -> void:
+				if is_instance_valid(spire):
+					spire.texture = at_rain
+			)
+			stw.tween_property(spire, "modulate:a", 0.0, 0.20)
 			stw.tween_callback(spire.queue_free)
 
 	var ring := Line2D.new()

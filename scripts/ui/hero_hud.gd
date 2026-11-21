@@ -24,7 +24,8 @@ var shield_exhausted: bool = false
 var hero_name_str: String = "Behemoth"
 var accent_color: Color = Color(0.98, 0.68, 0.26)
 
-var _portrait_frames: Array[AtlasTexture] = []
+var _portrait_frames: Array[Texture2D] = []
+var _using_atlas_uv: bool = false
 var _active_frame_index: int = 0
 var _lag_hp_ratio: float = 1.0
 var _anim_time: float = 0.0
@@ -37,13 +38,16 @@ var _rim_overlay: MedallionRim = null
 var _ouch_label: Label = null
 
 
-## Circular 2D Clipping Shader so NO portrait corner ever pokes outside the golden medallion!
+## Circular 2D Clipping Shader (standalone per-frame square `ImageTexture` ensures `UV` is always 0..1!)
 const PORTRAIT_CIRCLE_SHADER_CODE: String = """
 shader_type canvas_item;
+uniform float frame_count = 1.0;
+uniform float frame_index = 0.0;
 void fragment() {
 	vec4 tex = texture(TEXTURE, UV);
-	float d = distance(UV, vec2(0.5, 0.5));
-	float mask = 1.0 - smoothstep(0.455, 0.478, d);
+	vec2 local_uv = vec2((UV.x * frame_count) - frame_index, UV.y);
+	float d = distance(local_uv, vec2(0.5, 0.5));
+	float mask = 1.0 - smoothstep(0.468, 0.490, d);
 	COLOR = vec4(tex.rgb, tex.a * mask) * COLOR;
 }
 """
@@ -121,6 +125,7 @@ func bind_hero_entry(entry: Dictionary) -> void:
 	hero_name_str = String(entry.get("name", "Hero"))
 	accent_color = entry.get("accent", Color(0.95, 0.75, 0.35))
 	_portrait_frames.clear()
+	_using_atlas_uv = false
 
 	var p_path := String(entry.get("portrait_path", ""))
 	if p_path != "" and ResourceLoader.exists(p_path):
@@ -130,11 +135,18 @@ func bind_hero_entry(entry: Dictionary) -> void:
 			var count := maxi(int(sheet.get_width() / cell), 1)
 			if _portrait_rect != null:
 				_portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if cell > 64 else CanvasItem.TEXTURE_FILTER_NEAREST
-			for i in range(count):
-				var at := AtlasTexture.new()
-				at.atlas = sheet
-				at.region = Rect2(float(i * cell), 0.0, float(cell), float(cell))
-				_portrait_frames.append(at)
+			var src_img: Image = sheet.get_image()
+			if src_img != null and not src_img.is_empty():
+				for i in range(count):
+					var sub: Image = src_img.get_region(Rect2i(i * cell, 0, cell, cell))
+					_portrait_frames.append(ImageTexture.create_from_image(sub))
+			else:
+				_using_atlas_uv = true
+				for i in range(count):
+					var at := AtlasTexture.new()
+					at.atlas = sheet
+					at.region = Rect2(float(i * cell), 0.0, float(cell), float(cell))
+					_portrait_frames.append(at)
 
 	_hurt_react_left = 0.0
 	if _ouch_label != null:
@@ -241,6 +253,14 @@ func _update_portrait_frame() -> void:
 
 	if _portrait_rect != null:
 		_portrait_rect.texture = _portrait_frames[_active_frame_index]
+		var sm := _portrait_rect.material as ShaderMaterial
+		if sm != null:
+			if _using_atlas_uv:
+				sm.set_shader_parameter("frame_count", float(_portrait_frames.size()))
+				sm.set_shader_parameter("frame_index", float(_active_frame_index))
+			else:
+				sm.set_shader_parameter("frame_count", 1.0)
+				sm.set_shader_parameter("frame_index", 0.0)
 
 
 func _draw() -> void:

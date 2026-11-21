@@ -82,7 +82,7 @@ func _run() -> void:
 	_check_eq("Knight 4-dir sheet is 1536x96 (16 frames)", tex_knight.get_size(), Vector2(1536, 96))
 	_check_eq("Sylvara 4-dir sheet is 1440x96 (15 frames)", tex_sylvara.get_size(), Vector2(1440, 96))
 	_check_eq("Velmira reference 8x5 sheet is 1792x1120 (40x 224x224)", tex_velmira.get_size(), Vector2(1792, 1120))
-	_check_eq("Velmira Blood-Splash FX sheet is 896x224 (4x 224x224)", tex_vel_fx.get_size(), Vector2(896, 224))
+	_check_eq("Velmira Hand-Crafted Blood FX strip is 1024x128 (8x 128x128)", tex_vel_fx.get_size(), Vector2(1024, 128))
 	_check_eq("Velmira Classic Crimson Bat strip is 72x24 (3x 24x24)", tex_bats.get_size(), Vector2(72, 24))
 	_check("Dark-Fantasy Gothic font loaded cleanly", dark_font != null)
 
@@ -111,6 +111,8 @@ func _run() -> void:
 	var face_rect: TextureRect = hero_hud.get_node("FacePortrait")
 	_check("HeroHUD FacePortrait has circular clipping ShaderMaterial (never pokes outside circle!)",
 		face_rect != null and face_rect.material is ShaderMaterial)
+	_check("HeroHUD FacePortrait uses standalone 1:1 ImageTexture (UV 0..1, zero AtlasTexture wedge cut!)",
+		face_rect != null and face_rect.texture is ImageTexture and face_rect.texture.get_width() == face_rect.texture.get_height())
 
 	# --- SANDBOX: Full-Map Aggro (`az hame jay map bbinanet va biyan donbalet`) ---
 	var lobby: Node2D = main.get_node("LobbyHub")
