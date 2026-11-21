@@ -1,9 +1,10 @@
-[gd_scene load_steps=60 format=3 uid="uid://cshabnamscn01"]
+[gd_scene load_steps=61 format=3 uid="uid://cshabnamscn01"]
 
 [ext_resource type="Script" path="res://scripts/player/shabnam.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/textures/player_shabnam.png" id="2_sheet"]
 [ext_resource type="Texture2D" path="res://assets/textures/white_pixel.png" id="3_white"]
 [ext_resource type="Texture2D" path="res://assets/textures/velmira_ambient.png" id="4_ambient"]
+[ext_resource type="Texture2D" path="res://assets/textures/slime_shadow.png" id="5_shadow"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(15, 16)
@@ -438,10 +439,10 @@ autoplay = "flap"
 
 [node name="Shadow" type="Sprite2D" parent="Visuals"]
 show_behind_parent = true
-modulate = Color(0, 0, 0, 0.32)
-position = Vector2(0, 88)
-scale = Vector2(7.8, 2.1)
-texture = ExtResource("3_white")
+modulate = Color(0, 0, 0, 0.38)
+position = Vector2(0, 89)
+scale = Vector2(3.6, 3.4)
+texture = ExtResource("5_shadow")
 
 [node name="Dust" type="CPUParticles2D" parent="."]
 position = Vector2(0, 10)

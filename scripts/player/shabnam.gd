@@ -36,64 +36,96 @@ var _swarm_root: Node2D = null
 var _swarm_time: float = 0.0
 
 
-## Directional Reference Crimson Blood-Splash Arc spawned on each slash!
+## 100% Hand-Crafted Directional Crimson Blood-Splash Slash VFX!
 class BloodSplashSlash extends Node2D:
 	var aim_dir: Vector2 = Vector2.RIGHT
 	var reach: float = 92.0
 	var is_nova_finisher: bool = false
-	var splash_tex: Texture2D = null
+	var anim_frames: Array[Texture2D] = []
 	var elapsed: float = 0.0
-	var duration: float = 0.24
+	var duration: float = 0.25
 	var _sprite: Sprite2D = null
 
-	func setup(dir: Vector2, max_r: float, nova: bool, fx_tex: Texture2D) -> void:
+	func setup(dir: Vector2, max_r: float, nova: bool, frames_seq: Array[Texture2D]) -> void:
 		aim_dir = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
 		reach = max_r
 		is_nova_finisher = nova
-		splash_tex = fx_tex
+		anim_frames = frames_seq
 		rotation = aim_dir.angle()
+		z_index = 4
 
-		if splash_tex != null:
+		if not anim_frames.is_empty():
 			_sprite = Sprite2D.new()
-			_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-			_sprite.texture = splash_tex
-			_sprite.position = Vector2(reach * (0.34 if nova else 0.44), 0.0)
-			var base_s := 0.42 if nova else 0.38
-			_sprite.scale = Vector2(base_s * 0.72, base_s * 0.72)
+			_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			_sprite.texture = anim_frames[0]
+			_sprite.position = Vector2(reach * (0.34 if nova else 0.36), 0.0)
+			var base_s := 0.50 if nova else 0.44
+			_sprite.scale = Vector2(base_s * 0.86, base_s * 0.86)
 			add_child(_sprite)
 			var tw := _sprite.create_tween()
 			tw.set_parallel(true)
-			tw.tween_property(_sprite, "scale", Vector2(base_s * 1.18, base_s * 1.14), duration * 0.65)\
+			tw.tween_property(_sprite, "scale", Vector2(base_s * 1.08, base_s * 1.06), duration * 0.70)\
 				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-			tw.tween_property(_sprite, "modulate:a", 0.0, duration * 0.55).set_delay(duration * 0.42)
+			tw.tween_property(_sprite, "modulate:a", 0.0, duration * 0.36).set_delay(duration * 0.64)
 
 	func _process(delta: float) -> void:
 		elapsed += delta
+		var p := clampf(elapsed / maxf(duration, 0.01), 0.0, 1.0)
+		if _sprite != null and anim_frames.size() >= 3:
+			var idx := 0 if p < 0.26 else (1 if p < 0.68 else 2)
+			_sprite.texture = anim_frames[idx]
 		queue_redraw()
 		if elapsed >= duration:
 			queue_free()
 
+	func _draw_tapered_crescent(
+		center: Vector2,
+		radius: float,
+		a0: float,
+		a1: float,
+		max_thick: float,
+		col: Color
+	) -> void:
+		var segs := 18
+		var outer := PackedVector2Array()
+		var inner := PackedVector2Array()
+		for i in range(segs + 1):
+			var t := float(i) / float(segs)
+			var ang := lerpf(a0, a1, t)
+			var half_w := max_thick * 0.5 * sin(t * PI)
+			var dir_v := Vector2(cos(ang), sin(ang))
+			outer.append(center + dir_v * (radius + half_w))
+			inner.append(center + dir_v * maxf(2.0, radius - half_w))
+		var poly := PackedVector2Array()
+		for pt in outer:
+			poly.append(pt)
+		for i in range(inner.size() - 1, -1, -1):
+			poly.append(inner[i])
+		if poly.size() >= 6:
+			draw_colored_polygon(poly, col)
+
 	func _draw() -> void:
 		var p := clampf(elapsed / maxf(duration, 0.01), 0.0, 1.0)
-		var alpha := (1.0 - p * p) * 0.92
-		var sweep_r := lerpf(reach * 0.45, reach * 0.92, sin(p * PI * 0.5))
-		var half_ang := 1.18 if is_nova_finisher else 0.98
+		var alpha := (1.0 - p * p) * 0.86
+		var sweep_r := lerpf(reach * 0.52, reach * 0.90, sin(p * PI * 0.5))
+		var half_ang := 1.12 if is_nova_finisher else 0.96
+		var origin := Vector2(10.0, 0.0)
 
-		# Deep dark-blood outer crescent + bright scarlet liquid splash core
-		draw_arc(Vector2(6.0, 0.0), sweep_r, -half_ang, half_ang, 22,
-			Color(0.32, 0.02, 0.08, alpha * 0.85), 8.5 * (1.0 - p * 0.45))
-		draw_arc(Vector2(6.0, 0.0), sweep_r - 2.0, -half_ang * 0.92, half_ang * 0.92, 22,
-			Color(0.92, 0.08, 0.24, alpha), 4.4 * (1.0 - p * 0.35))
-		draw_arc(Vector2(6.0, 0.0), sweep_r - 3.5, -half_ang * 0.72, half_ang * 0.72, 16,
-			Color(1.0, 0.48, 0.60, alpha * 0.88), 1.8)
+		# Needle-tapered crimson crescent glow & razor ruby core (never blunt line caps!)
+		_draw_tapered_crescent(origin, sweep_r, -half_ang, half_ang,
+			7.0 * (1.0 - p * 0.45), Color(0.42, 0.03, 0.11, alpha * 0.72))
+		_draw_tapered_crescent(origin, sweep_r + 1.0, -half_ang * 0.88, half_ang * 0.88,
+			3.4 * (1.0 - p * 0.35), Color(0.94, 0.10, 0.28, alpha * 0.85))
+		_draw_tapered_crescent(origin, sweep_r + 1.8, -half_ang * 0.65, half_ang * 0.65,
+			1.5 * (1.0 - p * 0.30), Color(1.0, 0.72, 0.80, alpha * 0.82))
 
-		# Flying crimson blood droplets radiating from the slash edge!
-		for i in range(7):
-			var frac := -0.85 + 1.70 * (float(i) / 6.0)
+		# Crisp flying blood droplets radiating forward
+		for i in range(6):
+			var frac := -0.78 + 1.56 * (float(i) / 5.0)
 			var ang := frac * half_ang
-			var dr := sweep_r + 6.0 + p * (14.0 + float(i % 3) * 5.0)
-			var dp := Vector2(6.0 + cos(ang) * dr, sin(ang) * dr)
-			draw_circle(dp, (2.6 - p * 1.4), Color(0.86, 0.06, 0.22, alpha))
+			var dr := sweep_r + 5.0 + p * (13.0 + float(i % 3) * 4.5)
+			var dp := origin + Vector2(cos(ang) * dr, sin(ang) * dr)
+			draw_circle(dp, maxf(0.8, 2.1 - p * 1.1), Color(0.92, 0.08, 0.25, alpha))
 
 
 func _create_attack_sfx() -> AudioStreamWAV:
@@ -219,10 +251,15 @@ func _unleash_blood_splash(dir: Vector2, paid_hp: int, is_nova: bool) -> void:
 	if parent != null:
 		var fx := BloodSplashSlash.new()
 		fx.name = "VelmiraBloodSplash"
-		var fx_tex: Texture2D = null
-		if not _fx_frames.is_empty():
-			fx_tex = _fx_frames[mini(1 if is_nova else 0, _fx_frames.size() - 1)]
-		fx.setup(aim, splash_range, is_nova, fx_tex)
+		var seq: Array[Texture2D] = []
+		if _fx_frames.size() >= 5:
+			if is_nova:
+				seq = [_fx_frames[3], _fx_frames[4], _fx_frames[2]]
+			else:
+				seq = [_fx_frames[0], _fx_frames[1], _fx_frames[2]]
+		elif not _fx_frames.is_empty():
+			seq = [_fx_frames[0]]
+		fx.setup(aim, splash_range, is_nova, seq)
 		parent.add_child(fx)
 		fx.global_position = global_position + Vector2(0.0, -3.0)
 
