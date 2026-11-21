@@ -22,3 +22,6 @@ addons/.godot_ai_update/
 
 # Python bytecode from the sprite generators
 tools/__pycache__/
+
+# Local tooling venv used to run the sprite generators
+.venv/
