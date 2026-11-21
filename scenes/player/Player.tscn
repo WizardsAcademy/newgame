@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=25 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/textures/player_borzo.png" id="2_sheet"]
@@ -7,29 +7,45 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(16, 16)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f0"]
 atlas = ExtResource("2_sheet")
-region = Rect2(0, 0, 32, 32)
+region = Rect2(0, 0, 96, 96)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f1"]
 atlas = ExtResource("2_sheet")
-region = Rect2(32, 0, 32, 32)
+region = Rect2(96, 0, 96, 96)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame2"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f2"]
 atlas = ExtResource("2_sheet")
-region = Rect2(64, 0, 32, 32)
+region = Rect2(192, 0, 96, 96)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame3"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f3"]
 atlas = ExtResource("2_sheet")
-region = Rect2(96, 0, 32, 32)
+region = Rect2(288, 0, 96, 96)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame4"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f4"]
 atlas = ExtResource("2_sheet")
-region = Rect2(128, 0, 32, 32)
+region = Rect2(384, 0, 96, 96)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame5"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f5"]
 atlas = ExtResource("2_sheet")
-region = Rect2(160, 0, 32, 32)
+region = Rect2(480, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f6"]
+atlas = ExtResource("2_sheet")
+region = Rect2(576, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f7"]
+atlas = ExtResource("2_sheet")
+region = Rect2(672, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f8"]
+atlas = ExtResource("2_sheet")
+region = Rect2(768, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f9"]
+atlas = ExtResource("2_sheet")
+region = Rect2(864, 0, 96, 96)
 
 [sub_resource type="Animation" id="Animation_idle"]
 resource_name = "idle"
@@ -45,7 +61,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 2.2, 2.4),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame0"), SubResource("AtlasTexture_frame5"), SubResource("AtlasTexture_frame0")]
+"values": [SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f9"), SubResource("AtlasTexture_f0")]
 }
 
 [sub_resource type="Animation" id="Animation_walk"]
@@ -62,12 +78,12 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.18),
 "transitions": PackedFloat32Array(1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame1"), SubResource("AtlasTexture_frame2")]
+"values": [SubResource("AtlasTexture_f1"), SubResource("AtlasTexture_f2")]
 }
 
 [sub_resource type="Animation" id="Animation_attack"]
 resource_name = "attack"
-length = 0.45
+length = 0.42
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -75,15 +91,84 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.18, 0.35),
+"times": PackedFloat32Array(0, 0.14, 0.33),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame3"), SubResource("AtlasTexture_frame4"), SubResource("AtlasTexture_frame0")]
+"values": [SubResource("AtlasTexture_f3"), SubResource("AtlasTexture_f4"), SubResource("AtlasTexture_f0")]
+}
+
+[sub_resource type="Animation" id="Animation_attack_cross"]
+resource_name = "attack_cross"
+length = 0.42
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.12, 0.33),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f3"), SubResource("AtlasTexture_f5"), SubResource("AtlasTexture_f0")]
+}
+
+[sub_resource type="Animation" id="Animation_attack_uppercut"]
+resource_name = "attack_uppercut"
+length = 0.44
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.14, 0.35),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f3"), SubResource("AtlasTexture_f6"), SubResource("AtlasTexture_f0")]
+}
+
+[sub_resource type="Animation" id="Animation_charge"]
+resource_name = "charge"
+length = 0.2
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f7")]
+}
+
+[sub_resource type="Animation" id="Animation_hurt"]
+resource_name = "hurt"
+length = 0.25
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f8")]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]
 _data = {
 "attack": SubResource("Animation_attack"),
+"attack_cross": SubResource("Animation_attack_cross"),
+"attack_uppercut": SubResource("Animation_attack_uppercut"),
+"charge": SubResource("Animation_charge"),
+"hurt": SubResource("Animation_hurt"),
 "idle": SubResource("Animation_idle"),
 "walk": SubResource("Animation_walk")
 }
@@ -92,34 +177,39 @@ _data = {
 size = Vector2(20, 22)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
-size = Vector2(24, 18)
+size = Vector2(26, 20)
 
 [node name="Player" type="CharacterBody2D" groups=["player"]]
 collision_layer = 2
 collision_mask = 5
 motion_mode = 1
 script = ExtResource("1_script")
+character_id = "behemoth"
+character_name = "Behemoth"
+move_speed = 92.0
+attack_duration = 0.42
 attack_damage = 18
-move_speed = 90.0
-attack_duration = 0.45
-attack_windup = 0.18
-hitbox_active_time = 0.12
+attack_windup = 0.14
+hitbox_active_time = 0.13
+max_health = 120
+dash_speed = 360.0
 dash_deals_damage = true
 dash_phases_enemies = true
-dash_damage = 16
+dash_damage = 18
+attack_point_offset_x = 16.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_body")
 
 [node name="Visuals" type="Sprite2D" parent="."]
-scale = Vector2(0.85, 0.85)
-texture = SubResource("AtlasTexture_frame0")
+scale = Vector2(0.36, 0.36)
+texture = SubResource("AtlasTexture_f0")
 
 [node name="Shadow" type="Sprite2D" parent="Visuals"]
 show_behind_parent = true
 modulate = Color(0, 0, 0, 0.28)
-position = Vector2(0, 14)
-scale = Vector2(1.4, 0.4)
+position = Vector2(0, 31)
+scale = Vector2(3.6, 1.0)
 texture = ExtResource("3_white")
 
 [node name="Dust" type="CPUParticles2D" parent="."]
@@ -145,10 +235,10 @@ libraries = {
 autoplay = "idle"
 
 [node name="AttackPoint" type="Marker2D" parent="."]
-position = Vector2(14, 0)
+position = Vector2(16, 0)
 
 [node name="Hitbox" type="Area2D" parent="."]
-position = Vector2(14, 0)
+position = Vector2(16, 0)
 collision_layer = 8
 collision_mask = 16
 monitoring = false

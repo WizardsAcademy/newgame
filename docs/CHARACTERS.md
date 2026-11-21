@@ -1,57 +1,54 @@
 # Characters and Skill Trees
 
 > Rule: every character owns 3 exclusive things — a **base kit** (normal
-> attack + Shift-Dash + signature mechanic), a **signature mechanic**
-> (something only they have), and **their own skill tree**. Imbalance in
-> early versions is expected; we patch it later.
+> attack + Shift skill + signature mechanic), a **signature mechanic**
+> (something only they have), and **their own skill tree**.
 
 ## Overview Table
 
-| Character | Role | Shift-Dash | Signature Mechanic | Implementation status |
-|-----------|------|------------|--------------------|-----------------------|
-| **Behemoth** | Melee brawler, soft tank (`100 HP`) | **16 DMG** Shoulder Smash | 3-Hit Iron-Gauntlet Combo + Shockwave Uppercut | ✅ Playable |
-| **Knight** | Armored shield & greatsword tank (`120 HP`) | **14 DMG** Shield Charge | **Kite Shield (`Right-Click / E`)**: **60% Damage Reduction** (`10 → 4`) | ✅ Playable |
-| **Sylvara** | Elven ranger, fast kiter (`75 HP`) | **0 DMG**, **Phases Through Enemies** | Hunter's Charged Piercing Great-Arrow (`2× DMG`) + 3-Arrow Fan | ✅ Playable |
-| **Velmira** | Crimson vampire hemomancer (`85 HP`) | **0 DMG** Crimson Evade | **Crimson Blood Splash**: costs `-6 HP` to cast, heals `+8 HP` on hit (`+2` net) | ✅ Playable |
+| Character | HP | Speed | `Shift` Skill | Signature Mechanic | Status |
+|-----------|----|-------|---------------|--------------------|--------|
+| **Behemoth** | **120 HP** | `92 px/s` | **18 DMG + 1.1s Stun** Shoulder Charge | 3-Hit Iron-Cestus Combo (`18 → 21 → 29 DMG`); **every punch STUNS** (`0.45s / 0.90s`) | ✅ Playable |
+| **Knight** | **150 HP** | `68 px/s` *(Slowest)* | **16 DMG** Shield-Wall Charge | **Fallen Plate Armor (`-3` flat)** + **Tower Shield (`RMB / E`)**: **100% HP Block** powered by **Green Energy** (breaks at `0` until `100%` recovered) + **Spinning Greatsword (`26 DMG`)** | ✅ Playable |
+| **Sylvara** | **100 HP** | `124 px/s` *(Fastest)* | **0 DMG** Sylvan Gale Vault *(Phases, Slows, +28% Tailwind)* | **Held Elven Recurve Bow**: `15 DMG` quick shots, 3-arrow 4th fan, & visible charged **Piercing Great-Arrow (`30 DMG`)** | ✅ Playable |
+| **Velmira** | **75 HP** | `104 px/s` | **0 DMG** Bat-Swarm Vanish *(5 crimson bats)* | **Returning Liquid Blood Whip** (`6%` HP cost locked at `1 HP` floor; returns healing `cost + 1 HP/hit`) + **2-Fang Filling Circle (`30%` Max HP Burst)** | ✅ Playable |
 
 ---
 
-## 1. Behemoth — Iron-Fist Brawler
+## 1. Behemoth — Medieval Pit-Champion (`120 HP`)
 
-- Look (`32×32` high-detail sprite): spiky brown hair, crimson battle headband with fluttering tails, scarred cheek, handlebar mustache, navy combat vest, gold champion belt, and **spiked iron-brass gauntlets** (`assets/textures/player_borzo.png`)
-- Base HP: 100
-- Signature mechanic: **3-hit combo** (Jab `18` → Cross `21` → Shockwave Uppercut `29 DMG` + knockback)
-- Shift Dash (`1.0s` CD): **Shoulder Smash** — smashes through enemies dealing **16 damage**
+- **Sprite Sheet (`96×96` × 10 frames)**: `assets/textures/player_borzo.png` (riveted brigandine vest, iron shoulder pauldron, crimson headband, scarred beard, spiked iron cestus gauntlets with dedicated `jab`, `cross`, `uppercut`, `charge`, and `hurt` frames) + circular `64×64` face portrait strip `assets/textures/portrait_borzo.png`.
+- **Signature Mechanic**: **Concussive Iron-Cestus Combo** — 3-hit melee combo (`18` → `21` → `29 DMG`); hits 1–2 stun for `0.45s` and the 3rd-hit Shockwave Uppercut stuns for `0.90s`.
+- **`Shift` Skill**: **Shoulder Charge** — drops his spiked pauldron forward and rams enemies for **`18 DMG` + `1.10s` Stun**.
 
-## 2. Knight — Shield & Greatsword
+## 2. Knight — Fallen Knight (`150 HP`, Slowest `68 px/s`)
 
-- Look (`32×32` 7-frame high-detail sprite): rounded steel greathelm with crimson plume & glowing visor slits, sapphire heraldic cross surcoat, broad steel greatsword, and **royal Kite Shield** (`assets/textures/player_bahman.png`, including dedicated `guard` stance frame!)
-- Base HP: 120 (main tank)
-- Signature mechanic: **Raise Kite Shield (`Right-Click` or `E`)** — reduces incoming damage by **60%** without fully blocking (`10` incoming damage → **blocks `6`**, takes **`4`**!) and cuts knockback by 65%
-- Shift Dash (`1.0s` CD): **Shield Charge** — armored charge dealing **14 damage** *(only Behemoth & Knight deal damage with Shift!)*
+- **Sprite Sheet (`96×96` × 10 frames)**: `assets/textures/player_bahman.png` (cracked visor greathelm, tattered crimson betrayal cloak, dark steel plate, oversized **Zweihander Greatsword** with full swing/spin arc, Tower Shield `guard`, `charge`, and `hurt` frames) + `assets/textures/portrait_bahman.png`.
+- **Signature Mechanic**:
+  - **Passive Fallen Plate Armor**: Reduces unshielded hits by `-3` flat damage (minimum `1`).
+  - **Tower Shield (`Right-Click` / `E`)**: Blocks **100% of HP damage** (`0 HP` lost!) by consuming **Green Energy** instead (`14 + 1.5 × DMG`, plus `14/s` hold upkeep). If Green Energy hits `0`, the Shield **breaks (`shield_exhausted`)** and cannot be raised again until Green Energy regenerates back to `100%`.
+- **`Shift` Skill**: **Shield-Wall Charge** — braces his Tower Shield in front (`charge` pose) and rams enemies for **`16 DMG`**.
 
-## 3. Sylvara — Elven Ranger
+## 3. Sylvara — Blonde Elven Ranger (`100 HP`, Fastest `124 px/s`)
 
-- Look (`32×32` high-detail sprite): golden hair with emerald elven tiara, feathered quiver on her back, forest-emerald ranger tunic, and carved recurve bow (`assets/textures/player_pari.png`)
-- Base HP: 75 — fastest mover (`118 px/s`)
-- Signature mechanic: **Hunter's Charge** — holding Attack (`≥0.35s`) unleashes a 2× damage **Piercing Great-Arrow**; every 4th quick shot fires a 3-arrow fan
-- Shift Dash (`1.0s` CD): **Phantom Windstep** — deals **0 damage**, **phases cleanly through enemy bodies** to escape surrounds
+- **Sprite Sheet (`96×96` × 9 frames)**: `assets/textures/player_pari.png` (flowing golden hair, emerald elven tiara, forest tunic, feathered quiver, and **golden-yew Recurve Bow held visibly in hand** with `bow_draw`, `bow_charge`, `bow_release`, `charge`, and `hurt` frames) + `assets/textures/portrait_pari.png`.
+- **Signature Mechanic**: **Elven Recurve Bow** — swift `15 DMG` arrows (every 4th quick shot looses a 3-arrow fan); holding Attack visibly draws and charges a **`30 DMG` Piercing Great-Arrow**.
+- **`Shift` Skill**: **Sylvan Gale Vault** — leaps in a swirl of emerald leaves (`0 DMG`), phases cleanly through enemies, slows nearby foes (`×0.55` speed for `1.8s`), and grants `+28%` Tailwind movement haste.
 
-## 4. Velmira — Crimson Vampire
+## 4. Velmira — Silver-Haired Hemomancer (`75 HP`)
 
-- Look (`32×32` high-detail sprite, gothic redesign — see `VELMIRA_REDESIGN.md`): near-black purple hair mass with a crimson rose on her left temple and two long falls to her ankles, over a pale pink face with heavy lash, crimson eyes, blush and a fanged smirk; a black bodice with a high crimson collar, cape panels, crimson brooch and silver belt buckle, flared skirt, bare thigh and thigh-high boots with a crimson cross-band, and blood magic in her hands (`assets/textures/player_shabnam.png`, generated by `tools/make_velmira_sprites.py`)
-- Base HP: 85
-- Signature mechanic: **Crimson Blood Splash (`splash khon`)** — cone burst (`92 px` reach, `17 DMG`). Every cast **sacrifices `-6 HP`** of Velmira's own blood (down to `1 HP` floor), and **only hitting an enemy heals `+8 HP`** (`+2 HP` net gain on 1 target, `+2 HP` per extra foe hit, up to `12 HP`), preventing mindless attack spam!
-- Shift Dash (`1.0s` CD): **Crimson Evade** — quick mist dodge (**0 damage**, no enemy phasing)
+- **Sprite Sheet (`96×96` × 8 frames)**: `assets/textures/player_shabnam.png` (moonlit **white/silver hair** with crimson temple rose, gothic crimson-collared bodice, `attack`, `charge`, and `hurt` frames) + `assets/textures/portrait_shabnam.png`.
+- **Signature Mechanic**:
+  - **Returning Liquid Blood Whip**: Lashing out sacrifices `6%` Max HP (`5 HP`), **strictly locked at a `1 HP` floor** (Velmira can NEVER kill herself by attacking; only enemy damage can kill her). A sinuous crimson blood orb (`128 px` reach) whips outward and curves back into Velmira: if it hit `N >= 1` enemies (`13 DMG` each), it heals **`spent_hp + 1 × N`** on return (`+1 HP` net per enemy hit; `0` heal on miss).
+  - **2-Fang + Filling Crimson Circle Curse**: Each Blood Whip hit builds `1/4` of a circular crimson gauge topped with two vampire fangs on the target. On the **4th hit (`4/4`)**, the circle explodes for **30% of the enemy's Max HP** (capped at `55` on bosses) and heals Velmira `+4 HP`.
+- **`Shift` Skill**: **Bat-Swarm Vanish** — Velmira vanishes into **5 flapping crimson bats** (`assets/textures/crimson_bat.png`, `0` Shift damage, phases through enemies) and re-materializes at the destination.
 
 ---
 
 ## Balance Log
 
-- 2026-11-20 — Archer anti-kiting: retreat speed 55 → 30 px/s (`×0.55`); panic exhaustion after 1.5s fleeing locks retreat for 1.2s.
-- 2026-11-20 — Phase 8: first boss "Forest Colossus" (every 5th wave, 400 HP, speed 26 px/s; SLAM / SWEEP / ROOTS telegraphs + `<30% HP` Enrage).
-- 2026-11-16 — Hero kit overhaul, `32×32` high-detail pixel art, & Proximity-Arrow Mini-Map:
-  - **Knight**: Removed Frost/Winter Aura completely; added active **Kite Shield** (`Right-Click / E`) with **60% damage reduction** (`10` dmg → blocks `6`, takes `4`) and 65% knockback reduction; `move_speed = 78`, `dash_damage = 14`.
-  - **Shift-Dash Damage Restriction**: **Only Behemoth (`16 DMG`) and Knight (`14 DMG`) deal Shift-Dash damage** (`UpgradePool` restricts `razor_dash` to `dash_deals_damage == true`). **Sylvara** deals `0` dash damage and **phases through enemies** (`dash_phases_enemies = true`). **Velmira** deals `0` dash damage (`dash_phases_enemies = false`).
-  - **Velmira**: Replaced boomerang blade with **Crimson Blood Splash** (`17 DMG`, `92 px` cone). Every cast costs **`-6 HP`** self-blood; hitting an enemy heals **`+8 HP`** (`+2 HP` net on single target; `+2 HP` per extra enemy hit, max `12 HP`), punishing missed spam.
-  - **Mini-Map**: Removed `Camera2D` viewport frame; distant enemies (`> 210 px`) no longer reveal exact map coordinates and instead show **directional arrows (`➔`)** from the player until approached (`<= 210 px`).
+- 2026-11-16 — **Medieval Guild Hub Lobby, `96×96` Hero Overhaul, Circular Face-Only `HeroHUD` + Green Energy, & Combat/Shift Rework**:
+  - **Hub Lobby (`LobbyHub`)**: Game boots into a playable Medieval Guild Hall with a **Hero Wardrobe (`Komod`)**, a North **`STAGES`** Dungeon Gate (room-by-room stage progression with `NEXT STAGE` / `LOBBY` doors), an attached East Training Room with an immovable `100 HP` **`TrainingDummy`**, and a corner **`SANDBOX`** Door leading to the `1280×720` Arena Sandbox Map.
+  - **HUD & Mini-Map**: Removed all top-left control/stat clutter; faded `MiniMap` (`alpha = 0.42`, hidden in Lobby); added bottom-left **`HeroHUD`** with a circular animated `64×64` **Face-Only Portrait** (`idle_a`, `idle_b`, `blink`, `<=35%` `low_hp` face, and hit-reaction `hurt` `"AKH!"` face) + Crimson HP Bar + Emerald Green Energy Bar.
+  - **Stats & Speeds**: Knight `150 HP / 68 px/s` (slowest) | Behemoth `120 HP / 92 px/s` | Velmira `75 HP / 104 px/s` (lowest HP, white hair) | Sylvara `100 HP / 124 px/s` (fastest).
+  - **Combat & Shift Rework**: Behemoth punches & Shoulder Charge stun foes; Knight gains `-3` passive Plate Armor + 100%-HP-block Energy Shield (`0 → 100%` exhaustion lockout) + spinning `26 DMG` Greatsword; Sylvara visibly draws/charges her held Recurve Bow + Sylvan Gale Vault slow/tailwind; Velmira uses a `1 HP`-locked returning Liquid Blood Whip (`+1 HP/hit` net on return) + 4-stack 2-Fang `30%` Max HP burst + 5-bat Bat-Swarm Vanish `Shift`.

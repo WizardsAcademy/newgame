@@ -1,18 +1,13 @@
 extends CharacterBody2D
 class_name PlayerBase
-## Shared base controller for all 4 playable heroes (docs/ARCHITECTURE.md).
+## Shared base controller for all 4 playable 96x96 medieval heroes.
 ##
-## Owns the universal combat & movement rules so characters never duplicate
-## core plumbing:
+## Owns universal movement, combat, Energy, Hurt animation, and Shift hooks:
 ##  - Centralized `_read_input()` (multiplayer-ready rule #1),
-##  - 8-directional top-down movement + knockback decay + footstep dust/SFX,
-##  - Shift DASH (`dash` action, 1.0s cooldown):
-##      * ONLY Behemoth & Knight deal damage with Shift (`dash_deals_damage = true`)!
-##      * Sylvara (Elf) phases cleanly through enemies (`dash_phases_enemies = true`)
-##        without dealing Shift damage!
-##      * Velmira (Vampire) performs a quick crimson evade step (0 Shift damage).
-##  - Subclass hooks for active defense (Knight's 60% damage-reduction Shield)
-##    and self-blood cost (Velmira's Blood Splash).
+##  - Health + Green Energy bar signals (`health_changed`, `energy_changed`,
+##    `hurt_triggered`, `damage_mitigated`),
+##  - Dedicated `"hurt"` hit-reaction animation on every hero when taking damage,
+##  - Distinct per-hero `Shift` abilities (`"charge"` animation + subclass hooks).
 
 
 # =====================================================================
@@ -21,6 +16,8 @@ class_name PlayerBase
 
 signal attack_hit(enemy)
 signal health_changed(current_health: int, max_health: int)
+signal energy_changed(current_energy: float, max_energy: float)
+signal hurt_triggered(damage_taken: int)
 signal player_died
 signal dash_cooldown_changed(remaining: float, duration: float)
 signal damage_mitigated(blocked_amount: int, final_amount: int)
@@ -33,29 +30,35 @@ signal damage_mitigated(blocked_amount: int, final_amount: int)
 @export var character_id: String = "behemoth"
 @export var character_name: String = "Behemoth"
 
-@export var move_speed: float = 90.0
-@export var attack_duration: float = 0.45
+@export var move_speed: float = 92.0
+@export var attack_duration: float = 0.44
 @export var attack_damage: int = 18
-@export var attack_windup: float = 0.18
-@export var hitbox_active_time: float = 0.12
+@export var attack_windup: float = 0.14
+@export var hitbox_active_time: float = 0.14
 
-@export var max_health: int = 100
-@export var invulnerability_time: float = 0.8
+@export var max_health: int = 120
+@export var max_energy: float = 100.0
+@export var energy_regen_per_sec: float = 28.0
+@export var dash_energy_cost: float = 18.0
+
+@export var invulnerability_time: float = 0.75
 @export var knockback_speed: float = 180.0
 @export var footstep_interval: float = 0.25
 
-## --- Shift Dash (1.0s cooldown; per-hero rules!) -----------------------
-@export var dash_speed: float = 340.0
-@export var dash_duration: float = 0.16
+## --- Shift Ability (1.0s cooldown; distinct per hero!) -----------------
+@export var dash_speed: float = 350.0
+@export var dash_duration: float = 0.18
 @export var dash_cooldown: float = 1.0
 @export var dash_deals_damage: bool = false
 @export var dash_phases_enemies: bool = false
 @export var dash_damage: int = 0
-@export var dash_hit_radius: float = 16.0
+@export var dash_hit_radius: float = 18.0
+@export var dash_knockback_px: float = 12.0
+@export var dash_spawns_ghosts: bool = true
 @export var dash_tint: Color = Color(0.55, 0.9, 1.0, 0.72)
 
 ## Local offset of AttackPoint + melee Hitbox when facing right.
-@export var attack_point_offset_x: float = 14.0
+@export var attack_point_offset_x: float = 16.0
 
 
 # =====================================================================
@@ -68,20 +71,24 @@ var is_attacking: bool = false
 var is_dead: bool = false
 var is_dashing: bool = false
 
-var current_health: int = 100
+var current_health: int = 120
+var current_energy: float = 100.0
 var facing: float = 1.0
 
 var last_dealt_damage: int = 18
 var last_hit_was_dash: bool = false
 var last_health_change_was_self_cost: bool = false
+var last_mitigation_label: String = "BLOCK"
 
 var dash_cooldown_left: float = 0.0
 var _dash_time_left: float = 0.0
 var _dash_dir: Vector2 = Vector2.RIGHT
+var _dash_start_pos: Vector2 = Vector2.ZERO
 var _dash_ghost_timer: float = 0.0
 var _enemies_hit_this_dash: Dictionary = {}
 
 var _base_visual_scale: Vector2 = Vector2.ONE
+var _hurt_anim_left: float = 0.0
 var _invulnerable: bool = false
 var _knockback: Vector2 = Vector2.ZERO
 var _is_flashing: bool = false
@@ -130,6 +137,7 @@ func _ready() -> void:
 	hurt_sfx.stream = SFXGenerator.create_hurt_sfx()
 
 	current_health = max_health
+	current_energy = max_energy
 	last_dealt_damage = attack_damage
 
 	if not hitbox.area_entered.is_connected(_on_hitbox_area_entered):
@@ -138,6 +146,7 @@ func _ready() -> void:
 		hitbox.body_entered.connect(_on_hitbox_body_entered)
 
 	_character_ready()
+	energy_changed.emit(current_energy, max_energy)
 
 
 func _character_ready() -> void:
@@ -148,8 +157,6 @@ func _create_attack_sfx() -> AudioStreamWAV:
 	return SFXGenerator.create_punch_sfx()
 
 
-## Guarantee `"dash"` (`KEY_SHIFT`) and `"shield"` (`Right-Click` + `E`) exist
-## even in standalone headless test scenes.
 static func _ensure_input_actions() -> void:
 	if not InputMap.has_action("dash"):
 		InputMap.add_action("dash")
@@ -172,6 +179,13 @@ static func _ensure_input_actions() -> void:
 		var key_e := InputEventKey.new()
 		key_e.keycode = KEY_E
 		InputMap.action_add_event("shield", key_e)
+
+	if not InputMap.has_action("interact"):
+		InputMap.add_action("interact")
+	if InputMap.action_get_events("interact").is_empty():
+		var key_f := InputEventKey.new()
+		key_f.keycode = KEY_F
+		InputMap.action_add_event("interact", key_f)
 
 
 func _setup_dash_nodes() -> void:
@@ -246,16 +260,62 @@ func _on_attack_released(_event: InputEvent) -> void:
 
 
 # =====================================================================
+# ENERGY HELPERS
+# =====================================================================
+
+func _can_regenerate_energy() -> bool:
+	return not is_dashing
+
+
+func _update_energy(delta: float) -> void:
+	if is_dead:
+		return
+	if _can_regenerate_energy() and current_energy < max_energy:
+		var prev := current_energy
+		current_energy = minf(current_energy + energy_regen_per_sec * delta, max_energy)
+		if absf(current_energy - prev) > 0.01:
+			energy_changed.emit(current_energy, max_energy)
+			_on_energy_regenerated()
+
+
+func _on_energy_regenerated() -> void:
+	pass
+
+
+func consume_energy(amount: float) -> float:
+	if amount <= 0.0:
+		return 0.0
+	var prev := current_energy
+	current_energy = maxf(current_energy - amount, 0.0)
+	if absf(current_energy - prev) > 0.001:
+		energy_changed.emit(current_energy, max_energy)
+	return prev - current_energy
+
+
+func restore_energy(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	var prev := current_energy
+	current_energy = minf(current_energy + amount, max_energy)
+	if absf(current_energy - prev) > 0.001:
+		energy_changed.emit(current_energy, max_energy)
+		_on_energy_regenerated()
+
+
+# =====================================================================
 # MAIN LOOP
 # =====================================================================
 
 func _physics_process(delta: float) -> void:
+	if _hurt_anim_left > 0.0:
+		_hurt_anim_left = maxf(_hurt_anim_left - delta, 0.0)
 	_update_dash_timers(delta)
 	if is_dashing:
 		_process_dash(delta)
 	else:
 		_handle_movement()
 	_character_physics_process(delta)
+	_update_energy(delta)
 	_update_animation()
 	_update_footsteps(delta)
 
@@ -269,6 +329,10 @@ func _get_attack_move_multiplier() -> float:
 
 
 func _get_stance_move_multiplier() -> float:
+	return 1.0
+
+
+func _get_bonus_speed_multiplier() -> float:
 	return 1.0
 
 
@@ -293,7 +357,7 @@ func _handle_movement() -> void:
 		Vector2.ZERO, 800.0 * get_physics_process_delta_time()
 	)
 
-	velocity = input_dir * move_speed + _knockback
+	velocity = input_dir * (move_speed * _get_bonus_speed_multiplier()) + _knockback
 	move_and_slide()
 
 	if not is_attacking:
@@ -313,11 +377,11 @@ func _sync_facing_nodes() -> void:
 
 
 # =====================================================================
-# SHIFT DASH (1.0s cooldown; hero-specific damage & phasing!)
+# DISTINCT HERO SHIFT ABILITY (1.0s cooldown)
 # =====================================================================
 
 func can_dash() -> bool:
-	return input_enabled and (not is_dead) and (not is_dashing) and dash_cooldown_left <= 0.0
+	return input_enabled and (not is_dead) and (not is_dashing) and dash_cooldown_left <= 0.0 and current_energy >= dash_energy_cost
 
 
 func _try_start_dash() -> bool:
@@ -337,8 +401,11 @@ func _try_start_dash() -> bool:
 		is_attacking = false
 		_disable_hitbox()
 
+	consume_energy(dash_energy_cost)
 	_sync_facing_nodes()
+	_dash_start_pos = global_position
 	is_dashing = true
+	_hurt_anim_left = 0.0
 	_dash_time_left = dash_duration
 	dash_cooldown_left = dash_cooldown
 	_dash_ghost_timer = 0.0
@@ -355,8 +422,11 @@ func _try_start_dash() -> bool:
 	_dash_hitbox.monitoring = dash_deals_damage and dash_damage > 0
 	_dash_sfx.play()
 	dust.restart()
-	ScreenShake.shake(2.0, 0.09)
-	_spawn_dash_ghost()
+	ScreenShake.shake(2.2, 0.09)
+	if dash_spawns_ghosts:
+		_spawn_dash_ghost()
+	if anim_player != null and anim_player.has_animation("charge"):
+		anim_player.play("charge")
 	_on_dash_started()
 	dash_cooldown_changed.emit(dash_cooldown_left, dash_cooldown)
 	return true
@@ -375,6 +445,7 @@ func _process_dash(delta: float) -> void:
 
 	velocity = _dash_dir * dash_speed
 	move_and_slide()
+	_on_dash_tick(delta)
 
 	if dash_deals_damage and dash_damage > 0 and _dash_hitbox != null and _dash_hitbox.monitoring:
 		for area in _dash_hitbox.get_overlapping_areas():
@@ -382,10 +453,11 @@ func _process_dash(delta: float) -> void:
 		for body in _dash_hitbox.get_overlapping_bodies():
 			_try_dash_hit(body)
 
-	_dash_ghost_timer -= delta
-	if _dash_ghost_timer <= 0.0:
-		_spawn_dash_ghost()
-		_dash_ghost_timer = 0.045
+	if dash_spawns_ghosts:
+		_dash_ghost_timer -= delta
+		if _dash_ghost_timer <= 0.0:
+			_spawn_dash_ghost()
+			_dash_ghost_timer = 0.045
 
 	_dash_time_left -= delta
 	if _dash_time_left <= 0.0:
@@ -409,7 +481,15 @@ func _on_dash_started() -> void:
 	pass
 
 
+func _on_dash_tick(_delta: float) -> void:
+	pass
+
+
 func _on_dash_ended() -> void:
+	pass
+
+
+func _on_dash_hit_enemy(_enemy: Node) -> void:
 	pass
 
 
@@ -431,12 +511,13 @@ func _try_dash_hit(touched: Node) -> void:
 	if _enemies_hit_this_dash.has(enemy_id):
 		return
 	_enemies_hit_this_dash[enemy_id] = true
-	deal_combat_damage(enemy, dash_damage, true, 10.0)
+	deal_combat_damage(enemy, dash_damage, true, dash_knockback_px)
+	_on_dash_hit_enemy(enemy)
 
 
 func _spawn_dash_ghost() -> void:
 	var parent := get_parent()
-	if parent == null or visuals == null or visuals.texture == null:
+	if parent == null or visuals == null or visuals.texture == null or not visuals.visible:
 		return
 	var ghost := Sprite2D.new()
 	ghost.texture = visuals.texture
@@ -454,15 +535,23 @@ func _spawn_dash_ghost() -> void:
 # =====================================================================
 
 func _update_animation() -> void:
+	if is_dashing:
+		if anim_player.has_animation("charge") and anim_player.current_animation != "charge":
+			anim_player.play("charge")
+		return
 	if is_attacking:
 		return
-	var desired := "walk" if velocity.length() > 0.0 else "idle"
+	if _hurt_anim_left > 0.0 and anim_player.has_animation("hurt"):
+		if anim_player.current_animation != "hurt":
+			anim_player.play("hurt")
+		return
+	var desired := "walk" if velocity.length() > 0.5 else "idle"
 	if anim_player.current_animation != desired:
 		anim_player.play(desired)
 
 
 func _update_footsteps(delta: float) -> void:
-	var is_walking := (not is_attacking) and (not is_dashing) and velocity.length() > 0.0
+	var is_walking := (not is_attacking) and (not is_dashing) and velocity.length() > 0.5
 	if not is_walking:
 		_footstep_timer = 0.0
 		if footstep_sfx.playing:
@@ -488,6 +577,7 @@ func _start_attack() -> void:
 	_attack_token += 1
 	var my_token := _attack_token
 	is_attacking = true
+	_hurt_anim_left = 0.0
 	_enemies_hit_this_swing.clear()
 
 	anim_player.stop()
@@ -588,7 +678,7 @@ func deal_combat_damage(enemy: Node, amount: int, from_dash: bool = false, knock
 
 	enemy.take_damage(final_damage)
 
-	if knockback_px > 0.0 and enemy is CharacterBody2D and not enemy.get("is_dead"):
+	if knockback_px > 0.0 and enemy is CharacterBody2D and enemy.get("is_dead") != true and enemy.get("immovable_dummy") != true:
 		var away: Vector2 = (enemy.global_position - global_position)
 		if away.length() > 0.5:
 			(enemy as CharacterBody2D).move_and_collide(away.normalized() * knockback_px)
@@ -657,7 +747,6 @@ func heal(amount: int) -> void:
 		health_changed.emit(current_health, max_health)
 
 
-## Subclass hook to reduce incoming enemy damage (e.g. Knight's 60% Shield Guard).
 func _mitigate_incoming_damage(amount: int, _from_position: Vector2) -> int:
 	return amount
 
@@ -682,6 +771,7 @@ func take_damage(amount: int, from_position: Vector2 = Vector2.INF) -> void:
 		current_health, "/", max_health)
 
 	health_changed.emit(current_health, max_health)
+	hurt_triggered.emit(final_amount)
 	hurt_sfx.play()
 
 	HitStop.freeze(0.04)
@@ -691,6 +781,11 @@ func take_damage(amount: int, from_position: Vector2 = Vector2.INF) -> void:
 		var away := global_position - from_position
 		if away.length() > 1.0:
 			_knockback = away.normalized() * (knockback_speed * _get_incoming_knockback_multiplier())
+
+	# Trigger hero body hurt animation!
+	_hurt_anim_left = 0.24
+	if not is_attacking and anim_player != null and anim_player.has_animation("hurt"):
+		anim_player.play("hurt")
 
 	_flash_red()
 

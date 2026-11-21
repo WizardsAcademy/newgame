@@ -1,43 +1,34 @@
 #!/usr/bin/env python
-"""Generate Velmira's 6-frame hero sheet (player_shabnam.png).
+"""Generate Velmira's 8-frame 96x96 white-haired gothic vampire sheet.
 
-FOURTH design - the player's own pixel-art reference, recovered at full
-96x96 resolution. The cleaned reference bitmap is pasted into this file as
-a run-length-encoded base (BASE_PAL + BASE_RLE), and the six frames are
-derived from it in code, so a change to one edit moves the sheet in one run:
-
-    python tools/make_velmira_sprites.py
+Rebuilt from the 96x96 gothic vampire base with:
+  - Moonlit silver-white flowing hair (preserving her crimson rose, ruby eyes,
+    porcelain skin, pointed ears, and black-crimson gothic dress),
+  - Graceful flared-sleeve Blood Whip cast animation,
+  - Expressive Hurt recoil pose + Bat-Mist dissolve pose.
 
 Writes:
-    assets/textures/player_shabnam.png   576 x 96 (6 frames of 96x96)
+    assets/textures/player_shabnam.png   768 x 96 (8 frames of 96x96)
     assets/textures/velmira_ambient.png  288 x 96 (3 ambient frames: bat + sparkles)
     docs/images/velmira_preview.png      review sheet
 
-The bat and sparkle crosses the player drew around her are erased from the
-character frames and live on their own ambient layer (see DECOR_* below) so
-the scene can flap / twinkle / drift them independently of the body.
-
-SHEET LAYOUT  (matches scenes/player/Shabnam.tscn - do not reorder!)
-    frame 0 : idle                  (the base bitmap, untouched)
-    frame 1 : walk A                (right leg lifted, 1 px body bob)
-    frame 2 : walk B                (left leg lifted, 1 px body bob)
-    frame 3 : attack A              (blazing eyes + blood bead at the chest)
-    frame 4 : attack B              (arm thrust right + droplet fan)
-    frame 5 : idle blink            (the lids shut for one beat)
-
-The .py is the source of truth, never the PNG.
+SHEET LAYOUT  (matches scenes/player/Shabnam.tscn):
+    frame 0 : idle
+    frame 1 : walk A
+    frame 2 : walk B
+    frame 3 : cast gather   (blazing ruby eyes + floating liquid blood orb)
+    frame 4 : cast whip     (flared gothic sleeve + curved liquid blood whip)
+    frame 5 : idle blink
+    frame 6 : hurt          (wincing recoil + fang grimace)
+    frame 7 : bat dissolve  (crimson mist + bat silhouette form)
 """
 
+import math
 from PIL import Image, ImageDraw
 
 FRAME = 96
-FRAMES = 6
+FRAMES = 8
 
-# ---------------------------------------------------------------------------
-# Palette recovered from the reference: quantised to 28 tones, then merged
-# down to 17 flat house-style tones. Most-used first; index i is symbol
-# SYMS[i] in BASE_RLE.
-# ---------------------------------------------------------------------------
 BASE_PAL = [
     (47, 31, 50, 255),
     (27, 18, 29, 255),
@@ -58,22 +49,26 @@ BASE_PAL = [
     (54, 24, 43, 255),
 ]
 
-# extra tones used only by the derived frames
 EXTRA = {
-    "iris_hi": (240, 96, 120, 255),   # blazing cast eyes
-    "blood": (190, 30, 60, 255),      # the blood bead / droplets core
-    "blood_hi": (240, 90, 120, 255),  # bead highlight
-    "white": (255, 255, 255, 255),    # bead glint / fang
+    "iris_hi": (250, 86, 118, 255),
+    "blood": (205, 24, 56, 255),
+    "blood_hi": (252, 98, 128, 255),
+    "white": (255, 255, 255, 255),
+}
+
+# Moonlit pearl-white / silver hair ramp replacing dark plum hair tones
+WHITE_HAIR_MAP = {
+    (70, 49, 67): (252, 250, 255, 255),   # L -> pure pearl highlight
+    (47, 31, 50): (235, 232, 246, 255),   # A -> bright moonlit white
+    (42, 28, 45): (218, 213, 234, 255),   # H -> silken silver
+    (37, 25, 40): (198, 191, 218, 255),   # D -> cool silver-lavender mid
+    (27, 18, 29): (168, 158, 192, 255),   # B -> soft silver shadow
+    (23, 13, 22): (136, 126, 162, 255),   # F -> deep slate-silver lock crease
+    (54, 24, 43): (208, 198, 224, 255),   # Q -> subtle warm silver
 }
 
 SYMS = "ABCDEFGHIJKLMNOPQ"
 
-# ---------------------------------------------------------------------------
-# The ambient decor the player drew AROUND her (top-right bat, three crimson
-# sparkle crosses). Stored as tiny symbol maps and erased from the character
-# frames - they live on a separate ambient layer so they can flap, twinkle and
-# drift while she moves. Coordinates are absolute in the 96x96 frame.
-# ---------------------------------------------------------------------------
 DECOR_SPARK_TOP = (74, 11, [
     "..PP..",
     "..MJ..",
@@ -113,9 +108,8 @@ DECOR_SPARK_R = (81, 49, [
     ".KO..",
 ])
 DECOR_ALL = (DECOR_SPARK_TOP, DECOR_BAT, DECOR_SPARK_L, DECOR_SPARK_R)
-# a dimmed sparkle keeps only its horizontal bar (a dash) - the twinkle state
 DECOR_DIM_ROW = {"SPARK_TOP": 3, "BAT": 3, "SPARK_L": 3, "SPARK_R": 2}
-BAT_CGX = 82.5  # bat bend pivot: wings tilt about the body
+BAT_CGX = 82.5
 
 BASE_RLE = [
     "",
@@ -217,16 +211,83 @@ BASE_RLE = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Base bitmap
-# ---------------------------------------------------------------------------
 def pal_color(ch: str):
-    """Map a BASE_RLE/décor symbol letter to its palette colour."""
     return (BASE_PAL + list(EXTRA.values()))[SYMS.index(ch)]
 
 
+def _pal(v):
+    for c in BASE_PAL:
+        if c[:3] == v:
+            return c
+    raise SystemExit("tone %r missing from BASE_PAL" % (v,))
+
+
+OUTLINE = _pal((8, 5, 8))
+SKIN = _pal((233, 197, 204))
+SKIN_SHA = _pal((166, 128, 142))
+SLEEVE = _pal((27, 18, 29))
+SLEEVE_HI = _pal((42, 28, 45))
+CRIMSON_DEEP = _pal((38, 8, 20))
+IRIS_TONES = {(99, 15, 41), (87, 13, 36), (73, 10, 31)}
+
+EYE_L = (37, 38, 46, 47)
+EYE_R = (51, 38, 60, 47)
+
+
+def _in_box(x: int, y: int, box) -> bool:
+    return box[0] <= x < box[2] and box[1] <= y < box[3]
+
+
+def _is_hair_pixel(x: int, y: int) -> bool:
+    """True for Velmira's crown, bangs, and long wavy side-locks; False for
+    her eye lashes/brows, gothic collar, corset, sleeves, skirt, and boots."""
+    if _in_box(x, y, EYE_L) or _in_box(x, y, EYE_R):
+        return False
+    # Mouth line
+    if 45 <= x <= 51 and 44 <= y <= 46:
+        return False
+    # Above collar/neck: everything non-rose/non-skin/non-eye is hair
+    if y <= 47:
+        return True
+    # Below y=47, her gothic dress forms a central cone from shoulders to hem;
+    # the billowing wavy locks cascade outside that cone on both sides!
+    if y <= 76:
+        dress_half_w = 9.5 + (y - 48) * 0.44
+        if abs(x - 48.0) > dress_half_w:
+            return True
+    return False
+
+
+def apply_white_hair(img: Image.Image) -> None:
+    """Convert Velmira's dark-plum hair into luminous moonlit silver-white
+    while keeping crisp dark silhouette outlines and her black-crimson dress."""
+    px = img.load()
+    # Keep a 1px dark outer boundary crisp by checking alpha neighbors
+    alpha_grid = [[px[x, y][3] > 0 for x in range(FRAME)] for y in range(FRAME)]
+    for y in range(FRAME):
+        for x in range(FRAME):
+            r, g, b, a = px[x, y]
+            if a == 0 or not _is_hair_pixel(x, y):
+                continue
+            mapped = WHITE_HAIR_MAP.get((r, g, b))
+            if mapped is None:
+                continue
+            # Preserve 1px silhouette border if touching transparency
+            touches_empty = False
+            for ny in (y - 1, y, y + 1):
+                for nx in (x - 1, x, x + 1):
+                    if nx < 0 or nx >= FRAME or ny < 0 or ny >= FRAME or not alpha_grid[ny][nx]:
+                        touches_empty = True
+                        break
+                if touches_empty:
+                    break
+            if touches_empty and (r, g, b) in ((23, 13, 22), (27, 18, 29)):
+                px[x, y] = (72, 64, 96, 255)
+            else:
+                px[x, y] = mapped
+
+
 def decode_base() -> Image.Image:
-    """BASE_RLE -> the 96x96 idle frame, ambient decor removed."""
     pal = BASE_PAL + list(EXTRA.values())
     img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
     px = img.load()
@@ -247,16 +308,15 @@ def decode_base() -> Image.Image:
                     px[x + k, y] = pal[idx]
             x += run
     erase_decor(img)
+    apply_white_hair(img)
     return img
 
 
 def blit(dst, src, ox=0, oy=0) -> None:
-    """alpha_composite src over dst at (ox, oy)."""
     dst.alpha_composite(src, (ox, oy))
 
 
 def shift_strip(img, x0, y0, x1, y1, dx=0, dy=0, clear=True) -> None:
-    """Cut img[x0:x1, y0:y1], move it by (dx, dy), paste it back."""
     strip = img.crop((x0, y0, x1, y1))
     if clear:
         blank = Image.new("RGBA", strip.size, (0, 0, 0, 0))
@@ -265,7 +325,6 @@ def shift_strip(img, x0, y0, x1, y1, dx=0, dy=0, clear=True) -> None:
 
 
 def _each_decor_pt(snip, dim=False):
-    """(x, y, sym) for one DECOR_* snippet; dim keeps only the bar row."""
     x0, y0, rows = snip
     key = {id(DECOR_SPARK_TOP): "SPARK_TOP", id(DECOR_BAT): "BAT",
            id(DECOR_SPARK_L): "SPARK_L", id(DECOR_SPARK_R): "SPARK_R"}[id(snip)]
@@ -279,19 +338,12 @@ def _each_decor_pt(snip, dim=False):
 
 
 def erase_decor(img) -> None:
-    """Remove the ambient decor from a character frame (exact pixels only,
-    the surrounding hair / droplets stay untouched)."""
     for snip in DECOR_ALL:
         for x, y, _ch in _each_decor_pt(snip):
             img.putpixel((x, y), (0, 0, 0, 0))
 
 
 def draw_decor(img, bat_dir, spark_state) -> None:
-    """Draw decor onto a blank ambient frame.
-
-    bat_dir: -1 wings up, 0 as drawn, +1 wings down - wing tips tilt about the
-    bat's body (tips move 2 px, mid-wing 1 px). spark_state: dict
-    {\"TOP\"/\"L\"/\"R\": dim?} - a dimmed sparkle is just its dash bar."""
     for x, y, ch in _each_decor_pt(DECOR_BAT):
         d = abs(x - BAT_CGX)
         dy = bat_dir * (2 if d >= 7 else 1 if d >= 3.5 else 0)
@@ -302,116 +354,74 @@ def draw_decor(img, bat_dir, spark_state) -> None:
             img.putpixel((x, y), pal_color(ch))
 
 
-# ---------------------------------------------------------------------------
-# Named tones (looked up by value, never by position - positions move if
-# the palette is ever re-quantised).
-# ---------------------------------------------------------------------------
-def _pal(v):
-    for c in BASE_PAL:
-        if c[:3] == v:
-            return c
-    raise SystemExit("tone %r missing from BASE_PAL" % (v,))
-
-
-OUTLINE = _pal((8, 5, 8))          # near-black silhouette outline
-SKIN = _pal((233, 197, 204))       # pale skin
-SKIN_SHA = _pal((166, 128, 142))   # skin shadow / closed lid
-SLEEVE = _pal((27, 18, 29))        # dark dress cloth
-SLEEVE_HI = _pal((42, 28, 45))     # lit edge of the dress
-CRIMSON_DEEP = _pal((38, 8, 20))   # deep crimson droplets
-IRIS_TONES = {(99, 15, 41), (87, 13, 36), (73, 10, 31)}
-
-# eye boxes in frame coordinates: lash line + crimson iris
-EYE_L = (37, 38, 46, 47)
-EYE_R = (51, 38, 60, 47)
-
-
-# ---------------------------------------------------------------------------
-# Cast reads
-# ---------------------------------------------------------------------------
 def blood_bead(img, cx, cy, r) -> None:
-    """A bead of blood magic held between her cupped hands."""
+    """Swirling liquid crimson Blood Orb summoned before her whip strike."""
     d = ImageDraw.Draw(img)
     d.ellipse([cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1], fill=OUTLINE)
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=EXTRA["blood"])
-    d.ellipse([cx - 2, cy - r + 1, cx, cy], fill=EXTRA["blood_hi"])
+    d.ellipse([cx - 2, cy - r + 1, cx + 1, cy], fill=EXTRA["blood_hi"])
     img.putpixel((cx - 1, cy - r + 1), EXTRA["white"])
+    # Orbiting water-like crimson tendril wisps around the orb
+    for ang in (0.3, 2.2, 4.1):
+        wx = int(round(cx + math.cos(ang) * (r + 2)))
+        wy = int(round(cy + math.sin(ang) * (r + 2)))
+        if 0 <= wx < FRAME and 0 <= wy < FRAME:
+            img.putpixel((wx, wy), EXTRA["blood_hi"])
+        if 0 <= wx + 1 < FRAME and 0 <= wy < FRAME:
+            img.putpixel((wx + 1, wy), EXTRA["blood"])
 
 
-def droplet(img, x, y, size=2, bright=False) -> None:
-    col = EXTRA["blood"] if bright else CRIMSON_DEEP
-    for dy in range(size):
-        for dx in range(size):
-            img.putpixel((x + dx, y + dy), col)
-
-
-def thrust_arm(img) -> None:
-    """Cast release: the folded hands leave, a sleeve-clad arm thrusts out
-    to the right and a fan of droplets scatters beyond the hand."""
-    # 1. the corset shows where the folded hands were
+def whip_cast_arm(img) -> None:
+    """Graceful flared gothic bell-sleeve & pale hand whipping a curved stream
+    of liquid crimson blood out to the right."""
+    # Patch corset where folded hands were
     patch = Image.new("RGBA", (10, 7), (0, 0, 0, 0))
     for y in range(7):
         for x in range(10):
             patch.putpixel((x, y), SLEEVE if (x + y) % 3 else SLEEVE_HI)
     blit(img, patch, 43, 54)
 
-    # 2. the arm: dark outline block, sleeve inside, lit top edge
-    ox0, ox1, oy0, oy1 = 58, 81, 57, 65
-    for y in range(oy0, oy1):
-        for x in range(ox0, ox1):
-            img.putpixel((x, y), OUTLINE)
-    for y in range(oy0 + 1, oy1 - 1):
-        for x in range(ox0, ox1 - 1):
-            img.putpixel((x, y), SLEEVE)
-    for x in range(ox0, ox1 - 1):
-        img.putpixel((x, oy0 + 1), SLEEVE_HI)
-    # the pale hand at the end of the sleeve
-    for y in range(oy0 + 1, oy1 - 1):
-        for x in range(76, 80):
-            img.putpixel((x, y), SKIN)
-    img.putpixel((77, oy0 + 1), SKIN_SHA)
+    # Curved gothic flared bell-sleeve tapering to wrist, with crimson trim
+    for x in range(55, 74):
+        t = (x - 55) / 18.0
+        cy = 57.0 - 2.0 * math.sin(t * math.pi)
+        half_h = 2.6 + 2.2 * (1.0 - abs(t - 0.55))
+        y0 = int(round(cy - half_h))
+        y1 = int(round(cy + half_h))
+        for y in range(y0 - 1, y1 + 2):
+            if 0 <= x < FRAME and 0 <= y < FRAME:
+                if y == y0 - 1 or y == y1 + 1:
+                    img.putpixel((x, y), OUTLINE)
+                elif y == y0:
+                    img.putpixel((x, y), SLEEVE_HI)
+                elif y == y1 and x >= 66:
+                    img.putpixel((x, y), (120, 16, 44, 255))
+                else:
+                    img.putpixel((x, y), SLEEVE)
 
-    # 3. the droplet fan beyond the hand
-    droplet(img, 83, 56)
-    droplet(img, 85, 62)
-    droplet(img, 88, 58, bright=True)
-    droplet(img, 86, 52, bright=True)
+    # Delicate pale hand & extended fingers at x=73..78
+    for y in range(54, 59):
+        for x in range(73, 78):
+            if y in (54, 58) or x == 77:
+                img.putpixel((x, y), OUTLINE if y in (54, 58) else SKIN_SHA)
+            else:
+                img.putpixel((x, y), SKIN)
+    img.putpixel((78, 55), SKIN)
+    img.putpixel((78, 56), SKIN_SHA)
 
-
-# ---------------------------------------------------------------------------
-# The six frames
-# ---------------------------------------------------------------------------
-def frame_idle() -> Image.Image:
-    return decode_base()
-
-def frame_walk(which: str) -> Image.Image:
-    img = decode_base()
-    # 1 px bob on the whole figure
-    img.paste(img.crop((0, 1, FRAME, FRAME)), (0, 0))
-    img.paste(Image.new("RGBA", (FRAME, 1), (0, 0, 0, 0)), (0, FRAME - 1))
-    if which == "A":
-        shift_strip(img, 48, 76, 60, 94, 0, -3)   # right leg steps up
-    else:
-        shift_strip(img, 37, 76, 48, 94, 0, -3)   # left leg steps up
-    return img
-
-def frame_cast(windup: bool) -> Image.Image:
-    img = decode_base()
-    if windup:
-        _blaze_eyes(img)
-        blood_bead(img, 48, 61, 4)
-    else:
-        thrust_arm(img)
-    return img
-
-def frame_blink() -> Image.Image:
-    img = decode_base()
-    _shut_eyes(img)
-    return img
+    # Sinuous whip-stream of liquid blood arcing from hand to a glossy Blood Orb!
+    for i in range(18):
+        u = i / 17.0
+        wx = int(round(78 + u * 14.0))
+        wy = int(round(56 - 4.0 * math.sin(u * math.pi * 1.25)))
+        for dy in (-1, 0, 1):
+            if 0 <= wx < FRAME and 0 <= wy + dy < FRAME:
+                col = EXTRA["blood_hi"] if dy == -1 else (EXTRA["blood"] if dy == 0 else CRIMSON_DEEP)
+                img.putpixel((wx, wy + dy), col)
+    blood_bead(img, 90, 56, 3)
 
 
 def _blaze_eyes(img) -> None:
-    """Bright crimson irises for the cast wind-up."""
     for (x0, y0, x1, y1) in (EYE_L, EYE_R):
         for y in range(y0, y1):
             for x in range(x0, x1):
@@ -421,7 +431,6 @@ def _blaze_eyes(img) -> None:
 
 
 def _shut_eyes(img) -> None:
-    """The idle blink: irises become skin, a warm shadow closes the lid."""
     for (x0, y0, x1, y1) in (EYE_L, EYE_R):
         lid_row = None
         for y in range(y0, y1):
@@ -438,6 +447,78 @@ def _shut_eyes(img) -> None:
                     img.putpixel((x, lid_row), SKIN_SHA)
 
 
+def frame_idle() -> Image.Image:
+    return decode_base()
+
+
+def frame_walk(which: str) -> Image.Image:
+    img = decode_base()
+    img.paste(img.crop((0, 1, FRAME, FRAME)), (0, 0))
+    img.paste(Image.new("RGBA", (FRAME, 1), (0, 0, 0, 0)), (0, FRAME - 1))
+    if which == "A":
+        shift_strip(img, 48, 76, 60, 94, 0, -3)
+    else:
+        shift_strip(img, 37, 76, 48, 94, 0, -3)
+    return img
+
+
+def frame_cast(windup: bool) -> Image.Image:
+    img = decode_base()
+    if windup:
+        _blaze_eyes(img)
+        blood_bead(img, 48, 60, 4)
+    else:
+        _blaze_eyes(img)
+        whip_cast_arm(img)
+    return img
+
+
+def frame_blink() -> Image.Image:
+    img = decode_base()
+    _shut_eyes(img)
+    return img
+
+
+def frame_hurt() -> Image.Image:
+    """Recoiling hurt pose: shifted back 3 px, wincing > < lashes, open mouth + tiny fang."""
+    base = decode_base()
+    _shut_eyes(base)
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    blit(img, base, -3, 1)
+    # Draw sharp wince brows & open 'akh!' mouth with white vampire fang
+    for dx in range(4):
+        img.putpixel((38 + dx, 40 + dx // 2), OUTLINE)
+        img.putpixel((55 - dx, 40 + dx // 2), OUTLINE)
+    for x in range(44, 48):
+        img.putpixel((x, 45), CRIMSON_DEEP)
+        img.putpixel((x, 46), EXTRA["blood"])
+    img.putpixel((44, 45), EXTRA["white"])
+    img.putpixel((47, 45), EXTRA["white"])
+    return img
+
+
+def frame_bat_dissolve() -> Image.Image:
+    """Crimson mist & mini bat silhouettes as Velmira vanishes into her Bat Swarm!"""
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    # Swirling crimson mist core
+    for cx, cy, rx, ry, col in [
+        (48, 52, 16, 24, (75, 10, 30, 175)),
+        (48, 50, 11, 18, (145, 18, 48, 210)),
+        (48, 48, 6, 11, (220, 42, 76, 235)),
+    ]:
+        d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=col)
+    # Three crisp pixel bats erupting out of the mist
+    for bx, by in ((34, 32), (58, 28), (48, 64)):
+        for dx in range(-6, 7):
+            wy = abs(dx) // 2
+            img.putpixel((bx + dx, by - wy), OUTLINE)
+            img.putpixel((bx + dx, by - wy + 1), EXTRA["blood"])
+        img.putpixel((bx - 1, by), EXTRA["blood_hi"])
+        img.putpixel((bx + 1, by), EXTRA["blood_hi"])
+    return img
+
+
 def build_sheet() -> Image.Image:
     frames = [
         frame_idle(),
@@ -446,6 +527,8 @@ def build_sheet() -> Image.Image:
         frame_cast(True),
         frame_cast(False),
         frame_blink(),
+        frame_hurt(),
+        frame_bat_dissolve(),
     ]
     sheet = Image.new("RGBA", (FRAME * FRAMES, FRAME), (0, 0, 0, 0))
     for i, f in enumerate(frames):
@@ -453,11 +536,6 @@ def build_sheet() -> Image.Image:
     return sheet
 
 
-# ---------------------------------------------------------------------------
-# Ambient layer: 3 frames - [wings mid, wings down, wings up] - the scene
-# plays the sequence 0,1,2,1 at 7 fps so the bat flaps while the three
-# sparkles twinkle out of phase with each other.
-# ---------------------------------------------------------------------------
 AMBIENT_FRAMES = [
     (0, {"TOP": False, "L": False, "R": False}),
     (1, {"TOP": True, "L": False, "R": True}),
@@ -475,46 +553,28 @@ def build_ambient_sheet() -> Image.Image:
 
 
 def build_preview(sheet: Image.Image, ambient: Image.Image) -> Image.Image:
-    zoom, pad = 4, 16
-    labels = ["idle", "walk A", "walk B", "cast A", "cast B", "idle blink"]
-    amb_labels = ["wings mid", "wings down", "wings up"]
-    n_amb = ambient.width // FRAME
-    w = max(pad + FRAMES * (FRAME * zoom + pad),
-            pad + n_amb * (FRAME * zoom + pad))
-    h = 34 + FRAME * zoom + pad + 30 + FRAME * zoom // 2 + 18
-    img = Image.new("RGBA", (w, h), (22, 18, 26, 255))
+    zoom, pad = 3, 14
+    labels = ["0 idle", "1 walk A", "2 walk B", "3 gather", "4 blood whip", "5 blink", "6 hurt", "7 bat mist"]
+    w = pad + FRAMES * (FRAME * zoom + pad)
+    h = 34 + FRAME * zoom + 28
+    img = Image.new("RGBA", (w, h), (22, 18, 28, 255))
     d = ImageDraw.Draw(img)
-    d.text((pad, 10), "VELMIRA - 6 frames, 96x96 (the player's reference, full res)",
-           fill=(238, 216, 226, 255))
+    d.text((pad, 10), "VELMIRA (WHITE HAIR) - 8 frames x 96x96", fill=(242, 234, 248, 255))
     for i in range(FRAMES):
         x = pad + i * (FRAME * zoom + pad)
         frame = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
-        img.alpha_composite(frame.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST),
-                            (x, 34))
-        d.text((x, 34 + FRAME * zoom + 2), labels[i], fill=(200, 168, 186, 255))
-    y2 = 34 + FRAME * zoom + pad + 30
-    d.text((pad, y2 - 26), "AMBIENT LAYER - bat flap + sparkle twinkle (plays 0,1,2,1 at 7 fps)",
-           fill=(226, 198, 210, 255))
-    for i in range(n_amb):
-        x = pad + i * (FRAME * zoom + pad)
-        frame = ambient.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
-        img.alpha_composite(frame.resize((FRAME * zoom // 2, FRAME * zoom // 2), Image.NEAREST),
-                            (x, y2))
-        d.text((x, y2 + FRAME * zoom // 2 + 2), amb_labels[i], fill=(160, 140, 156, 255))
+        img.alpha_composite(frame.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST), (x, 32))
+        d.text((x, 32 + FRAME * zoom + 4), labels[i], fill=(210, 195, 224, 255))
     return img
 
 
 def main() -> None:
     sheet = build_sheet()
     sheet.save("assets/textures/player_shabnam.png")
-    print("wrote assets/textures/player_shabnam.png", sheet.size,
-          "-> %d frames of %d" % (FRAMES, FRAME))
+    print("wrote assets/textures/player_shabnam.png", sheet.size)
     ambient = build_ambient_sheet()
     ambient.save("assets/textures/velmira_ambient.png")
-    print("wrote assets/textures/velmira_ambient.png", ambient.size,
-          "-> %d ambient frames of %d" % (len(AMBIENT_FRAMES), FRAME))
     build_preview(sheet, ambient).save("docs/images/velmira_preview.png")
-    print("wrote docs/images/velmira_preview.png")
 
 
 if __name__ == "__main__":

@@ -65,8 +65,14 @@ const POOL: Array[Dictionary] = [
 	{
 		"id": "razor_dash",
 		"title": "Razor Dash",
-		"desc": "+8 Shift-Dash damage",
+		"desc": "+8 Shift-Charge damage",
 		"min": 8, "max": 64, "step": 8,
+	},
+	{
+		"id": "emerald_vigor",
+		"title": "Emerald Vigor",
+		"desc": "+25 Max Energy & +6/s regen",
+		"min": 100, "max": 200, "step": 25,
 	},
 ]
 
@@ -113,7 +119,9 @@ static func _has_room(entry: Dictionary, player: Node) -> bool:
 		"heavy_push":
 			return player.knockback_speed < entry["max"]
 		"razor_dash":
-			return bool(player.get("dash_deals_damage")) and ("dash_damage" in player) and player.dash_damage < entry["max"]
+			return player.get("dash_deals_damage") == true and ("dash_damage" in player) and player.dash_damage < entry["max"]
+		"emerald_vigor":
+			return ("max_energy" in player) and player.max_energy < entry["max"]
 	return false
 
 
@@ -136,6 +144,13 @@ static func apply(id: String, player: Node) -> String:
 	match id:
 		"iron_fist":
 			player.attack_damage = mini(int(player.attack_damage + step), int(entry["max"]))
+			if "combo_damage_1" in player:
+				player.combo_damage_1 += int(step)
+				player.combo_damage_2 += int(step)
+				player.combo_damage_3 += int(step)
+			if "arrow_damage" in player:
+				player.arrow_damage += int(step) - 1
+				player.charged_arrow_damage += int(step) + 2
 			return "+%d damage" % step
 		"extra_hp":
 			player.max_health = mini(int(player.max_health + step), int(entry["max"]))
@@ -161,6 +176,14 @@ static func apply(id: String, player: Node) -> String:
 			if "dash_damage" in player:
 				player.dash_damage = mini(int(player.dash_damage + step), int(entry["max"]))
 			return "+%d dash damage" % step
+		"emerald_vigor":
+			if "max_energy" in player:
+				player.max_energy = minf(player.max_energy + step, float(entry["max"]))
+				player.current_energy = player.max_energy
+				player.energy_regen_per_sec += 6.0
+				if player.has_signal("energy_changed"):
+					player.energy_changed.emit(player.current_energy, player.max_energy)
+			return "+%d Max Energy" % step
 	return ""
 
 
