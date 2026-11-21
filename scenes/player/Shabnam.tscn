@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3 uid="uid://cshabnamscn01"]
+[gd_scene load_steps=26 format=3 uid="uid://cshabnamscn01"]
 
 [ext_resource type="Script" path="res://scripts/player/shabnam.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/textures/player_shabnam.png" id="2_sheet"]
@@ -31,6 +31,14 @@ region = Rect2(384, 0, 96, 96)
 [sub_resource type="AtlasTexture" id="AtlasTexture_frame5"]
 atlas = ExtResource("2_sheet")
 region = Rect2(480, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame6"]
+atlas = ExtResource("2_sheet")
+region = Rect2(576, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame7"]
+atlas = ExtResource("2_sheet")
+region = Rect2(672, 0, 96, 96)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_amb0"]
 atlas = ExtResource("4_ambient")
@@ -96,15 +104,50 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.08, 0.24),
+"times": PackedFloat32Array(0, 0.08, 0.25),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
 "values": [SubResource("AtlasTexture_frame3"), SubResource("AtlasTexture_frame4"), SubResource("AtlasTexture_frame0")]
 }
 
+[sub_resource type="Animation" id="Animation_hurt"]
+resource_name = "hurt"
+length = 0.25
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [SubResource("AtlasTexture_frame6")]
+}
+
+[sub_resource type="Animation" id="Animation_charge"]
+resource_name = "charge"
+length = 0.24
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [SubResource("AtlasTexture_frame7")]
+}
+
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]
 _data = {
 "attack": SubResource("Animation_attack"),
+"charge": SubResource("Animation_charge"),
+"hurt": SubResource("Animation_hurt"),
 "idle": SubResource("Animation_idle"),
 "walk": SubResource("Animation_walk")
 }
@@ -124,13 +167,15 @@ character_id = "velmira"
 character_name = "Velmira"
 move_speed = 104.0
 attack_duration = 0.32
-attack_damage = 17
+attack_damage = 13
 attack_windup = 0.08
 hitbox_active_time = 0.08
-max_health = 85
-dash_speed = 360.0
+max_health = 75
+dash_speed = 375.0
+dash_duration = 0.24
 dash_deals_damage = false
-dash_phases_enemies = false
+dash_phases_enemies = true
+dash_spawns_ghosts = false
 dash_damage = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]

@@ -106,12 +106,12 @@ func _ready() -> void:
 	))
 	add_child(header_bg)
 
-	var title := _make_label("CHOOSE YOUR HERO", 19, Color(1.0, 0.94, 0.72), 3)
+	var title := _make_label("HERO WARDROBE", 19, Color(1.0, 0.94, 0.72), 3)
 	title.name = "Title"
 	add_child(title)
 
 	var subtitle := _make_label(
-		"Hover or A/D to inspect   •   Click hero or press 1-4 / Enter to Start   •   Live Arena & Map ->",
+		"Hover or A/D to inspect   •   Click hero or 1-4 / Enter to Equip   •   [ESC] Close",
 		9, Color(0.82, 0.88, 0.96), 2
 	)
 	subtitle.name = "Subtitle"
@@ -405,7 +405,7 @@ func _refresh_selection_visuals(emit_highlight: bool = true) -> void:
 
 	# Update Start Button
 	if _start_btn != null:
-		_start_btn.text = "►  PLAY AS %s   [ENTER]  ◄" % String(entry["name"]).to_upper()
+		_start_btn.text = "►  EQUIP %s   [ENTER]  ◄" % String(entry["name"]).to_upper()
 		_start_btn.add_theme_stylebox_override("normal", _panel_style(
 			accent.darkened(0.55), accent, 2, 7
 		))
@@ -465,9 +465,9 @@ func _process(delta: float) -> void:
 	if _anim_timer >= 0.24:
 		_anim_timer = 0.0
 		var hero_frames: Array = _atlas_frames[_selected_index]
-		var seq := [0, 1, 2, 3, 4, 6, 6] if hero_frames.size() >= 7 else [0, 1, 2, 1, 3, 4]
+		var seq := [0, 1, 2, 3, 4, 5]
 		_anim_step = (_anim_step + 1) % seq.size()
-		var frame_idx: int = seq[_anim_step]
+		var frame_idx: int = mini(int(seq[_anim_step]), hero_frames.size() - 1)
 		if _showcase_portrait != null:
 			_showcase_portrait.texture = hero_frames[frame_idx]
 		for i in _card_portraits.size():
@@ -529,6 +529,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				_refresh_selection_visuals(true)
 				get_viewport().set_input_as_handled()
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+				_confirm_index(_selected_index)
+				get_viewport().set_input_as_handled()
+			KEY_ESCAPE:
 				_confirm_index(_selected_index)
 				get_viewport().set_input_as_handled()
 			_:

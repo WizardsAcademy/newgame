@@ -16,6 +16,7 @@ class_name MiniMap
 @export var top_right_margin: Vector2 = Vector2(10.0, 8.0)
 @export var enemy_reveal_distance: float = 210.0
 @export var arrow_orbit_radius: float = 12.5
+@export var faded_alpha: float = 0.42
 
 var player_ref: Node2D = null
 var level_ref: Node2D = null
@@ -30,6 +31,7 @@ var _caption: Label = null
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	modulate.a = faded_alpha
 
 	_caption = Label.new()
 	_caption.name = "Caption"
@@ -107,6 +109,8 @@ func get_enemy_blips() -> Array[Dictionary]:
 
 	for node in get_tree().get_nodes_in_group("enemies"):
 		if node == null or not is_instance_valid(node):
+			continue
+		if node.is_in_group("training_dummy") or node.get("immovable_dummy") == true:
 			continue
 		if node.get("is_dead") == true:
 			continue

@@ -52,6 +52,8 @@ static var _bow_cache: AudioStreamWAV = null
 static var _blade_cache: AudioStreamWAV = null
 static var _shield_cache: AudioStreamWAV = null
 static var _blood_splash_cache: AudioStreamWAV = null
+static var _fang_burst_cache: AudioStreamWAV = null
+static var _stun_cache: AudioStreamWAV = null
 
 
 ## Short aggressive swing burst (0.10 s): low-frequency thump + airy noise.
@@ -337,6 +339,55 @@ static func create_blood_splash_sfx() -> AudioStreamWAV:
 
 	_blood_splash_cache = _build_wav(samples)
 	return _blood_splash_cache
+
+
+## Crimson Fang-Mark 30% HP burst snap (0.16 s) for Velmira's debuff pop.
+static func create_fang_burst_sfx() -> AudioStreamWAV:
+	if _fang_burst_cache != null:
+		return _fang_burst_cache
+
+	var duration := 0.16
+	var count := int(MIX_RATE * duration)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1010
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var p1 := 0.0
+	var p2 := 0.0
+	for i in count:
+		var t := float(i) / float(count)
+		p1 += TAU * lerpf(560.0, 140.0, pow(t, 0.6)) / float(MIX_RATE)
+		p2 += TAU * 880.0 / float(MIX_RATE)
+		var crunch := rng.randf_range(-1.0, 1.0) * pow(1.0 - t, 3.2) * 0.5
+		var env := pow(1.0 - t, 1.5)
+		samples[i] = (sin(p1) * 0.6 + sin(p2) * 0.25 + crunch) * env * 0.78
+
+	_fang_burst_cache = _build_wav(samples)
+	return _fang_burst_cache
+
+
+## Concussive stun chime (0.12 s) for Behemoth's stunning punches & charge.
+static func create_stun_sfx() -> AudioStreamWAV:
+	if _stun_cache != null:
+		return _stun_cache
+
+	var duration := 0.12
+	var count := int(MIX_RATE * duration)
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var p1 := 0.0
+	var p2 := 0.0
+	for i in count:
+		var t := float(i) / float(count)
+		p1 += TAU * 660.0 / float(MIX_RATE)
+		p2 += TAU * 990.0 / float(MIX_RATE)
+		var env := pow(1.0 - t, 2.0)
+		samples[i] = (sin(p1) * 0.5 + sin(p2) * 0.4) * env * 0.52
+
+	_stun_cache = _build_wav(samples)
+	return _stun_cache
 
 
 ## Pack normalized `-1.0 .. 1.0` float samples into a 16-bit mono AudioStreamWAV.
