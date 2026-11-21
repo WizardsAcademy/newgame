@@ -15,6 +15,7 @@ const FANG_STACKS_TO_BURST: int = 4
 const FANG_DECAY_SECONDS: float = 6.0
 const FANG_MAX_HP_RATIO: float = 0.30
 const BOSS_BURST_CAP: int = 55
+const VELMIRA_FX_PATH: String = "res://assets/textures/velmira_fx.png"
 
 var stun_left: float = 0.0
 var _boss_stun_dr_left: float = 0.0
@@ -182,6 +183,42 @@ func _spawn_fang_explosion_fx() -> void:
 	world.add_child(sfx)
 	sfx.play()
 	sfx.finished.connect(sfx.queue_free)
+
+	# Spawn authentic Row-6 Crimson Blood Spire Eruption (`frame 3`) + Vampire Crest (`frame 0`)!
+	if ResourceLoader.exists(VELMIRA_FX_PATH):
+		var fx_tex: Texture2D = load(VELMIRA_FX_PATH)
+		if fx_tex != null:
+			var spire := Sprite2D.new()
+			spire.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			var at_spire := AtlasTexture.new()
+			at_spire.atlas = fx_tex
+			at_spire.region = Rect2(480.0, 0.0, 160.0, 160.0)
+			spire.texture = at_spire
+			spire.scale = Vector2(0.18, 0.08)
+			spire.z_index = 5
+			world.add_child(spire)
+			spire.global_position = host.global_position + Vector2(0.0, -4.0)
+			var stw := spire.create_tween()
+			stw.set_parallel(true)
+			stw.tween_property(spire, "scale", Vector2(0.34, 0.36), 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			stw.tween_property(spire, "modulate:a", 0.0, 0.34).set_delay(0.10)
+			stw.chain().tween_callback(spire.queue_free)
+
+			var crest := Sprite2D.new()
+			crest.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			var at_crest := AtlasTexture.new()
+			at_crest.atlas = fx_tex
+			at_crest.region = Rect2(0.0, 0.0, 160.0, 160.0)
+			crest.texture = at_crest
+			crest.scale = Vector2(0.16, 0.16)
+			crest.z_index = 6
+			world.add_child(crest)
+			crest.global_position = host.global_position + Vector2(0.0, -24.0)
+			var ctw := crest.create_tween()
+			ctw.set_parallel(true)
+			ctw.tween_property(crest, "scale", Vector2(0.26, 0.26), 0.26)
+			ctw.tween_property(crest, "modulate:a", 0.0, 0.30)
+			ctw.chain().tween_callback(crest.queue_free)
 
 	var ring := Line2D.new()
 	ring.width = 2.6

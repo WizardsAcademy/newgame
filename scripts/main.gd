@@ -156,7 +156,8 @@ func enter_stages() -> void:
 
 	wave_label.visible = true
 	_sync_hero_hud(entry)
-	wave_spawner.start_spawning()
+	wave_spawner.wait_for_upgrades_between_waves = true
+	wave_spawner.start_spawning(true)
 
 
 func enter_sandbox() -> void:
@@ -192,7 +193,8 @@ func enter_sandbox() -> void:
 	wave_label.visible = true
 	_sync_hero_hud(entry)
 	_pop_wave_label("SANDBOX ARENA", Color(0.55, 1.0, 0.88, 0.95))
-	wave_spawner.start_spawning()
+	wave_spawner.wait_for_upgrades_between_waves = false
+	wave_spawner.start_spawning(true)
 
 
 func open_wardrobe() -> void:

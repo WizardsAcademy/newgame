@@ -99,11 +99,14 @@ func bind_hero_entry(entry: Dictionary) -> void:
 	if p_path != "" and ResourceLoader.exists(p_path):
 		var sheet: Texture2D = load(p_path)
 		if sheet != null:
-			var count := maxi(int(sheet.get_width() / 64), 1)
+			var cell := maxi(sheet.get_height(), 1)
+			var count := maxi(int(sheet.get_width() / cell), 1)
+			if _portrait_rect != null:
+				_portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if cell > 64 else CanvasItem.TEXTURE_FILTER_NEAREST
 			for i in range(count):
 				var at := AtlasTexture.new()
 				at.atlas = sheet
-				at.region = Rect2(float(i * 64), 0.0, 64.0, 64.0)
+				at.region = Rect2(float(i * cell), 0.0, float(cell), float(cell))
 				_portrait_frames.append(at)
 
 	_hurt_react_left = 0.0

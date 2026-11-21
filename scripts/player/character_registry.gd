@@ -92,7 +92,7 @@ const CHARACTERS: Array[Dictionary] = [
 		"scene_path": "res://scenes/player/Shabnam.tscn",
 		"sheet_path": "res://assets/textures/player_shabnam.png",
 		"portrait_path": "res://assets/textures/portrait_shabnam.png",
-		"frame_count": 8,
+		"frame_count": 19,
 		"accent": Color(0.98, 0.30, 0.45),
 		"hp": 75,
 		"hp_ratio": 0.50,
