@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3 uid="uid://cshabnamscn01"]
+[gd_scene load_steps=38 format=3 uid="uid://cshabnamscn01"]
 
 [ext_resource type="Script" path="res://scripts/player/shabnam.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/textures/player_shabnam.png" id="2_sheet"]
@@ -8,37 +8,81 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(15, 16)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f0"]
 atlas = ExtResource("2_sheet")
-region = Rect2(0, 0, 96, 96)
+region = Rect2(0, 0, 200, 200)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f1"]
 atlas = ExtResource("2_sheet")
-region = Rect2(96, 0, 96, 96)
+region = Rect2(200, 0, 200, 200)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame2"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f2"]
 atlas = ExtResource("2_sheet")
-region = Rect2(192, 0, 96, 96)
+region = Rect2(400, 0, 200, 200)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame3"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f3"]
 atlas = ExtResource("2_sheet")
-region = Rect2(288, 0, 96, 96)
+region = Rect2(600, 0, 200, 200)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame4"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f4"]
 atlas = ExtResource("2_sheet")
-region = Rect2(384, 0, 96, 96)
+region = Rect2(800, 0, 200, 200)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame5"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f5"]
 atlas = ExtResource("2_sheet")
-region = Rect2(480, 0, 96, 96)
+region = Rect2(1000, 0, 200, 200)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame6"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f6"]
 atlas = ExtResource("2_sheet")
-region = Rect2(576, 0, 96, 96)
+region = Rect2(1200, 0, 200, 200)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_frame7"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_f7"]
 atlas = ExtResource("2_sheet")
-region = Rect2(672, 0, 96, 96)
+region = Rect2(1400, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f8"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1600, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f9"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1800, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f10"]
+atlas = ExtResource("2_sheet")
+region = Rect2(2000, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f11"]
+atlas = ExtResource("2_sheet")
+region = Rect2(2200, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f12"]
+atlas = ExtResource("2_sheet")
+region = Rect2(2400, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f13"]
+atlas = ExtResource("2_sheet")
+region = Rect2(2600, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f14"]
+atlas = ExtResource("2_sheet")
+region = Rect2(2800, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f15"]
+atlas = ExtResource("2_sheet")
+region = Rect2(3000, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f16"]
+atlas = ExtResource("2_sheet")
+region = Rect2(3200, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f17"]
+atlas = ExtResource("2_sheet")
+region = Rect2(3400, 0, 200, 200)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f18"]
+atlas = ExtResource("2_sheet")
+region = Rect2(3600, 0, 200, 200)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_amb0"]
 atlas = ExtResource("4_ambient")
@@ -52,18 +96,32 @@ region = Rect2(96, 0, 96, 96)
 atlas = ExtResource("4_ambient")
 region = Rect2(192, 0, 96, 96)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_amb3"]
+atlas = ExtResource("4_ambient")
+region = Rect2(288, 0, 96, 96)
+
 [sub_resource type="SpriteFrames" id="SpriteFrames_amb"]
 animations = [{
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_amb0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_amb1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_amb2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_amb1")}],
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_amb0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_amb1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_amb2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_amb3")
+}],
 "loop": true,
 "name": &"flap",
-"speed": 7.0
+"speed": 6.5
 }]
 
-[sub_resource type="Animation" id="Animation_idle"]
-resource_name = "idle"
-length = 2.5
-loop_mode = 1
+[sub_resource type="Animation" id="Animation_RESET"]
+length = 0.001
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -74,12 +132,29 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame0")]
+"values": [SubResource("AtlasTexture_f0")]
+}
+
+[sub_resource type="Animation" id="Animation_idle"]
+resource_name = "idle"
+length = 0.88
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.22, 0.44, 0.66),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f1"), SubResource("AtlasTexture_f2"), SubResource("AtlasTexture_f1")]
 }
 
 [sub_resource type="Animation" id="Animation_walk"]
 resource_name = "walk"
-length = 0.32
+length = 0.44
 loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
@@ -88,15 +163,15 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.16),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0, 0.11, 0.22, 0.33),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame1"), SubResource("AtlasTexture_frame2")]
+"values": [SubResource("AtlasTexture_f3"), SubResource("AtlasTexture_f4"), SubResource("AtlasTexture_f5"), SubResource("AtlasTexture_f6")]
 }
 
 [sub_resource type="Animation" id="Animation_attack"]
 resource_name = "attack"
-length = 0.32
+length = 0.28
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -104,15 +179,15 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.08, 0.25),
-"transitions": PackedFloat32Array(1, 1, 1),
+"times": PackedFloat32Array(0, 0.07, 0.15, 0.25),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame3"), SubResource("AtlasTexture_frame4"), SubResource("AtlasTexture_frame0")]
+"values": [SubResource("AtlasTexture_f7"), SubResource("AtlasTexture_f8"), SubResource("AtlasTexture_f9"), SubResource("AtlasTexture_f0")]
 }
 
-[sub_resource type="Animation" id="Animation_hurt"]
-resource_name = "hurt"
-length = 0.25
+[sub_resource type="Animation" id="Animation_attack_lance"]
+resource_name = "attack_lance"
+length = 0.28
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -120,16 +195,15 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
+"times": PackedFloat32Array(0, 0.09, 0.24),
+"transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame6")]
+"values": [SubResource("AtlasTexture_f10"), SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f0")]
 }
 
 [sub_resource type="Animation" id="Animation_charge"]
 resource_name = "charge"
 length = 0.24
-loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -137,65 +211,97 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
+"times": PackedFloat32Array(0, 0.08, 0.15),
+"transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_frame7")]
+"values": [SubResource("AtlasTexture_f12"), SubResource("AtlasTexture_f13"), SubResource("AtlasTexture_f14")]
+}
+
+[sub_resource type="Animation" id="Animation_hurt"]
+resource_name = "hurt"
+length = 0.26
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.11),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f15"), SubResource("AtlasTexture_f16")]
+}
+
+[sub_resource type="Animation" id="Animation_die"]
+resource_name = "die"
+length = 0.55
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.24),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f17"), SubResource("AtlasTexture_f18")]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]
 _data = {
+"RESET": SubResource("Animation_RESET"),
 "attack": SubResource("Animation_attack"),
+"attack_lance": SubResource("Animation_attack_lance"),
 "charge": SubResource("Animation_charge"),
+"die": SubResource("Animation_die"),
 "hurt": SubResource("Animation_hurt"),
 "idle": SubResource("Animation_idle"),
 "walk": SubResource("Animation_walk")
 }
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_hurtbox"]
-size = Vector2(18, 20)
-
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
 size = Vector2(20, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hurtbox"]
+size = Vector2(15, 22)
 
 [node name="Player" type="CharacterBody2D" groups=["player"]]
 collision_layer = 2
 collision_mask = 5
-motion_mode = 1
 script = ExtResource("1_script")
-character_id = "velmira"
-character_name = "Velmira"
 move_speed = 104.0
-attack_duration = 0.32
-attack_damage = 13
-attack_windup = 0.08
-hitbox_active_time = 0.08
 max_health = 75
-dash_speed = 375.0
-dash_duration = 0.24
-dash_deals_damage = false
-dash_phases_enemies = true
-dash_spawns_ghosts = false
-dash_damage = 0
+current_health = 75
+attack_damage = 13
+attack_duration = 0.28
+attack_windup = 0.05
+hitbox_active_time = 0.10
+dash_energy_cost = 18.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_body")
 
 [node name="Visuals" type="Sprite2D" parent="."]
-scale = Vector2(0.28, 0.28)
-texture = SubResource("AtlasTexture_frame0")
+texture_filter = 4
+position = Vector2(0, -3)
+scale = Vector2(0.165, 0.165)
+texture = SubResource("AtlasTexture_f0")
 
 [node name="AmbientBat" type="AnimatedSprite2D" parent="Visuals"]
 show_behind_parent = true
+position = Vector2(-18, -36)
+scale = Vector2(1.5, 1.5)
 sprite_frames = SubResource("SpriteFrames_amb")
 animation = &"flap"
 autoplay = "flap"
 
 [node name="Shadow" type="Sprite2D" parent="Visuals"]
 show_behind_parent = true
-modulate = Color(0, 0, 0, 0.26)
-position = Vector2(0, 42)
-scale = Vector2(4.1, 1.1)
+modulate = Color(0, 0, 0, 0.28)
+position = Vector2(0, 86)
+scale = Vector2(7.6, 2.0)
 texture = ExtResource("3_white")
 
 [node name="Dust" type="CPUParticles2D" parent="."]

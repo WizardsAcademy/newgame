@@ -535,6 +535,8 @@ func _spawn_dash_ghost() -> void:
 # =====================================================================
 
 func _update_animation() -> void:
+	if is_dead:
+		return
 	if is_dashing:
 		if anim_player.has_animation("charge") and anim_player.current_animation != "charge":
 			anim_player.play("charge")
@@ -841,9 +843,15 @@ func _die() -> void:
 	player_died.emit()
 
 	anim_player.stop()
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(visuals, "rotation_degrees", 90.0 * facing, 0.5)\
-		.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-	tween.tween_property(visuals, "modulate",
-		Color(0.6, 0.6, 0.6, 0.9), 0.5)
+	if anim_player.has_animation("die"):
+		visuals.rotation_degrees = 0.0
+		anim_player.play("die")
+		var dtw := create_tween()
+		dtw.tween_property(visuals, "modulate", Color(0.82, 0.78, 0.84, 0.96), 0.5)
+	else:
+		var tween := create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(visuals, "rotation_degrees", 90.0 * facing, 0.5)\
+			.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(visuals, "modulate",
+			Color(0.6, 0.6, 0.6, 0.9), 0.5)

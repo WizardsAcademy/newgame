@@ -9,11 +9,12 @@ extends PlayerBase
 ##       * Permanently blocks flat `armor_flat_block = 3` damage on every enemy hit
 ##         (min 1 damage when unshielded) with steel spark feedback!
 ##   - **Energy-Powered Tower Shield (`Right-Click` / `E`)**:
-##       * Holding Shield raises his scarred Tower Shield (`guard` pose).
-##       * **Blocks 100% of HP damage (`0 HP lost!`)** by spending **Energy**
-##         (`14/s` hold drain + `20 + incoming * 1.2` per blocked hit)!
+##       * Holding Shield raises his scarred Tower Shield (`guard` pose) WITHOUT
+##         draining Energy over time (`shield_hold_drain_per_sec = 0.0`).
+##       * **ONLY when an attack hits the raised shield** does Energy drain
+##         (`20 + incoming * 1.2` per blocked hit), blocking **100% of HP damage**!
 ##       * If Energy reaches **`0`**, the Shield **breaks / exhausts**
-##         (`shield_exhausted = true`) and **cannot be used again until Energy
+##         (`shield_exhausted = true`) and **cannot be raised again until Energy
 ##         recovers all the way back to `100%`**!
 ##   - **Shield-Wall Charge (`Shift`)**:
 ##       * Locks his Tower Shield out in front (`charge` pose) and rams forward
@@ -21,7 +22,7 @@ extends PlayerBase
 
 @export var armor_flat_block: int = 3
 @export var shield_move_multiplier: float = 0.56
-@export var shield_hold_drain_per_sec: float = 14.0
+@export var shield_hold_drain_per_sec: float = 0.0
 @export var shield_hit_energy_base: float = 20.0
 @export var shield_hit_energy_per_dmg: float = 1.2
 
@@ -125,7 +126,7 @@ func _character_physics_process(delta: float) -> void:
 		_shield_flash_timer = maxf(_shield_flash_timer - delta, 0.0)
 
 	_refresh_shield_state()
-	if is_shielding:
+	if is_shielding and shield_hold_drain_per_sec > 0.0:
 		consume_energy(shield_hold_drain_per_sec * delta)
 		if current_energy <= 0.01:
 			_trigger_shield_exhaustion()
