@@ -1,160 +1,99 @@
 extends PlayerBase
-## Velmira - the Silver-Haired Vampire Princess (Hero 4 of 4).
+## Velmira - the Royal Crimson Vampire (Hero 4 of 4).
 ##
-## Built directly from the canonical Vampire reference sheet (`velmira_reference.png`):
-##   - 75 HP (lowest HP!), 104 Move Speed (nimble silver-haired vampire).
-##   - 19 native 200x200 animation frames: regal Idle, dynamic Run, alternating
-##     Blood Magic Cast (`attack`) & Blood Whip Thrust (`attack_lance`),
-##     Shadow-Bat Mist Dash (`charge`), Hurt stagger (`hurt`), & Kneel-Collapse (`die`).
-##   - **Liquid Returning Blood Whip Orb (`attack`)**:
-##       1. Costs `6%` Max HP (`5 HP`), **STRICTLY LOCKED AT `1 HP` FLOOR** (she can
-##          NEVER kill herself by attacking — ONLY enemy damage can kill her!).
-##       2. Launches a sinuous liquid crimson Blood Orb (`128 px` reach) that curves
-##          out and returns to Velmira, healing **`paid_hp + 1 * hits_landed`** on
-##          return (`+1 HP` net on 1 foe, `0` on miss)!
-##   - **2-Fang + Filling Crimson Circle Curse**:
-##       * Each hit builds `1/4` of the crimson 2-Fang ring; the **4th hit** erupts
-##         a Crimson Blood Spire for **`30%` of enemy Max HP** + `+4 HP` heal!
-##   - **Bat-Swarm & Shadow-Mist Vanish (`Shift`)**:
-##       * Velmira's body vanishes (`visuals.visible = false`) while a Shadow-Bat
-##         Mist silhouette (`frames 12..14`) and **5 flapping Crimson Bats** surge
-##         to the destination, where she materializes again!
+## Built faithfully from the canonical 1536x1024 Vampire reference sheet:
+##   - 75 HP (lowest HP), 104 Move Speed (grounded boots in all 4 directions:
+##     `idle`/`walk`, `idle_down`/`walk_down`, `idle_up`/`walk_up` — ZERO floating!).
+##   - **Crimson Blood-Splash Slash (`attack` & `attack_splash` — NO yoyo!)**:
+##       1. Costs `6%` Max HP (`5 HP`), **STRICTLY LOCKED AT `1 HP` FLOOR** (never
+##          self-kills by attacking — only enemy hits can kill her!).
+##       2. Unleashes a wide sweeping **Reference Crimson Blood-Splash Arc** in
+##          her aim direction (`92 px` reach), splashing all enemies in the arc
+##          and healing **`paid_hp + 1 * hits_landed`** (`+1 HP` net on 1 foe,
+##          more on multi-hit, `0` on miss)!
+##   - **2-Fang + Reference Ground Blood Fountain (`30%` Max HP)**:
+##       * Every 4th Blood-Splash hit on a foe erupts a massive **Crimson Blood
+##         Fountain** from beneath them for **`30%` of enemy Max HP** + `+4 HP` heal!
+##   - **Classic Bat-Swarm Vanish (`Shift`)**:
+##       * Velmira vanishes (`visuals.visible = false`) in crimson mist while
+##         **5 crisp flapping pixel-art Vampire Bats** fly to the destination!
+##   - **8-Frame Blood-Pool Dissolution Death (`die`)**:
+##       * Collapses to her knees and melts into a swirling crimson blood pool!
 
 const EnemyStatusScript := preload("res://scripts/enemies/enemy_status.gd")
 const BAT_SHEET_PATH := "res://assets/textures/crimson_bat.png"
-const HERO_SHEET_PATH := "res://assets/textures/player_shabnam.png"
+const FX_SHEET_PATH := "res://assets/textures/velmira_fx.png"
 
-@export var whip_range: float = 128.0
-@export var whip_duration: float = 0.28
+@export var splash_range: float = 92.0
+@export var splash_cone_dot: float = 0.22
 @export var blood_self_cost_ratio: float = 0.06
 @export var heal_per_enemy_hit: int = 1
 
-var _cast_alt: int = 0
+var _combo_idx: int = 0
 var _bat_frames: Array[AtlasTexture] = []
-var _dash_shadow_frames: Array[AtlasTexture] = []
+var _fx_frames: Array[AtlasTexture] = []
 var _swarm_root: Node2D = null
-var _shadow_trail_sprite: Sprite2D = null
 var _swarm_time: float = 0.0
 
 
-## Liquid Crimson Blood Orb tethered to Velmira by a curved whip-stream;
-## lashes out to `max_reach` and flows back into Velmira to deliver stolen HP!
-class BloodWhipOrb extends Node2D:
-	var owner_vampire: Node2D = null
+## Directional Reference Crimson Blood-Splash Arc spawned on each slash!
+class BloodSplashSlash extends Node2D:
 	var aim_dir: Vector2 = Vector2.RIGHT
-	var max_reach: float = 128.0
-	var total_time: float = 0.28
-	var base_damage: int = 13
-	var paid_hp: int = 0
-	var bonus_per_hit: int = 1
-	var status_script: Script = null
-
+	var reach: float = 92.0
+	var is_nova_finisher: bool = false
+	var splash_tex: Texture2D = null
 	var elapsed: float = 0.0
-	var orb_world_pos: Vector2 = Vector2.ZERO
-	var hit_ids: Dictionary = {}
-	var hits_landed: int = 0
+	var duration: float = 0.24
+	var _sprite: Sprite2D = null
 
-	func setup(vampire: Node2D, dir: Vector2, reach: float, dur: float,
-			dmg: int, paid: int, per_hit: int, st_script: Script) -> void:
-		owner_vampire = vampire
+	func setup(dir: Vector2, max_r: float, nova: bool, fx_tex: Texture2D) -> void:
 		aim_dir = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
-		max_reach = reach
-		total_time = maxf(dur, 0.10)
-		base_damage = dmg
-		paid_hp = paid
-		bonus_per_hit = per_hit
-		status_script = st_script
-		orb_world_pos = vampire.global_position + aim_dir * 12.0
+		reach = max_r
+		is_nova_finisher = nova
+		splash_tex = fx_tex
+		rotation = aim_dir.angle()
 
-	func _physics_process(delta: float) -> void:
-		if owner_vampire == null or not is_instance_valid(owner_vampire) or owner_vampire.get("is_dead") == true:
-			queue_free()
-			return
+		if splash_tex != null:
+			_sprite = Sprite2D.new()
+			_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			_sprite.texture = splash_tex
+			_sprite.position = Vector2(reach * (0.34 if nova else 0.44), 0.0)
+			var base_s := 0.42 if nova else 0.38
+			_sprite.scale = Vector2(base_s * 0.72, base_s * 0.72)
+			add_child(_sprite)
+			var tw := _sprite.create_tween()
+			tw.set_parallel(true)
+			tw.tween_property(_sprite, "scale", Vector2(base_s * 1.18, base_s * 1.14), duration * 0.65)\
+				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			tw.tween_property(_sprite, "modulate:a", 0.0, duration * 0.55).set_delay(duration * 0.42)
 
+	func _process(delta: float) -> void:
 		elapsed += delta
-		var p := clampf(elapsed / total_time, 0.0, 1.0)
-		var origin := owner_vampire.global_position + Vector2(0.0, -2.0)
-		var perp := Vector2(-aim_dir.y, aim_dir.x)
-
-		if p <= 0.52:
-			var u := p / 0.52
-			var ease_out := 1.0 - pow(1.0 - u, 2.0)
-			var lateral := sin(u * PI) * 14.0
-			orb_world_pos = origin + aim_dir * (12.0 + (max_reach - 12.0) * ease_out) + perp * lateral
-		else:
-			var u := (p - 0.52) / 0.48
-			var apex := origin + aim_dir * max_reach
-			var lateral := -sin(u * PI) * 16.0
-			orb_world_pos = apex.lerp(origin, pow(u, 1.35)) + perp * lateral
-
-		global_position = Vector2.ZERO
-		_scan_enemy_hits(origin)
 		queue_redraw()
-
-		if p >= 1.0:
-			_deliver_returned_blood()
+		if elapsed >= duration:
 			queue_free()
-
-	func _scan_enemy_hits(origin: Vector2) -> void:
-		var seg_vec := orb_world_pos - origin
-		var seg_len_sq := maxf(seg_vec.length_squared(), 1.0)
-
-		for node in get_tree().get_nodes_in_group("enemies"):
-			if node == null or not is_instance_valid(node) or node.get("is_dead") == true:
-				continue
-			if not (node is Node2D):
-				continue
-			var eid := node.get_instance_id()
-			if hit_ids.has(eid):
-				continue
-
-			var enemy_pos := (node as Node2D).global_position
-			var d_orb := enemy_pos.distance_to(orb_world_pos)
-			var proj_t := clampf((enemy_pos - origin).dot(seg_vec) / seg_len_sq, 0.0, 1.0)
-			var closest := origin + seg_vec * proj_t
-			var d_line := enemy_pos.distance_to(closest)
-
-			if d_orb <= 18.0 or d_line <= 13.0:
-				hit_ids[eid] = true
-				hits_landed += 1
-				if owner_vampire.has_method("deal_combat_damage"):
-					owner_vampire.deal_combat_damage(node, base_damage, false, 7.0, enemy_pos)
-				if status_script != null:
-					status_script.add_vampire_fang_stack(node, owner_vampire)
-
-	func _deliver_returned_blood() -> void:
-		if hits_landed <= 0 or owner_vampire == null or not is_instance_valid(owner_vampire):
-			return
-		var total_heal := paid_hp + bonus_per_hit * hits_landed
-		if total_heal > 0 and owner_vampire.has_method("heal"):
-			owner_vampire.heal(total_heal)
 
 	func _draw() -> void:
-		if owner_vampire == null or not is_instance_valid(owner_vampire):
-			return
-		var fdir := 1.0 if owner_vampire.get("facing") == null else float(owner_vampire.get("facing"))
-		var origin := owner_vampire.global_position + Vector2(fdir * 8.0, -2.0)
-		var delta_v := orb_world_pos - origin
-		var perp := Vector2(-delta_v.y, delta_v.x).normalized() if delta_v.length() > 1.0 else Vector2.UP
-		var wave_phase := elapsed * 26.0
+		var p := clampf(elapsed / maxf(duration, 0.01), 0.0, 1.0)
+		var alpha := (1.0 - p * p) * 0.92
+		var sweep_r := lerpf(reach * 0.45, reach * 0.92, sin(p * PI * 0.5))
+		var half_ang := 1.18 if is_nova_finisher else 0.98
 
-		var pts := PackedVector2Array()
-		var steps := 14
-		for i in range(steps + 1):
-			var t := float(i) / float(steps)
-			var ripple := sin(t * PI) * sin(t * 9.0 - wave_phase) * 4.5
-			pts.append(origin.lerp(orb_world_pos, t) + perp * ripple)
+		# Deep dark-blood outer crescent + bright scarlet liquid splash core
+		draw_arc(Vector2(6.0, 0.0), sweep_r, -half_ang, half_ang, 22,
+			Color(0.32, 0.02, 0.08, alpha * 0.85), 8.5 * (1.0 - p * 0.45))
+		draw_arc(Vector2(6.0, 0.0), sweep_r - 2.0, -half_ang * 0.92, half_ang * 0.92, 22,
+			Color(0.92, 0.08, 0.24, alpha), 4.4 * (1.0 - p * 0.35))
+		draw_arc(Vector2(6.0, 0.0), sweep_r - 3.5, -half_ang * 0.72, half_ang * 0.72, 16,
+			Color(1.0, 0.48, 0.60, alpha * 0.88), 1.8)
 
-		for i in range(steps):
-			var w := lerpf(1.6, 3.8, float(i) / float(steps))
-			draw_line(pts[i], pts[i + 1], Color(0.45, 0.03, 0.12, 0.90), w + 1.4)
-			draw_line(pts[i], pts[i + 1], Color(0.94, 0.14, 0.32, 0.95), w)
-
-		var orb_r := 5.2 + minf(float(hits_landed) * 0.9, 3.5)
-		draw_circle(orb_world_pos, orb_r + 1.5, Color(0.18, 0.02, 0.06, 0.92))
-		draw_circle(orb_world_pos, orb_r, Color(0.86, 0.08, 0.26, 0.98))
-		draw_circle(orb_world_pos + Vector2(-1.4, -1.4), orb_r * 0.55, Color(1.0, 0.38, 0.52, 0.96))
-		draw_circle(orb_world_pos + Vector2(-2.0, -2.0), 1.3, Color(1.0, 0.92, 0.95, 0.98))
+		# Flying crimson blood droplets radiating from the slash edge!
+		for i in range(7):
+			var frac := -0.85 + 1.70 * (float(i) / 6.0)
+			var ang := frac * half_ang
+			var dr := sweep_r + 6.0 + p * (14.0 + float(i % 3) * 5.0)
+			var dp := Vector2(6.0 + cos(ang) * dr, sin(ang) * dr)
+			draw_circle(dp, (2.6 - p * 1.4), Color(0.86, 0.06, 0.22, alpha))
 
 
 func _create_attack_sfx() -> AudioStreamWAV:
@@ -183,30 +122,38 @@ func _character_ready() -> void:
 				at.region = Rect2(float(i * bsize), 0.0, float(bsize), float(bsize))
 				_bat_frames.append(at)
 
-	if ResourceLoader.exists(HERO_SHEET_PATH):
-		var htex: Texture2D = load(HERO_SHEET_PATH)
-		if htex != null and htex.get_width() >= 3000:
-			for idx in [12, 13, 14]:
-				var ds := AtlasTexture.new()
-				ds.atlas = htex
-				ds.region = Rect2(float(idx * 200), 0.0, 200.0, 200.0)
-				_dash_shadow_frames.append(ds)
+	if ResourceLoader.exists(FX_SHEET_PATH):
+		var ftex: Texture2D = load(FX_SHEET_PATH)
+		if ftex != null:
+			var fcell := maxi(ftex.get_height(), 1)
+			var fcount := maxi(int(ftex.get_width() / fcell), 1)
+			for i in range(fcount):
+				var fx_at := AtlasTexture.new()
+				fx_at.atlas = ftex
+				fx_at.region = Rect2(float(i * fcell), 0.0, float(fcell), float(fcell))
+				_fx_frames.append(fx_at)
+
+
+func _exit_tree() -> void:
+	_cleanup_bat_swarm()
+	super._exit_tree()
 
 
 func _process(_delta: float) -> void:
 	if visuals == null or is_dead:
 		return
-	var t := float(Time.get_ticks_msec()) / 1000.0
-	visuals.position.y = -3.0 + 0.8 * sin(t * 2.0)
+	# STRICTLY GROUNDED: visuals.position stays locked at (0, -3) so her boots never float!
+	visuals.position = Vector2(0.0, -3.0)
 
 	var amb := get_node_or_null("Visuals/AmbientBat") as AnimatedSprite2D
 	if amb != null:
-		amb.position.y = -36.0 + 5.0 * sin(t * 2.4 + 1.3)
-		amb.position.x = -18.0 + 3.0 * sin(t * 1.4)
+		var t := float(Time.get_ticks_msec()) / 1000.0
+		amb.position.y = -36.0 + 4.0 * sin(t * 2.4 + 1.3)
+		amb.position.x = -18.0 + 2.5 * sin(t * 1.4)
 
 
 func _get_attack_move_multiplier() -> float:
-	return 0.45
+	return 0.42
 
 
 func get_blood_cast_cost() -> int:
@@ -225,15 +172,14 @@ func _start_attack() -> void:
 	var dir := get_aim_direction()
 	if absf(dir.x) > 0.05:
 		facing = 1.0 if dir.x > 0.0 else -1.0
-		_sync_facing_nodes()
+	_sync_facing_nodes()
+
+	var is_nova := (_combo_idx % 3 == 2)
+	_combo_idx += 1
+	var anim_name := "attack_splash" if (is_nova and anim_player.has_animation("attack_splash")) else "attack"
 
 	anim_player.stop()
-	var anim_name := "attack" if (_cast_alt % 2 == 0) else "attack_lance"
-	_cast_alt += 1
-	if anim_player.has_animation(anim_name):
-		anim_player.play(anim_name)
-	else:
-		anim_player.play("attack")
+	anim_player.play(anim_name)
 	punch_sfx.pitch_scale = randf_range(0.95, 1.08)
 	punch_sfx.play()
 
@@ -241,8 +187,11 @@ func _start_attack() -> void:
 	if my_token != _attack_token or is_dead:
 		return
 
+	# 1. Pay percentage self-HP cost — STRICTLY LOCKED AT 1 HP FLOOR!
 	var paid_hp := _pay_blood_cost()
-	_launch_blood_whip(dir, paid_hp)
+
+	# 2. Unleash Reference Crimson Blood-Splash Cleave (NO yoyo!) & drain blood!
+	_unleash_blood_splash(dir, paid_hp, is_nova)
 
 	var remaining := maxf(attack_duration - attack_windup, 0.08)
 	await get_tree().create_timer(remaining).timeout
@@ -264,18 +213,57 @@ func _pay_blood_cost() -> int:
 	return paid
 
 
-func _launch_blood_whip(dir: Vector2, paid_hp: int) -> void:
+func _unleash_blood_splash(dir: Vector2, paid_hp: int, is_nova: bool) -> void:
+	var aim := dir.normalized() if dir.length() > 0.01 else Vector2(facing, 0.0)
 	var parent := get_parent()
-	if parent == null:
-		return
-	var whip := BloodWhipOrb.new()
-	whip.name = "BloodWhipOrb"
-	whip.setup(self, dir, whip_range, whip_duration, attack_damage, paid_hp, heal_per_enemy_hit, EnemyStatusScript)
-	parent.add_child(whip)
+	if parent != null:
+		var fx := BloodSplashSlash.new()
+		fx.name = "VelmiraBloodSplash"
+		var fx_tex: Texture2D = null
+		if not _fx_frames.is_empty():
+			fx_tex = _fx_frames[mini(1 if is_nova else 0, _fx_frames.size() - 1)]
+		fx.setup(aim, splash_range, is_nova, fx_tex)
+		parent.add_child(fx)
+		fx.global_position = global_position + Vector2(0.0, -3.0)
+
+	var hits_landed := 0
+	var origin := global_position
+	var eff_range := splash_range * (1.08 if is_nova else 1.0)
+	var min_dot := -0.15 if is_nova else splash_cone_dot
+
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node == null or not is_instance_valid(node) or node.get("is_dead") == true:
+			continue
+		if not (node is Node2D):
+			continue
+		var enemy_pos := (node as Node2D).global_position
+		var to_enemy := enemy_pos - origin
+		var dist := to_enemy.length()
+		if dist > eff_range:
+			continue
+		var in_arc := dist <= 26.0 or (to_enemy.normalized().dot(aim) >= min_dot)
+		if not in_arc:
+			continue
+
+		hits_landed += 1
+		deal_combat_damage(node, attack_damage, false, 9.0, origin)
+		EnemyStatusScript.add_vampire_fang_stack(node, self)
+
+	if hits_landed > 0:
+		var total_heal := paid_hp + heal_per_enemy_hit * hits_landed
+		if total_heal > 0:
+			heal(total_heal)
+
+
+func _die() -> void:
+	var amb := get_node_or_null("Visuals/AmbientBat") as CanvasItem
+	if amb != null:
+		amb.visible = false
+	super._die()
 
 
 # =====================================================================
-# BAT-SWARM & SHADOW-BAT MIST VANISH SHIFT!
+# CLASSIC BAT-SWARM VANISH & REAPPEAR SHIFT!
 # =====================================================================
 
 func _on_dash_started() -> void:
@@ -287,75 +275,52 @@ func _on_dash_started() -> void:
 
 func _on_dash_tick(delta: float) -> void:
 	_swarm_time += delta
-	if _swarm_root != null and is_instance_valid(_swarm_root):
-		_swarm_root.global_position = global_position
-		var frame_idx := int(_swarm_time * 18.0) % maxi(_bat_frames.size(), 1)
-		var count := _swarm_root.get_child_count()
-		for i in range(count):
-			var bat := _swarm_root.get_child(i) as Sprite2D
-			if bat == null:
-				continue
-			var phase := _swarm_time * 11.0 + float(i) * 1.25
-			var spread_x := -_dash_dir.x * float(i % 3) * 8.0 + cos(phase) * 5.5
-			var spread_y := float(i - 2) * 5.4 + sin(phase * 1.3) * 4.8
-			bat.position = Vector2(spread_x, spread_y)
-			bat.flip_h = _dash_dir.x < -0.05
-			if not _bat_frames.is_empty():
-				bat.texture = _bat_frames[(frame_idx + i) % _bat_frames.size()]
-
-	if _shadow_trail_sprite != null and is_instance_valid(_shadow_trail_sprite):
-		_shadow_trail_sprite.global_position = global_position + Vector2(-_dash_dir.x * 6.0, -3.0)
-		var prog := clampf(_swarm_time / maxf(dash_duration, 0.01), 0.0, 1.0)
-		if _dash_shadow_frames.size() == 3:
-			var s_idx := 0 if prog < 0.28 else (1 if prog < 0.62 else 2)
-			_shadow_trail_sprite.texture = _dash_shadow_frames[s_idx]
-		_shadow_trail_sprite.modulate.a = 0.82 * (1.0 - prog * 0.35)
+	if _swarm_root == null or not is_instance_valid(_swarm_root):
+		return
+	_swarm_root.global_position = global_position
+	var frame_idx := int(_swarm_time * 18.0) % maxi(_bat_frames.size(), 1)
+	var count := _swarm_root.get_child_count()
+	for i in range(count):
+		var bat := _swarm_root.get_child(i) as Sprite2D
+		if bat == null:
+			continue
+		var phase := _swarm_time * 11.0 + float(i) * 1.25
+		var spread_x := -_dash_dir.x * float(i % 3) * 7.5 + cos(phase) * 5.0
+		var spread_y := -_dash_dir.y * float(i % 3) * 5.0 + float(i - 2) * 5.0 + sin(phase * 1.3) * 4.5
+		bat.position = Vector2(spread_x, spread_y)
+		bat.flip_h = _dash_dir.x < -0.05
+		if not _bat_frames.is_empty():
+			bat.texture = _bat_frames[(frame_idx + i) % _bat_frames.size()]
 
 
 func _on_dash_ended() -> void:
-	if _swarm_root != null and is_instance_valid(_swarm_root):
-		_swarm_root.queue_free()
-	_swarm_root = null
-	if _shadow_trail_sprite != null and is_instance_valid(_shadow_trail_sprite):
-		_shadow_trail_sprite.queue_free()
-	_shadow_trail_sprite = null
+	_cleanup_bat_swarm()
 	if visuals != null and not is_dead:
 		visuals.visible = true
 	_spawn_crimson_mist(global_position)
+
+
+func _cleanup_bat_swarm() -> void:
+	if _swarm_root != null and is_instance_valid(_swarm_root):
+		_swarm_root.queue_free()
+	_swarm_root = null
 
 
 func _create_bat_swarm() -> void:
 	var parent := get_parent()
 	if parent == null:
 		return
-	if _swarm_root != null and is_instance_valid(_swarm_root):
-		_swarm_root.queue_free()
-	if _shadow_trail_sprite != null and is_instance_valid(_shadow_trail_sprite):
-		_shadow_trail_sprite.queue_free()
-
-	_swarm_time = 0.0
-
-	# 1. Authentic Row-3 Mist Dash -> Shadow-Bat Silhouette trailing ghost!
-	if not _dash_shadow_frames.is_empty():
-		_shadow_trail_sprite = Sprite2D.new()
-		_shadow_trail_sprite.name = "VelmiraShadowForm"
-		_shadow_trail_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		_shadow_trail_sprite.texture = _dash_shadow_frames[0]
-		var fsign := -1.0 if _dash_dir.x < -0.05 else 1.0
-		_shadow_trail_sprite.scale = Vector2(0.165 * fsign, 0.165)
-		parent.add_child(_shadow_trail_sprite)
-		_shadow_trail_sprite.global_position = global_position + Vector2(0.0, -3.0)
-
-	# 2. Five flapping Crimson Bats (`_swarm_root` has exact 5 bat children)!
+	_cleanup_bat_swarm()
 	_swarm_root = Node2D.new()
 	_swarm_root.name = "VelmiraBatSwarm"
+	_swarm_time = 0.0
 	parent.add_child(_swarm_root)
 	_swarm_root.global_position = global_position
 
 	for i in range(5):
 		var bat := Sprite2D.new()
-		bat.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		bat.scale = Vector2(0.28, 0.28)
+		bat.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		bat.scale = Vector2(0.95, 0.95)
 		if not _bat_frames.is_empty():
 			bat.texture = _bat_frames[i % _bat_frames.size()]
 		_swarm_root.add_child(bat)

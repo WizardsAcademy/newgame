@@ -74,6 +74,8 @@ var is_dashing: bool = false
 var current_health: int = 120
 var current_energy: float = 100.0
 var facing: float = 1.0
+var facing_dir: Vector2 = Vector2.RIGHT
+var facing_cardinal: String = "side" # "side" | "up" | "down"
 
 var last_dealt_damage: int = 18
 var last_hit_was_dash: bool = false
@@ -347,7 +349,8 @@ func _handle_movement() -> void:
 		return
 
 	var input_state := _read_input()
-	var input_dir: Vector2 = input_state["move"]
+	var raw_move: Vector2 = input_state["move"]
+	var input_dir: Vector2 = raw_move
 	if is_attacking:
 		input_dir *= _get_attack_move_multiplier()
 	else:
@@ -360,20 +363,34 @@ func _handle_movement() -> void:
 	velocity = input_dir * (move_speed * _get_bonus_speed_multiplier()) + _knockback
 	move_and_slide()
 
-	if not is_attacking:
-		if input_dir.x > 0.01:
-			facing = 1.0
-		elif input_dir.x < -0.01:
-			facing = -1.0
+	if not is_attacking and raw_move.length() > 0.05:
+		set_move_facing(raw_move)
 
+	_sync_facing_nodes()
+
+
+## Updates 4-directional facing (`"up"`, `"down"`, `"side"` + `facing` + `facing_dir`).
+func set_move_facing(dir: Vector2) -> void:
+	if dir.length() <= 0.05:
+		return
+	facing_dir = dir.normalized()
+	if absf(dir.y) > absf(dir.x) * 1.05:
+		facing_cardinal = "up" if dir.y < 0.0 else "down"
+	else:
+		facing_cardinal = "side"
+		facing = 1.0 if dir.x >= 0.0 else -1.0
 	_sync_facing_nodes()
 
 
 func _sync_facing_nodes() -> void:
 	if visuals != null:
-		visuals.scale = Vector2(_base_visual_scale.x * facing, _base_visual_scale.y)
-	attack_point.position.x = attack_point_offset_x * facing
-	hitbox.position.x = attack_point_offset_x * facing
+		var use_side_flip := (facing_cardinal == "side") or is_attacking or is_dashing
+		var sx := (_base_visual_scale.x * facing) if use_side_flip else absf(_base_visual_scale.x)
+		visuals.scale = Vector2(sx, _base_visual_scale.y)
+	var aim_vec := facing_dir.normalized() if facing_dir.length() > 0.05 else Vector2(facing, 0.0)
+	attack_point.position = aim_vec * attack_point_offset_x
+	hitbox.position = aim_vec * attack_point_offset_x
+	hitbox.rotation = aim_vec.angle() if facing_cardinal != "side" else 0.0
 
 
 # =====================================================================
@@ -390,7 +407,10 @@ func _try_start_dash() -> bool:
 
 	var move_dir: Vector2 = _read_input()["move"]
 	if move_dir.length() > 0.05:
+		set_move_facing(move_dir)
 		_dash_dir = move_dir.normalized()
+	elif facing_dir.length() > 0.05:
+		_dash_dir = facing_dir.normalized()
 		if absf(_dash_dir.x) > 0.05:
 			facing = 1.0 if _dash_dir.x > 0.0 else -1.0
 	else:
@@ -534,6 +554,11 @@ func _spawn_dash_ghost() -> void:
 # ANIMATION & FOOTSTEPS
 # =====================================================================
 
+func _exit_tree() -> void:
+	if is_dashing:
+		_end_dash()
+
+
 func _update_animation() -> void:
 	if is_dead:
 		return
@@ -547,7 +572,16 @@ func _update_animation() -> void:
 		if anim_player.current_animation != "hurt":
 			anim_player.play("hurt")
 		return
-	var desired := "walk" if velocity.length() > 0.5 else "idle"
+	var moving := velocity.length() > 0.5
+	var desired := "walk" if moving else "idle"
+	if facing_cardinal == "up":
+		var cand_up := "walk_up" if moving else "idle_up"
+		if anim_player.has_animation(cand_up):
+			desired = cand_up
+	elif facing_cardinal == "down":
+		var cand_dn := "walk_down" if moving else "idle_down"
+		if anim_player.has_animation(cand_dn):
+			desired = cand_dn
 	if anim_player.current_animation != desired:
 		anim_player.play(desired)
 
@@ -725,13 +759,14 @@ func get_aim_direction() -> Vector2:
 		var to_mouse: Vector2 = (state["aim_world"] as Vector2) - global_position
 		if to_mouse.length() > 4.0:
 			var dir := to_mouse.normalized()
-			if absf(dir.x) > 0.05:
-				facing = 1.0 if dir.x > 0.0 else -1.0
-				_sync_facing_nodes()
+			set_move_facing(dir)
 			return dir
 	var move_dir: Vector2 = state["move"]
 	if move_dir.length() > 0.05:
+		set_move_facing(move_dir)
 		return move_dir.normalized()
+	if facing_dir.length() > 0.05:
+		return facing_dir.normalized()
 	return Vector2(facing, 0.0)
 
 

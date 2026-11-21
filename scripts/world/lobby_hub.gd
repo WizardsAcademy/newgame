@@ -84,9 +84,10 @@ func _set_walls_enabled(active: bool) -> void:
 		return
 	for child in walls_root.get_children():
 		if child is StaticBody2D:
-			var col := child.get_node_or_null("CollisionShape2D") as CollisionShape2D
-			if col != null:
-				col.set_deferred("disabled", not active)
+			(child as StaticBody2D).collision_layer = 1 if active else 0
+			for sub in child.get_children():
+				if sub is CollisionShape2D:
+					(sub as CollisionShape2D).set_deferred("disabled", not active)
 
 
 func _build_collision_walls() -> void:
@@ -112,6 +113,7 @@ func _build_collision_walls() -> void:
 		sb.collision_mask = 0
 		sb.position = r.position + r.size * 0.5
 		var cs := CollisionShape2D.new()
+		cs.name = "CollisionShape2D"
 		var shape := RectangleShape2D.new()
 		shape.size = r.size
 		cs.shape = shape

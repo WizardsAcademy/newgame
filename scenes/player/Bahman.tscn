@@ -47,6 +47,98 @@ region = Rect2(768, 0, 96, 96)
 atlas = ExtResource("2_sheet")
 region = Rect2(864, 0, 96, 96)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_f10"]
+atlas = ExtResource("2_sheet")
+region = Rect2(960, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f11"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1056, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f12"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1152, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f13"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1248, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f14"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1344, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f15"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1440, 0, 96, 96)
+
+[sub_resource type="Animation" id="Animation_idle_down"]
+resource_name = "idle_down"
+length = 0.8
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f10")]
+}
+
+[sub_resource type="Animation" id="Animation_walk_down"]
+resource_name = "walk_down"
+length = 0.44
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.22),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f12")]
+}
+
+[sub_resource type="Animation" id="Animation_idle_up"]
+resource_name = "idle_up"
+length = 0.8
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f13")]
+}
+
+[sub_resource type="Animation" id="Animation_walk_up"]
+resource_name = "walk_up"
+length = 0.44
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Visuals:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.22),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [SubResource("AtlasTexture_f14"), SubResource("AtlasTexture_f15")]
+}
+
 [sub_resource type="Animation" id="Animation_idle"]
 resource_name = "idle"
 length = 2.5
@@ -154,7 +246,11 @@ _data = {
 "guard": SubResource("Animation_guard"),
 "hurt": SubResource("Animation_hurt"),
 "idle": SubResource("Animation_idle"),
-"walk": SubResource("Animation_walk")
+"idle_down": SubResource("Animation_idle_down"),
+"idle_up": SubResource("Animation_idle_up"),
+"walk": SubResource("Animation_walk"),
+"walk_down": SubResource("Animation_walk_down"),
+"walk_up": SubResource("Animation_walk_up")
 }
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hurtbox"]

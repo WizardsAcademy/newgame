@@ -22,6 +22,7 @@ extends Node2D
 enum WorldMode { LOBBY, STAGES, SANDBOX }
 
 const DOOR_TEX_PATH := "res://assets/textures/lobby_door.png"
+const RevivalRitualFXScript := preload("res://scripts/fx/revival_ritual_fx.gd")
 
 @onready var level_root: Node2D = $Level
 @onready var lobby_hub: Node2D = $LobbyHub
@@ -32,7 +33,6 @@ const DOOR_TEX_PATH := "res://assets/textures/lobby_door.png"
 @onready var hero_hud: Control = $UI/HeroHUD
 @onready var hurt_flash: ColorRect = $UI/HurtFlash
 @onready var game_over_screen: Control = $UI/GameOver
-@onready var game_over_subtitle: Label = $UI/GameOver/Subtitle
 @onready var upgrade_menu: Control = $UI/UpgradeMenu
 @onready var character_select_menu: Control = $UI/CharacterSelectMenu
 @onready var minimap: MiniMap = $UI/MiniMap
@@ -53,6 +53,7 @@ var _next_stage_gate_active: bool = false
 var _lobby_return_gate_active: bool = false
 var _portal_grace_left: float = 0.0
 var _retry_mode: int = WorldMode.LOBBY
+var _is_reviving: bool = false
 
 
 func _ready() -> void:
@@ -60,6 +61,9 @@ func _ready() -> void:
 	_arena_gates_root.name = "ArenaGates"
 	add_child(_arena_gates_root)
 	move_child(_arena_gates_root, player.get_index())
+
+	if game_over_screen != null and game_over_screen.has_signal("not_yet_pressed"):
+		game_over_screen.not_yet_pressed.connect(_on_not_yet_pressed)
 
 	for enemy in enemies_root.get_children():
 		_watch_enemy(enemy)
@@ -156,6 +160,7 @@ func enter_stages() -> void:
 
 	wave_label.visible = true
 	_sync_hero_hud(entry)
+	wave_spawner.full_map_aggro = false
 	wave_spawner.wait_for_upgrades_between_waves = true
 	wave_spawner.start_spawning(true)
 
@@ -193,6 +198,7 @@ func enter_sandbox() -> void:
 	wave_label.visible = true
 	_sync_hero_hud(entry)
 	_pop_wave_label("SANDBOX ARENA", Color(0.55, 1.0, 0.88, 0.95))
+	wave_spawner.full_map_aggro = true
 	wave_spawner.wait_for_upgrades_between_waves = false
 	wave_spawner.start_spawning(true)
 
@@ -358,7 +364,6 @@ func _replace_player_instance(char_id: String, enable_combat: bool, spawn_pos: V
 		player.damage_mitigated.connect(_on_player_damage_mitigated)
 
 	_last_health = player.current_health
-	game_over_subtitle.text = "%s  Press R to retry  |  Esc: Guild Lobby" % String(entry["death_line"])
 	return entry
 
 
@@ -535,18 +540,64 @@ func _on_player_health_changed(current: int, max_health: int) -> void:
 func _flash_hurt() -> void:
 	if _hurt_tween and _hurt_tween.is_valid():
 		_hurt_tween.kill()
-	hurt_flash.color.a = 0.22
+	hurt_flash.color = Color(0.85, 0.08, 0.12, 0.22)
 	_hurt_tween = create_tween()
 	_hurt_tween.tween_property(hurt_flash, "color:a", 0.0, 0.35)
 
 
 func _on_player_died() -> void:
 	game_is_over = true
-	game_over_screen.visible = true
+	_is_reviving = false
 	if upgrade_menu != null:
 		upgrade_menu.hide_menu()
 	wave_spawner.stop_spawning()
 	ScreenShake.shake(6.0, 0.35)
+	if game_over_screen != null:
+		if game_over_screen.has_method("present_game_over"):
+			game_over_screen.present_game_over(0.75)
+		else:
+			game_over_screen.visible = true
+
+
+## Triggered when the player clicks `[ NOT YET ]` on the `DEAD AGAIN?` screen:
+## opens an Arcane Magic Circle beneath the fallen hero, strikes down a Pillar
+## of Celestial Light to lift them back up, and teleports them into the Lobby!
+func _on_not_yet_pressed() -> void:
+	if _is_reviving:
+		return
+	_is_reviving = true
+
+	if game_over_screen != null:
+		if game_over_screen.has_method("dismiss_for_revival"):
+			game_over_screen.dismiss_for_revival()
+		else:
+			game_over_screen.visible = false
+
+	_clear_combat_enemies()
+
+	if player != null and is_instance_valid(player):
+		var ritual := RevivalRitualFXScript.new()
+		ritual.name = "RevivalRitualFX"
+		ritual.setup(player, 1.25)
+		add_child(ritual)
+		await ritual.ritual_completed
+	else:
+		await get_tree().create_timer(0.4).timeout
+
+	if not is_inside_tree():
+		return
+
+	# Radiant golden-white arrival flash into the Guild Hub Lobby!
+	if hurt_flash != null:
+		if _hurt_tween and _hurt_tween.is_valid():
+			_hurt_tween.kill()
+		hurt_flash.color = Color(1.0, 0.96, 0.80, 0.55)
+		_hurt_tween = create_tween()
+		_hurt_tween.tween_property(hurt_flash, "color:a", 0.0, 0.45)
+
+	_is_reviving = false
+	CharacterRegistry.quick_retry_same_hero = false
+	enter_lobby()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -554,15 +605,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if game_is_over:
-		if event.is_action_pressed("restart"):
-			CharacterRegistry.quick_retry_same_hero = true
-			get_tree().reload_current_scene()
+		if _is_reviving:
 			return
 		if event is InputEventKey and event.pressed and not event.echo:
 			var k := (event as InputEventKey).keycode
-			if k == KEY_C or k == KEY_ESCAPE:
-				CharacterRegistry.quick_retry_same_hero = false
-				enter_lobby()
+			if k == KEY_ESCAPE:
+				_on_not_yet_pressed()
 				return
 		return
 
