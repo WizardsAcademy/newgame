@@ -147,6 +147,6 @@ reads as a dotted line, not as hair (a lesson already paid for on Velmira).
   If Aseprite ever refuses it, the `.png` plus `ROWS` in the generator remain the
   authoritative source and can be re-exported from there.
 - The game's own vampire, **Velmira**, still uses `assets/textures/player_shabnam.png`
-  (a 192×32 six-frame sheet, see `VELMIRA_REDESIGN.md`). This sprite is a new,
+  (a 576×96 six-frame sheet, see `VELMIRA_REDESIGN.md`). This sprite is a new,
   independent character asset and does **not** overwrite her. Wiring it into
   `Shabnam.tscn` / `character_registry.gd` needs a six-frame sheet first.

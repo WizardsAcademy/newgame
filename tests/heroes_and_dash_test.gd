@@ -1,6 +1,6 @@
 extends Node
 ## Headless verification suite for:
-##   1. High-detail 32x32 hero spritesheets & renamed roster (Behemoth, Knight, Sylvara, Velmira)
+##   1. High-detail hero spritesheets & renamed roster (Behemoth, Knight, Sylvara, Velmira)
 ##   2. Tactical Mini-Map (`UI/MiniMap`): NO camera box, directional arrows for far enemies,
 ##      exact map position revealed ONLY when close (`<= enemy_reveal_distance`)!
 ##   3. Shift-Dash rules:
@@ -59,7 +59,7 @@ func _make_dummy_slime(parent: Node, at: Vector2, hp: int = 120) -> CharacterBod
 
 
 func _run() -> void:
-	print("\n=== Detailed 32x32 Heroes, Knight Shield, Blood Splash, Shift Rules & Proximity Mini-Map Suite ===\n")
+	print("\n=== Detailed Heroes (incl. Velmira 96x96), Knight Shield, Blood Splash, Shift Rules & Proximity Mini-Map Suite ===\n")
 
 	# -----------------------------------------------------------------
 	# 1. 32x32 HIGH-DETAIL SPRITESHEETS & ROSTER
@@ -71,7 +71,7 @@ func _run() -> void:
 	_check_eq("Behemoth spritesheet upgraded to 192x32 (6x 32x32)", tex_behemoth.get_size(), Vector2(192, 32))
 	_check_eq("Knight spritesheet upgraded to 224x32 (7x 32x32 incl. Shield Guard)", tex_knight.get_size(), Vector2(224, 32))
 	_check_eq("Sylvara spritesheet upgraded to 192x32 (6x 32x32)", tex_sylvara.get_size(), Vector2(192, 32))
-	_check_eq("Velmira spritesheet upgraded to 192x32 (6x 32x32)", tex_velmira.get_size(), Vector2(192, 32))
+	_check_eq("Velmira spritesheet is 576x96 (6x 96x96, player's reference full-res)", tex_velmira.get_size(), Vector2(576, 96))
 
 	# -----------------------------------------------------------------
 	# 2. MINI-MAP: NO CAMERA BOX + DIRECTIONAL ARROW WHEN FAR / EXACT SPOT WHEN CLOSE

@@ -117,16 +117,20 @@ func _ready() -> void:
 	subtitle.name = "Subtitle"
 	add_child(subtitle)
 
-	# Slice 32x32 spritesheets once for all 4 heroes
+	# Slice hero spritesheets once for all 4 heroes. The frame width is
+	# derived from the sheet itself, so heroes may mix frame sizes
+	# (e.g. Velmira is 6 x 96 px while the others are 6 x 32 px).
 	for i in CharacterRegistry.CHARACTERS.size():
 		var entry: Dictionary = CharacterRegistry.CHARACTERS[i]
 		var sheet: Texture2D = load(entry["sheet_path"])
 		var fcount: int = int(entry.get("frame_count", 6))
+		var fw: float = float(sheet.get_width()) / float(maxi(fcount, 1))
+		var fh: float = float(sheet.get_height())
 		var frames: Array[AtlasTexture] = []
 		for f in range(fcount):
 			var at := AtlasTexture.new()
 			at.atlas = sheet
-			at.region = Rect2(float(f * 32), 0.0, 32.0, 32.0)
+			at.region = Rect2(float(f) * fw, 0.0, fw, fh)
 			frames.append(at)
 		_atlas_frames.append(frames)
 

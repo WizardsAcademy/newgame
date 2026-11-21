@@ -1,481 +1,379 @@
 #!/usr/bin/env python
 """Generate Velmira's 6-frame hero sheet (player_shabnam.png).
 
-THIRD design - drawn from the player's reference sheet (dark crimson gothic
-vampire: huge black-purple hair with a rose, pointed ears, red eyes, high
-collar, black dress with a belt, thigh-high boots with crimson bands).
+FOURTH design - the player's own pixel-art reference, recovered at full
+96x96 resolution. The cleaned reference bitmap is pasted into this file as
+a run-length-encoded base (BASE_PAL + BASE_RLE), and the six frames are
+derived from it in code, so a change to one edit moves the sheet in one run:
 
-WHY A GENERATOR (project rule: the .py is the source of truth, never the PNG)
-  * Six frames that must not drift apart (idle / step A / step B / cast A /
-    cast B / idle blink) come from one body function, so a change to her hair
-    or her hem moves in all six at once.
-  * Rows are BUILT from absolute-coordinate spans, not typed as strings of
-    dots: nothing can be off by a pixel, and check_widths() still guards the
-    result.
+    python tools/make_velmira_sprites.py
 
-        python tools/make_velmira_sprites.py
-
-    Writes:
-        assets/textures/player_shabnam.png   192 x 32 (6 frames of 32x32)
-        docs/images/velmira_preview.png      review sheet
+Writes:
+    assets/textures/player_shabnam.png   576 x 96 (6 frames of 96x96)
+    docs/images/velmira_preview.png      review sheet
 
 SHEET LAYOUT  (matches scenes/player/Shabnam.tscn - do not reorder!)
-    frame 0 : idle
-    frame 1 : walk A
-    frame 2 : walk B
-    frame 3 : attack A  (wind-up)
-    frame 4 : attack B  (the blood splash)
-    frame 5 : idle blink
+    frame 0 : idle                  (the base bitmap, untouched)
+    frame 1 : walk A                (right leg lifted, 1 px body bob)
+    frame 2 : walk B                (left leg lifted, 1 px body bob)
+    frame 3 : attack A              (blazing eyes + blood bead at the chest)
+    frame 4 : attack B              (arm thrust right + droplet fan)
+    frame 5 : idle blink            (the lids shut for one beat)
 
-WHAT THE REFERENCE SAYS (in priority order, and where each one lives)
-  1. a HUGE hair mass, with a crimson rose on her left temple
-        -> the crown block + two 4 px falls from the temples to the ankles
-  2. a small pale face with big red eyes, a pointed ear on each side
-        -> 7 px face inside a 15 px head, ears drawn over the hair
-  3. a high crimson collar and a cape with a dark lining
-        -> crimson wings at the shoulders, cape panels down the sides
-  4. a black dress, silver belt buckle, red gem at the throat
-        -> the torso block, with the gem 1 px below the collar
-  5. bare thighs over thigh-high boots with a red cross
-        -> 1 row of skin between the skirt and the boots
-  6. blood magic only when she is casting
-        -> a bead in her cupped hands (frame 3), a droplet fan (frame 4)
-
-THE HOUSE RULE STILL APPLIES: a hard near-black outline on every silhouette
-edge, flat 2-tone shading, no gradients, boots on row 29 like every hero.
+The .py is the source of truth, never the PNG.
 """
 
-from typing import Dict, Tuple
+from PIL import Image, ImageDraw
 
-from PIL import Image, ImageDraw, ImageFont
-
-FRAME = 32
+FRAME = 96
 FRAMES = 6
 
 # ---------------------------------------------------------------------------
-# Palette - sampled from the reference, values lifted a touch so she does not
-# sink into the dark arena floor (the reference is nearly black on black).
+# Palette recovered from the reference: quantised to 28 tones, then merged
+# down to 17 flat house-style tones. Most-used first; index i is symbol
+# SYMS[i] in BASE_RLE.
 # ---------------------------------------------------------------------------
-PAL = {
-    "outline": (12, 8, 18, 255),
-    # hair: black-purple, three tones, the highlight is what reads at 2x
-    "hair": (52, 38, 66, 255),
-    "hair_hi": (88, 68, 110, 255),
-    "hair_lo": (30, 22, 42, 255),
-    # skin: the reference's pale pink, warm shadow
-    "skin": (238, 204, 212, 255),
-    "skin_hi": (250, 232, 238, 255),
-    "skin_lo": (202, 148, 168, 255),
-    "blush": (222, 128, 152, 255),
-    # eyes
-    "sclera": (250, 238, 244, 255),
-    "iris": (176, 26, 58, 255),
-    "iris_hi": (240, 96, 120, 255),
-    "lash": (22, 12, 26, 255),
-    "lip": (108, 16, 42, 255),
-    # clothes
-    "dress": (34, 26, 44, 255),
-    "dress_hi": (56, 44, 70, 255),
-    "cape": (108, 16, 42, 255),
-    "cape_hi": (146, 30, 60, 255),
-    "cape_lo": (66, 8, 26, 255),
-    "rose": (126, 20, 48, 255),
-    "rose_hi": (168, 40, 72, 255),
-    "rose_lo": (72, 10, 28, 255),
-    "boot": (26, 20, 36, 255),
-    "boot_hi": (48, 40, 62, 255),
-    "silver": (150, 140, 164, 255),
-    # fx
-    "blood": (168, 16, 44, 255),
-    "blood_hi": (230, 70, 96, 255),
-    "white": (255, 255, 255, 255),
+BASE_PAL = [
+    (47, 31, 50, 255),
+    (27, 18, 29, 255),
+    (8, 5, 8, 255),
+    (37, 25, 40, 255),
+    (15, 9, 16, 255),
+    (23, 13, 22, 255),
+    (99, 15, 41, 255),
+    (42, 28, 45, 255),
+    (233, 197, 204, 255),
+    (60, 7, 25, 255),
+    (33, 4, 15, 255),
+    (70, 49, 67, 255),
+    (73, 10, 31, 255),
+    (166, 128, 142, 255),
+    (87, 13, 36, 255),
+    (38, 8, 20, 255),
+    (54, 24, 43, 255),
+]
+
+# extra tones used only by the derived frames
+EXTRA = {
+    "iris_hi": (240, 96, 120, 255),   # blazing cast eyes
+    "blood": (190, 30, 60, 255),      # the blood bead / droplets core
+    "blood_hi": (240, 90, 120, 255),  # bead highlight
+    "white": (255, 255, 255, 255),    # bead glint / fang
 }
 
-SYMBOLS: Dict[str, Tuple[int, int, int, int]] = {
-    ".": None,
-    "#": PAL["outline"],
-    "h": PAL["hair"],
-    "H": PAL["hair_hi"],
-    "j": PAL["hair_lo"],
-    "s": PAL["skin"],
-    "S": PAL["skin_hi"],
-    "u": PAL["skin_lo"],
-    "b": PAL["blush"],
-    "W": PAL["sclera"],
-    "e": PAL["iris"],
-    "E": PAL["iris_hi"],
-    "L": PAL["lash"],
-    "l": PAL["lip"],
-    "c": PAL["dress"],
-    "C": PAL["dress_hi"],
-    "k": PAL["cape"],
-    "K": PAL["cape_hi"],
-    "m": PAL["cape_lo"],
-    "r": PAL["rose"],
-    "R": PAL["rose_hi"],
-    "q": PAL["rose_lo"],
-    "o": PAL["boot"],
-    "O": PAL["boot_hi"],
-    "v": PAL["silver"],
-    "x": PAL["blood"],
-    "X": PAL["blood_hi"],
-    "w": PAL["white"],
-}
+SYMS = "ABCDEFGHIJKLMNOPQ"
 
-# ---------------------------------------------------------------------------
-# THE VERTICAL BUDGET (32 px, soles on row 29 like every other hero)
-#   y 2..13   head: hair crown, 7 px face, ears
-#   y 14..24  neck, collar, cape, dress, belt, skirt, bare thigh
-#   y 25..29  thigh-high boots
-# The hair falls run from y5 to y27 on both sides.
-# ---------------------------------------------------------------------------
-CX = 16
-HEAD_X, HEAD_W = 9, 15
-HEAD_Y = 2
-TORSO_X, TORSO_W = 8, 17
-TORSO_Y = 14
-LEGS_X, LEGS_W = 8, 17
-LEGS_Y = 25
-HAIR_TOP = 5
-HAIR_BOTTOM = 27
-
-
-# ---------------------------------------------------------------------------
-# Row builders - place art by ABSOLUTE x, so no row is ever counted by hand
-# ---------------------------------------------------------------------------
-def _row(origin: int, width: int, *spans) -> str:
-    row = ["."] * width
-    for x, art in spans:
-        start = x - origin
-        if start < 0 or start + len(art) > width:
-            raise SystemExit("span out of block: x=%d art=%r" % (x, art))
-        for i, ch in enumerate(art):
-            row[start + i] = ch
-    return "".join(row)
-
-
-def h(*spans) -> str:
-    """One head row (the block spans x9..23)."""
-    return _row(HEAD_X, HEAD_W, *spans)
-
-
-def b(*spans) -> str:
-    """One torso row (the block spans x8..24)."""
-    return _row(TORSO_X, TORSO_W, *spans)
-
-
-def l(*spans) -> str:
-    """One leg row (the block spans x8..24)."""
-    return _row(LEGS_X, LEGS_W, *spans)
-
-
-# ---------------------------------------------------------------------------
-# Head: 15 wide, 12 rows (y2..13). Face 7 px at x13..19, ears at x11 / x21.
-# ---------------------------------------------------------------------------
-HEAD = [
-    h((13, "#hhhhhhh#")),                            # crown
-    h((11, "#hhhhhhhhhhh#")),
-    h((9, "#hhhhhhhhhhhhh#")),                       # widest point of the mass
-    h((9, "hhhhhhhhhhhhhhh")),                       # falls start here: no side outline
-    h((9, "hhhjjjjjjjjjhhh")),                       # fringe over the brow
-    h((9, "hhhh"), (13, "sssssss"), (20, "hhhh")),   # forehead
-    h((9, "hh"), (11, "u"), (12, "h"), (13, "sLLsLLs"), (20, "h"), (21, "u"), (22, "hh")),
-    h((9, "hh"), (11, "u"), (12, "h"), (13, "seesees"), (20, "h"), (21, "u"), (22, "hh")),
-    h((9, "hhhh"), (13, "seesees"), (20, "hhhh")),   # crimson eyes, heavy lash above
-    h((9, "hhhh"), (13, "sbsssbs"), (20, "hhhh")),   # blush
-    h((9, "hhhh"), (13, "ssWlWss"), (20, "hhhh")),   # fanged smirk
-    h((9, "hhhhh"), (14, "usssu"), (19, "hhhhh")),   # tapered jaw
+BASE_RLE = [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ".37E5CE4C",
+    ".37H4D4H2B",
+    ".33FB6E.5FE.CD3.2F",
+    ".33BA3B2FE.E3.E2.CBE2.2BFEFE",
+    ".31C2DAD2E.2CEDB3C.3C.FBF.FBDBC",
+    ".31BHA2E.3EA3F2DFC.2CBDHDB.2BH2E",
+    ".29EFDAHC.2EALA3B3F2ECFDH4B2.BA2FC.12P2",
+    ".29FDH2B.CDAL2AD2F2EC2EB2DH6B.BHDE.12MJ",
+    ".29FD2B.2CAL2A2B2C.C2.2CB2CEH4DC.DBE.12MJ",
+    ".24KG3K.3CFBEAL2HDB.2ED2B.2EC.2BH3A2F.FB2.9KG4C",
+    ".24KMK2O2M.EB2CDL2ADC.BDH2DBE.4CDH2A2B.EBD.10CM2C",
+    ".25CPMG3.2CMPEDLAE.BH2AHD2B.CEFE2DHALACE2B2E.9MJ",
+    ".23CJCMGO2GOP.CGKFA2.FA2HA2C.B4DBCEHAL2EBCB2E.9JP",
+    ".23MJPG2K.G2OPCGKED.CL3A2B.2CB3A2DF2L3FC2BDE",
+    ".20JMK2.OGKMKGOGOKGP.CEAL4A.EFE2DHA2BFCL4CECFE.21CM2P",
+    ".20PMO.KGKCMO.MGJPG2P.EAL3ADEDBF.2DA2DBCAL3BE.E2.20OGOC",
+    ".21COCKO.OMG.OGCPOPC.EHALAHEBAB.E.DA4E.LA3.2C2.6PJ5.7OG2P",
+    ".22OPKGMCJPCGMPGM.2CDH2A2EFA2B.F2CA4B.HA3.10CJG3OKC.4KG3C",
+    ".19E2C2PMO2PC2O2CJGM.2CH4AEFA2B.E2CA5EDA3DB.10CMOG2J.3KG2J2C",
+    ".19DHB.KJO3K2J.M2PK.EBHDFAB.DA2C4.EA4ECDA3B.11JOG3K2MKG2K",
+    ".19ED2C.CO2.JO2G2J.2B3HB2AF.A3.N3E.AHDABCBA2FAC.F2.7J.JG7OK",
+    ".20BDE.5O3P2C.CBD3EBAF.A2HLI2N2.A2DHBCBA2CDHBFE.9J2COG2OP",
+    ".24JK.3J2.4DA3DEDAF.A2.NI3N.DA.FBFBA2H.DAEC.13G2J",
+    ".23JOK.JC.5BA4B2DHE.A2.I4NFEACEB2EBA2.DAHDE.12MJ",
+    ".12CK.7CPJP.JOM.EB.2A4BCDAD.2HA.I5NCADFEBEBA2C.BHAB.12CP",
+    ".12PO.7PGJ.KOGO.E.FBA3BCEA2DBCFA.I4N2CDAD.EF.DA2C.EA2F",
+    ".12PO.6PG2O.CJG2.2FA4D.CDABHNHFA.I2NL.4DABCE.DA2C.CHADC",
+    ".11MOGOK.3COG2M.2KGO.CA4DC2BAD.AIAFH.I3N4.DA2FC.D2AC.2FA2F",
+    ".11PMOPC.5JG.4CPFA3DF.CHA2BLNIACDEI6N.BA3F.BDABC.CEHF",
+    ".12PO.8J.6BDB3.EH2DFAI3NLBFI7N.DA2HF.DHAE.3DF",
+    ".12PM.8C.F2CEC.EF2.EDB2EFLN5B2NI2N2LQ2DC2FA2CHDAECF.BE",
+    ".24BFBDE.5CE.6FQN2FDCI2NLE.6F6.CE.FC",
+    ".23FC.B2N4D.EC.BD.C.3LNLBFI2A.3C.BF.3DBN4.B",
+    ".22BDC.B2DN3.2B2.L2CPK2DLI2NHDNLBPCPCLA.BAH.N3A.D",
+    ".22BE.2BAFLN2.EB2.N2MGO2LI4N3ILGMGJNL.BA2.N2L.2BE",
+    ".20CDB.2CBHB.BN.BDB.LN2G3NI8NG3N2L.BA2.NB.3B2",
+    ".18FA2B.3BH2BC2.2AHBF.LI2NI11N4A.EHA2.2EC.2B2F",
+    ".18FAHF.3DA2BCE.2AHB2.2LI16F.2BAHC.CBE.3FBC",
+    ".16DHADBE.2FHA2BCBC.A2HB.ANI5N5I6N.EHAF.2CBE.3FDB",
+    ".15CLAEC.2C.HA2BEF2C.A3H.CLN2I3N4LI4N2LEDAB.2CB2F.4CBDBFC",
+    ".14A3C.4BCDA2.FBE.2FA3.4LI12L.2BAD.3CB2DE.4CEBABE",
+    ".14AL.6BA3F2B2E.E3A2B.4EFHI6LF2.3BAD.3CB2DHF.5EA3F",
+    ".14HC.6DA2BEB3E.2F2.CAB.5CA2L2A2E.5BAHBC.2CB2DB.2B.4FHE",
+    ".14DC.4EDA2DEBD2C.3FBF.ADCJ2PC.2CQLC.2CJ3.2CA2F.3EBHA2EB.4FDE",
+    ".15BE.2BA3DCEBD2.4CFD2ADCMJ2K.3L2.3KJMG2K.D2AD.2CBDA2B.4CBDE.3KO",
+    ".15EBFBA3DCEDHAD.5EA3FKG2K.CFDLGHE2.KG4O.EA2E.2FBDA3.2CB3C.3KO",
+    ".16DA3HBC2BDA2D.2BEA3DBKMOGCF2DNG2LBF2.G2JC2.2BAB.2EB2DA2E.CB2E.3MG3K",
+    ".15BA2HDBC2BA2DBE.BDB2D2.4KMPHABLOMQDA2POP.5EABE.2CBDA3C2F.6KO",
+    ".14EA3B2F.FBA2BC.DA2.5C2FE.PAL2BL2BL3PC2FC2.2EHB2C.2FDA4E.7KO",
+    ".8F5BHABFBEC2DA3E.2AC.5EF3EC3NI2L2I2NC.CF2CFCED2BE.3FD2A3D",
+    ".8DA4E.2EBF.2BA4E.2A.8CBDHDCFDNIN2DF.EDADEC.BABC.2FCFBDA5E",
+    ".8DA2D2C.2B2C.CDA4D.2DB.3FE.2FDADFP.HBL2DABKPEBD2FCHB.C2.BE.CDHBA3BC",
+    ".8BA2.4FBF.CA6B.2EDF2EFC.CDHB.CJ.BDEFBDEPMK.EB2C.3F2B2E.CDHDBA3HDE",
+    ".9A2.4B2E.CA5DB.3D3BF.2BHDECKO.CEBLEC.POP.C3FE.2EBD2E.2FH2.FA4DE",
+    ".9BA.3B2DE.CA4E2BE.2ECDFE.EHDFBEPO.CFL2E2.KOMEBC.F2C.CD3C.BEB2.2FHA3HE",
+    ".10BE.2BDHBC.DA3.CBE.4B.2FHDB3CM.2EFCFEFC.MGPB2.6EDB.2BF.6H2A3C",
+    ".14BDABC.2DHDF.EBC.5EA2D2AEPM.2D.LNLC.2CGPFAHF.4EDB.2BDE.5HFEA3C",
+    ".10F2.2BDAHB.3BDBF.FC.5DA2DADJGC.FLBA.L2FC.JM.BADF2.2CFB2.CDHC.4HF.2DAC",
+    ".9FE.2B3HA2B.2BDBF.FC.2CFDA2DADEJ2.3HCAL3E.3P2FA2B2F.3FB.CDHD.4HF.2CAC",
+    ".9DE.2ABCDA3DC2FBF.E.3FBA3HAFCM.2CBC.C3.2EC.CKCDAD3E.2FE.BDAD.3EHF.3AC",
+    ".9BE2BAB.EA3HDF.F2.3CB2DH2A2F.P2.EBDC2F2E.CBEC.K2FA2DAHBC.2FBDAF.3BAE.2CAE",
+    ".10BDA2B.3BAHDBCF2.3ED2ABDAH.2C.F2BH.CF2BF.B2F.POCDADA2DB.2B2DF.2CBHB.2EBAC",
+    ".10EDHADE.3ED3CF2.2BH2DBDAD.2MKEDA2EFD4AEFAHB.J2CADBA3DE.CBC.DA2F.3BHD",
+    ".11EDA2D.3EBD2E.3BDADB2A2H.COC.EA2.BA2D2AD.HDC.PG.EA2BA3DC2BC.DA2E.2BD2B",
+    ".12FDAF.E.2EDBC.2DA3DE.HAD.CJ.C.C3A3D2A2.3C2.JO.DABFH2DBE.3BDAE.2DE",
+    ".13BA.CDF2B2C.2EHA3F.C.A.2OK.BF.2DA3FBA2D.CBF.2GMCBD.2EDBFC.3EABE",
+    ".12EDE.FA2HFE.2EDA3.2EFCECMG.2BF.2B4.CBDB.CBF.2G2.2B.C2.B3E.2FHADEC",
+    ".11CBH.CA3E.3EDHE.3ED2F.KG2.3FL2.8HL2.4G2C.3BF.3FD.2FBHA2DE2",
+    ".11EB.3EAE.4DB.5ED2F.KOK.2DLI2L2A.2EL2NINL.3KM2.2B2F.5H.3EBA2FDC",
+    ".11EDE2.CAH.3BDC2JP.2EDB.JO2CK.LNI3NL.CDNI4N.K2.JG.2B2F.2J2.DC.3EDB.BC",
+    ".12ED2.EA2D.2BECJ3.2FDB.MGOCK.EDNLADF.K.BHLILB.K2.JGMK.B2.2J3C2.3EDB.BC",
+    ".16D2AD.BF.CJ2MJ.BD.JG2OCK.4D.3CK.3E2.3K3PGOK.B2CPJ2M.2E.2EDEFC",
+    ".14EB3E2.BCKJMJ2.EBE.MGM.CPK.2MFO.2K2.2KJ2K.CK3.OGOC2BC.J2MJ.F.CFE2B",
+    ".19C.E.JO2MJ.CFCM2GM.PJ2.2CJK.2K2.3P2.2KJ2P.OGO2CEC.JMG2.3F2C",
+    ".17FBDC.2MG3K.C.2OG2M.J3.2EQC.2K2.3PB.2KJ3.G4J.C2PG3",
+    ".17DB2C.JG3M.CEKJG3M.J3.2FAF.2CK.2CD2C.KJ3.JOG3KEC2MG3",
+    ".17HB.2KMO3C.CEJMG3M.PJ2.2FAB.2K2.2ED2C.CJ3.2MG3MEC.2OG2K",
+    ".17FDC.JM.5CJMG4OJ.C2.2FA2.6EADC.7MG3OMK.2K2M2",
+    ".18E.2KJ.5KMCMG2OM2.6HA.6EAF.8JMO3MP.4OK",
+    ".22PJ.3PJK.CO2M3J.5F2.6CFC.7CJM2P.KMP.2JK",
+    ".23J.10JM2J.3CB4C.3EB4.5KM2J.8K",
+    ".36KJ.3CDA3C.3BHADB.5KMJP",
+    ".37C.3CBA3E.3BA2DF.5KP",
+    "",
+    ".42C4.5C4",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 ]
 
-# Idle blink: the lids close for one beat of the idle loop.
-HEAD_BLINK = [
-    h((13, "#hhhhhhh#")),
-    h((11, "#hhhhhhhhhhh#")),
-    h((9, "#hhhhhhhhhhhhh#")),
-    h((9, "hhhhhhhhhhhhhhh")),
-    h((9, "hhhjjjjjjjjjhhh")),
-    h((9, "hhhh"), (13, "sssssss"), (20, "hhhh")),
-    h((9, "hh"), (11, "u"), (12, "h"), (13, "sLLsLLs"), (20, "h"), (21, "u"), (22, "hh")),
-    h((9, "hh"), (11, "u"), (12, "h"), (13, "sLLsLLs"), (20, "h"), (21, "u"), (22, "hh")),
-    h((9, "hhhh"), (13, "sssssss"), (20, "hhhh")),
-    h((9, "hhhh"), (13, "sbsssbs"), (20, "hhhh")),
-    h((9, "hhhh"), (13, "ssWlWss"), (20, "hhhh")),
-    h((9, "hhhhh"), (14, "usssu"), (19, "hhhhh")),
-]
-
-# Cast pose: fangs bared, eyes blazing.
-HEAD_OPEN = [
-    h((13, "#hhhhhhh#")),
-    h((11, "#hhhhhhhhhhh#")),
-    h((9, "#hhhhhhhhhhhhh#")),
-    h((9, "hhhhhhhhhhhhhhh")),
-    h((9, "hhhjjjjjjjjjhhh")),
-    h((9, "hhhh"), (13, "sssssss"), (20, "hhhh")),
-    h((9, "hh"), (11, "u"), (12, "h"), (13, "sLLsLLs"), (20, "h"), (21, "u"), (22, "hh")),
-    h((9, "hh"), (11, "u"), (12, "h"), (13, "sEesEes"), (20, "h"), (21, "u"), (22, "hh")),
-    h((9, "hhhh"), (13, "sEesEes"), (20, "hhhh")),
-    h((9, "hhhh"), (13, "sbsssbs"), (20, "hhhh")),
-    h((9, "hhhh"), (13, "sWlllWs"), (20, "hhhh")),
-    h((9, "hhhh"), (13, "sxsssxs"), (20, "hhhh")),
-]
 
 # ---------------------------------------------------------------------------
-# Torso: 15 wide (x9..23), 11 rows (y14..24). High crimson collar, cape panels
-# falling behind the shoulders, black bodice with crimson brooch and silver
-# belt, flared skirt, one row of bare thigh above the boots.
+# Base bitmap
 # ---------------------------------------------------------------------------
-TORSO = [
-    b((12, "#kk"), (15, "sss"), (18, "kk#")),            # collar tips + neck
-    b((10, "#kkkk"), (15, "sss"), (18, "kkkk#")),        # collar opens
-    b((9, "#kk"), (12, "ccccxcccc"), (21, "kk#")),       # shoulders + brooch
-    b((9, "#kk"), (12, "Ccccccccc"), (21, "kk#")),       # lit edge of the bodice
-    b((9, "#kk"), (12, "ccccccccc"), (21, "kk#")),
-    b((9, "#kk"), (12, "ccccccccc"), (21, "kk#")),
-    b((9, "#kk"), (12, "cccvvvccc"), (21, "kk#")),       # belt + silver buckle
-    b((9, "#"), (10, "ccccccccccccc"), (23, "#")),       # skirt flares
-    b((9, "#"), (10, "Ccccccccccccm"), (23, "#")),
-    b((9, "#"), (10, "ccccccccccccm"), (23, "#")),       # hem
-    b((9, "#"), (10, "cc"), (12, "sss"), (18, "sss"), (21, "cc"), (23, "#")),
-]
+def decode_base() -> Image.Image:
+    """BASE_RLE -> the 96x96 idle frame."""
+    pal = BASE_PAL + list(EXTRA.values())
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    px = img.load()
+    for y, rle in enumerate(BASE_RLE):
+        x = 0
+        i = 0
+        while i < len(rle):
+            ch = rle[i]
+            i += 1
+            n = ""
+            while i < len(rle) and rle[i].isdigit():
+                n += rle[i]
+                i += 1
+            run = int(n) if n else 1
+            if ch != ".":
+                idx = SYMS.index(ch)
+                for k in range(run):
+                    px[x + k, y] = pal[idx]
+            x += run
+    return img
 
-# Legs: 15 wide (x9..23), 5 rows (y25..29). Thigh-high boots, crimson cross-band.
-LEGS_STAND = [
-    l((11, "#ooo#"), (17, "#ooo#")),   # cuff
-    l((12, "#oo#"), (18, "#oo#")),     # shaft
-    l((12, "#xx#"), (18, "#xx#")),     # crimson cross-band
-    l((11, "#ooo#"), (17, "#ooo#")),   # foot
-    l((11, "#####"), (17, "#####")),   # sole
-]
 
-LEGS_STEP_A = [
-    l((10, "#ooo#"), (18, "#ooo#")),
-    l((11, "#oo#"), (18, "#oo#")),
-    l((11, "#xx#"), (18, "#xx#")),
-    l((10, "#ooo#"), (17, "#ooo#")),
-    l((10, "#####"), (17, "#####")),
-]
+def blit(dst, src, ox=0, oy=0) -> None:
+    """alpha_composite src over dst at (ox, oy)."""
+    dst.alpha_composite(src, (ox, oy))
 
-LEGS_STEP_B = [
-    l((12, "#ooo#"), (17, "#ooo#")),
-    l((13, "#oo#"), (18, "#oo#")),
-    l((13, "#xx#"), (18, "#xx#")),
-    l((12, "#ooo#"), (18, "#ooo#")),
-    l((12, "#####"), (18, "#####")),
-]
+
+def shift_strip(img, x0, y0, x1, y1, dx=0, dy=0, clear=True) -> None:
+    """Cut img[x0:x1, y0:y1], move it by (dx, dy), paste it back."""
+    strip = img.crop((x0, y0, x1, y1))
+    if clear:
+        blank = Image.new("RGBA", strip.size, (0, 0, 0, 0))
+        img.paste(blank, (x0, y0))
+    blit(img, strip, x0 + dx, y0 + dy)
+
 
 # ---------------------------------------------------------------------------
-# Decor: rose in her hair
+# Named tones (looked up by value, never by position - positions move if
+# the palette is ever re-quantised).
 # ---------------------------------------------------------------------------
-ROSE = [
-    ".rR.",
-    "rRrr",
-    "rrqr",
-    ".rr.",
-]
+def _pal(v):
+    for c in BASE_PAL:
+        if c[:3] == v:
+            return c
+    raise SystemExit("tone %r missing from BASE_PAL" % (v,))
 
-# Cast A: both hands cupped under the blood bead, sleeves rising to the elbow.
-ARM_CUP = [
-    "..##..",
-    ".#kk#.",
-    "#kkkk#",
-    "#s##s#",
-]
 
-# Cast B: the arm punches forward, hand at the end, blood leaving it.
-ARM_OUT = [
-    "#kkkk#",
-    "#kkss#",
-    "######",
-]
+OUTLINE = _pal((8, 5, 8))          # near-black silhouette outline
+SKIN = _pal((233, 197, 204))       # pale skin
+SKIN_SHA = _pal((166, 128, 142))   # skin shadow / closed lid
+SLEEVE = _pal((27, 18, 29))        # dark dress cloth
+SLEEVE_HI = _pal((42, 28, 45))     # lit edge of the dress
+CRIMSON_DEEP = _pal((38, 8, 20))   # deep crimson droplets
+IRIS_TONES = {(99, 15, 41), (87, 13, 36), (73, 10, 31)}
+
+# eye boxes in frame coordinates: lash line + crimson iris
+EYE_L = (37, 38, 46, 47)
+EYE_R = (51, 38, 60, 47)
+
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Cast reads
 # ---------------------------------------------------------------------------
-def new_frame() -> Image.Image:
-    return Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
-
-
-def px(img: Image.Image, x: int, y: int, colour) -> None:
-    """Bounds-checked putpixel: parts are pasted right up to the frame edge."""
-    if 0 <= x < FRAME and 0 <= y < FRAME:
-        img.putpixel((x, y), colour)
-
-
-def paste(img: Image.Image, art, ox: int, oy: int) -> None:
-    for y, row in enumerate(art):
-        for x, ch in enumerate(row):
-            colour = SYMBOLS.get(ch)
-            if colour is None:
-                continue
-            px(img, ox + x, oy + y, colour)
-
-
-# Outer edge of each fall per row (index = y - HAIR_TOP). A 2 px staircase over
-# four-row steps reads as a wave of hair; a 1 px alternation reads as a dotted
-# line, which is why this table moves in blocks. Inner edges sit at x8 / x24 so
-# the mass always joins the head and never floats beside her.
-FALL_EDGE_L = [6, 6, 4, 4, 4, 5, 5, 5, 6, 6, 4, 4, 4, 5, 5, 5, 6, 6, 5, 4, 4, 4, 5]
-FALL_EDGE_R = [32 - e for e in FALL_EDGE_L]
-
-
-def _fall_span(y: int, side: int, sway: int) -> tuple[int, int]:
-    """(outer, inner) inclusive hair columns of the fall on row y."""
-    i = y - HAIR_TOP
-    outer = FALL_EDGE_L[i] if side < 0 else FALL_EDGE_R[i]
-    if sway and 11 <= y <= 25:
-        outer -= side * sway          # the mass swings with the walk
-    if y >= HAIR_BOTTOM - 2:          # tapered tip
-        outer += 1 if side < 0 else -1
-    inner = 8 if side < 0 else 24
-    return outer, inner
-
-
-def hair_fall(img: Image.Image, side: int, sway: int = 0) -> None:
-    """One long fall of hair: highlight on the outer edge, shadow inside."""
-    for y in range(HAIR_TOP, HAIR_BOTTOM + 1):
-        outer, inner = _fall_span(y, side, sway)
-        lo, hi = (outer, inner) if side < 0 else (inner, outer)
-        for col in range(lo, hi + 1):
-            d = (col - lo) if side < 0 else (hi - col)      # 0 = outer edge
-            sym = "H" if d == 0 else ("h" if d <= 2 else "j")
-            img.putpixel((col, y), SYMBOLS[sym])
-        edge_out = outer - 1 if side < 0 else outer + 1
-        if 0 <= edge_out < 32:
-            img.putpixel((edge_out, y), SYMBOLS["#"])
-
-
-def blood_orb(img: Image.Image, at, radius: int = 3) -> None:
-    """A bead of blood magic (cast A)."""
-    x, y = at
+def blood_bead(img, cx, cy, r) -> None:
+    """A bead of blood magic held between her cupped hands."""
     d = ImageDraw.Draw(img)
-    d.ellipse([x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1],
-              fill=PAL["outline"])
-    d.ellipse([x - radius, y - radius, x + radius, y + radius],
-              fill=PAL["blood"])
-    d.ellipse([x - radius + 1, y - radius + 1, x, y - 1], fill=PAL["blood_hi"])
-    px(img, x - 1, y - 2, PAL["white"])
+    d.ellipse([cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1], fill=OUTLINE)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=EXTRA["blood"])
+    d.ellipse([cx - 2, cy - r + 1, cx, cy], fill=EXTRA["blood_hi"])
+    img.putpixel((cx - 1, cy - r + 1), EXTRA["white"])
 
 
-def blood_spray(img: Image.Image, origin) -> None:
-    """A fan of droplets in front of the thrust hand (cast B).
+def droplet(img, x, y, size=2, bright=False) -> None:
+    col = EXTRA["blood"] if bright else CRIMSON_DEEP
+    for dy in range(size):
+        for dx in range(size):
+            img.putpixel((x + dx, y + dy), col)
 
-    A READ, not the hitbox: the real 92 px damage cone is drawn by the FX node,
-    this only has to say "blood, that way".
-    """
-    x, y = origin
-    for dx, dy, colour in ((0, 0, PAL["blood"]), (1, 0, PAL["blood"]),
-                           (0, 1, PAL["blood_hi"]),
-                           (2, -3, PAL["blood"]), (3, 1, PAL["blood"]),
-                           (2, 3, PAL["blood_hi"]), (4, -1, PAL["blood"]),
-                           (4, 2, PAL["blood_hi"])):
-        px(img, x + dx, y + dy, colour)
+
+def thrust_arm(img) -> None:
+    """Cast release: the folded hands leave, a sleeve-clad arm thrusts out
+    to the right and a fan of droplets scatters beyond the hand."""
+    # 1. the corset shows where the folded hands were
+    patch = Image.new("RGBA", (10, 7), (0, 0, 0, 0))
+    for y in range(7):
+        for x in range(10):
+            patch.putpixel((x, y), SLEEVE if (x + y) % 3 else SLEEVE_HI)
+    blit(img, patch, 43, 54)
+
+    # 2. the arm: dark outline block, sleeve inside, lit top edge
+    ox0, ox1, oy0, oy1 = 58, 81, 57, 65
+    for y in range(oy0, oy1):
+        for x in range(ox0, ox1):
+            img.putpixel((x, y), OUTLINE)
+    for y in range(oy0 + 1, oy1 - 1):
+        for x in range(ox0, ox1 - 1):
+            img.putpixel((x, y), SLEEVE)
+    for x in range(ox0, ox1 - 1):
+        img.putpixel((x, oy0 + 1), SLEEVE_HI)
+    # the pale hand at the end of the sleeve
+    for y in range(oy0 + 1, oy1 - 1):
+        for x in range(76, 80):
+            img.putpixel((x, y), SKIN)
+    img.putpixel((77, oy0 + 1), SKIN_SHA)
+
+    # 3. the droplet fan beyond the hand
+    droplet(img, 83, 56)
+    droplet(img, 85, 62)
+    droplet(img, 88, 58, bright=True)
+    droplet(img, 86, 52, bright=True)
 
 
 # ---------------------------------------------------------------------------
-# Body
+# The six frames
 # ---------------------------------------------------------------------------
-def draw_head(img: Image.Image, head) -> None:
-    paste(img, head, HEAD_X, HEAD_Y)
+def frame_idle() -> Image.Image:
+    return decode_base()
 
-
-def draw_body(img: Image.Image, legs) -> None:
-    paste(img, TORSO, TORSO_X, TORSO_Y)
-    paste(img, legs, LEGS_X, LEGS_Y)
-
-
-def draw_hair(img: Image.Image, sway: int = 0) -> None:
-    hair_fall(img, -1, sway)
-    hair_fall(img, +1, sway)
-
-
-def draw_rose(img: Image.Image) -> None:
-    """The crimson rose sits ON the hair, at her left temple."""
-    paste(img, ROSE, 8, 5)
-
-
-# ---------------------------------------------------------------------------
-# Frames
-# ---------------------------------------------------------------------------
-def frame_idle(blink: bool = False) -> Image.Image:
-    img = new_frame()
-    draw_body(img, LEGS_STAND)
-    draw_head(img, HEAD_BLINK if blink else HEAD)
-    draw_hair(img)
-    draw_rose(img)
-    return img
-
-
-def frame_walk(step: int) -> Image.Image:
-    img = new_frame()
-    draw_body(img, LEGS_STEP_A if step == 1 else LEGS_STEP_B)
-    draw_head(img, HEAD)
-    draw_hair(img, sway=1 if step == 1 else -1)
-    draw_rose(img)
-    return img
-
-
-def frame_cast(kind: int) -> Image.Image:
-    img = new_frame()
-    draw_hair(img, sway=1 if kind == 0 else -1)
-    draw_body(img, LEGS_STAND)
-    if kind == 0:
-        paste(img, ARM_CUP, 13, 20)
-        blood_orb(img, (16, 19), 2)
+def frame_walk(which: str) -> Image.Image:
+    img = decode_base()
+    # 1 px bob on the whole figure
+    img.paste(img.crop((0, 1, FRAME, FRAME)), (0, 0))
+    img.paste(Image.new("RGBA", (FRAME, 1), (0, 0, 0, 0)), (0, FRAME - 1))
+    if which == "A":
+        shift_strip(img, 48, 76, 60, 94, 0, -3)   # right leg steps up
     else:
-        paste(img, ARM_OUT, 20, 16)
-        blood_spray(img, (26, 17))
-    draw_head(img, HEAD_OPEN)
-    draw_rose(img)
+        shift_strip(img, 37, 76, 48, 94, 0, -3)   # left leg steps up
     return img
+
+def frame_cast(windup: bool) -> Image.Image:
+    img = decode_base()
+    if windup:
+        _blaze_eyes(img)
+        blood_bead(img, 48, 61, 4)
+    else:
+        thrust_arm(img)
+    return img
+
+def frame_blink() -> Image.Image:
+    img = decode_base()
+    _shut_eyes(img)
+    return img
+
+
+def _blaze_eyes(img) -> None:
+    """Bright crimson irises for the cast wind-up."""
+    for (x0, y0, x1, y1) in (EYE_L, EYE_R):
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                r, g, b, a_ = img.getpixel((x, y))
+                if a_ and (r, g, b) in IRIS_TONES:
+                    img.putpixel((x, y), EXTRA["iris_hi"])
+
+
+def _shut_eyes(img) -> None:
+    """The idle blink: irises become skin, a warm shadow closes the lid."""
+    for (x0, y0, x1, y1) in (EYE_L, EYE_R):
+        lid_row = None
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                r, g, b, a_ = img.getpixel((x, y))
+                if a_ and (r, g, b) in IRIS_TONES:
+                    img.putpixel((x, y), (0, 0, 0, 0))
+                    if lid_row is None:
+                        lid_row = y
+        if lid_row is not None:
+            for x in range(x0, x1):
+                r, g, b, a_ = img.getpixel((x, lid_row))
+                if a_:
+                    img.putpixel((x, lid_row), SKIN_SHA)
 
 
 def build_sheet() -> Image.Image:
     frames = [
-        frame_idle(False),
-        frame_walk(1),
-        frame_walk(2),
-        frame_cast(0),
-        frame_cast(1),
-        frame_idle(True),
+        frame_idle(),
+        frame_walk("A"),
+        frame_walk("B"),
+        frame_cast(True),
+        frame_cast(False),
+        frame_blink(),
     ]
     sheet = Image.new("RGBA", (FRAME * FRAMES, FRAME), (0, 0, 0, 0))
-    for index, art in enumerate(frames):
-        sheet.alpha_composite(art, (index * FRAME, 0))
+    for i, f in enumerate(frames):
+        sheet.alpha_composite(f, (i * FRAME, 0))
     return sheet
 
 
 def build_preview(sheet: Image.Image) -> Image.Image:
-    zoom = 6
-    pad = 16
+    zoom, pad = 4, 16
     labels = ["idle", "walk A", "walk B", "cast A", "cast B", "idle blink"]
-    width = pad + FRAMES * (FRAME * zoom + pad)
-    height = 34 + FRAME * zoom + pad + 18
-    img = Image.new("RGBA", (width, height), (22, 18, 26, 255))
-    draw = ImageDraw.Draw(img)
-    font = ImageFont.load_default()
-    draw.text((pad, 10), "VELMIRA - 6 frames, 32x32 (gothic vampire, from the "
-              "reference sheet)", font=font, fill=(238, 216, 226, 255))
-    for index in range(FRAMES):
-        x = pad + index * (FRAME * zoom + pad)
-        frame = sheet.crop((index * FRAME, 0, (index + 1) * FRAME, FRAME))
-        img.alpha_composite(frame.resize((FRAME * zoom, FRAME * zoom),
-                                         Image.NEAREST), (x, 34))
-        draw.text((x, height - 14), labels[index], font=font,
-                  fill=(200, 168, 186, 255))
+    w = pad + FRAMES * (FRAME * zoom + pad)
+    h = 34 + FRAME * zoom + pad + 18
+    img = Image.new("RGBA", (w, h), (22, 18, 26, 255))
+    d = ImageDraw.Draw(img)
+    d.text((pad, 10), "VELMIRA - 6 frames, 96x96 (the player's reference, full res)",
+           fill=(238, 216, 226, 255))
+    for i in range(FRAMES):
+        x = pad + i * (FRAME * zoom + pad)
+        frame = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
+        img.alpha_composite(frame.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST),
+                            (x, 34))
+        d.text((x, h - 14), labels[i], fill=(200, 168, 186, 255))
     return img
 
 
-def check_widths() -> None:
-    """Every ASCII part must be a rectangle, or the paste silently shifts."""
-    for name, value in list(globals().items()):
-        if isinstance(value, list) and value and isinstance(value[0], str):
-            widths = {len(row) for row in value}
-            if len(widths) != 1:
-                raise SystemExit("part %s has ragged rows: %s" % (name, widths))
-
-
 def main() -> None:
-    check_widths()
     sheet = build_sheet()
     sheet.save("assets/textures/player_shabnam.png")
     print("wrote assets/textures/player_shabnam.png", sheet.size,
