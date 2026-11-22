@@ -229,14 +229,18 @@ func _unleash_blood_splash(dir: Vector2, paid_hp: int, is_nova: bool) -> void:
 		var seq: Array[Texture2D] = []
 		if _fx_frames.size() >= 5:
 			if is_nova:
-				seq = [_fx_frames[3], _fx_frames[4], _fx_frames[2]]
+				seq.append(_fx_frames[3])
+				seq.append(_fx_frames[4])
+				seq.append(_fx_frames[2])
 			else:
-				seq = [_fx_frames[0], _fx_frames[1], _fx_frames[2]]
+				seq.append(_fx_frames[0])
+				seq.append(_fx_frames[1])
+				seq.append(_fx_frames[2])
 		elif not _fx_frames.is_empty():
-			seq = [_fx_frames[0]]
-		fx.setup(aim, splash_range, is_nova, seq)
+			seq.append(_fx_frames[0])
 		parent.add_child(fx)
 		fx.global_position = global_position + Vector2(0.0, -3.0)
+		fx.setup(aim, splash_range, is_nova, seq)
 
 	var hits_landed := 0
 	var origin := global_position

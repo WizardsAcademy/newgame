@@ -6,6 +6,9 @@ on:
       - "**"
   pull_request:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   tests:
     name: Godot 4.7.2 Headless Suites & Sprite Contract
@@ -29,7 +32,6 @@ jobs:
           python3 tools/measure_hero_sheets.py --strict
 
       - name: Cache Godot 4.7.2 binary
-        id: cache-godot
         uses: actions/cache@v4
         with:
           path: /tmp/godot-bin
@@ -51,31 +53,47 @@ jobs:
 
       - name: Import Godot project resources
         run: |
-          # Disable editor-only MCP plugin during headless asset import, then restore project.godot
           sed -i '/res:\/\/addons\/godot_ai\/plugin.cfg/d' project.godot
           timeout 120s godot --headless --audio-driver Dummy --path . --import
           git checkout -- project.godot
 
-      - name: Run all headless Godot test suites
+      - name: Helper script for headless suite runner
         run: |
-          set -euo pipefail
-          SUITES=(
-            "tests/sprite_contract_test.tscn"
-            "tests/heroes_and_dash_test.tscn"
-            "tests/archer_test.tscn"
-            "tests/boss_test.tscn"
-            "tests/combat_test.tscn"
-            "tests/slime_variants_test.tscn"
-            "tests/golem_test.tscn"
-          )
-          for suite in "${SUITES[@]}"; do
-            echo "================================================================"
-            echo "Running $suite"
-            echo "================================================================"
-            log_file="/tmp/$(basename "$suite" .tscn).log"
-            timeout 90s godot --headless --audio-driver Dummy --path . "$suite" 2>&1 | tee "$log_file"
-            if grep -qE "^FAIL  |SCRIPT ERROR:" "$log_file"; then
-              echo "Failure detected in $suite"
-              exit 1
+          cat <<'EOS' > /tmp/run_suite.sh
+          #!/usr/bin/env bash
+          suite="$1"
+          log_file="/tmp/$(basename "$suite" .tscn).log"
+          timeout 45s godot --headless --audio-driver Dummy --path . "$suite" >"$log_file" 2>&1
+          rc=$?
+          cat "$log_file"
+          if [ "$rc" -ne 0 ] || grep -qE "^FAIL  |SCRIPT ERROR:|Parse Error:" "$log_file"; then
+            summary=$(grep -E "^FAIL  |SCRIPT ERROR:|Parse Error:|ERROR:" "$log_file" | head -n 8 | tr '\n' ' ; ')
+            if [ -z "$summary" ]; then
+              summary=$(tail -n 8 "$log_file" | tr '\n' ' ; ')
             fi
-          done
+            echo "::error title=${suite} (rc=${rc})::${summary}"
+            exit 1
+          fi
+          EOS
+          chmod +x /tmp/run_suite.sh
+
+      - name: Suite 1 - sprite_contract_test
+        run: /tmp/run_suite.sh tests/sprite_contract_test.tscn
+
+      - name: Suite 2 - heroes_and_dash_test
+        run: /tmp/run_suite.sh tests/heroes_and_dash_test.tscn
+
+      - name: Suite 3 - combat_test
+        run: /tmp/run_suite.sh tests/combat_test.tscn
+
+      - name: Suite 4 - archer_test
+        run: /tmp/run_suite.sh tests/archer_test.tscn
+
+      - name: Suite 5 - boss_test
+        run: /tmp/run_suite.sh tests/boss_test.tscn
+
+      - name: Suite 6 - slime_variants_test
+        run: /tmp/run_suite.sh tests/slime_variants_test.tscn
+
+      - name: Suite 7 - golem_test
+        run: /tmp/run_suite.sh tests/golem_test.tscn
