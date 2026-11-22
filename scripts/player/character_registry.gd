@@ -14,9 +14,9 @@ const CHARACTERS: Array[Dictionary] = [
 		"name": "Behemoth",
 		"role": "BRAWLER",
 		"subtitle": "Medieval Pit-Champion",
-		"scene_path": "res://scenes/player/Player.tscn",
-		"sheet_path": "res://assets/textures/player_borzo.png",
-		"portrait_path": "res://assets/textures/portrait_borzo.png",
+		"scene_path": "res://scenes/player/Behemoth.tscn",
+		"sheet_path": "res://assets/textures/player_behemoth.png",
+		"portrait_path": "res://assets/textures/portrait_behemoth.png",
 		"frame_count": 16,
 		"accent": Color(0.98, 0.68, 0.26),
 		"hp": 120,
@@ -39,9 +39,9 @@ const CHARACTERS: Array[Dictionary] = [
 		"name": "Knight",
 		"role": "FALLEN KNIGHT",
 		"subtitle": "Betrayed Greatsword Tank",
-		"scene_path": "res://scenes/player/Bahman.tscn",
-		"sheet_path": "res://assets/textures/player_bahman.png",
-		"portrait_path": "res://assets/textures/portrait_bahman.png",
+		"scene_path": "res://scenes/player/Knight.tscn",
+		"sheet_path": "res://assets/textures/player_knight.png",
+		"portrait_path": "res://assets/textures/portrait_knight.png",
 		"frame_count": 16,
 		"accent": Color(0.42, 0.82, 1.0),
 		"hp": 150,
@@ -64,9 +64,9 @@ const CHARACTERS: Array[Dictionary] = [
 		"name": "Sylvara",
 		"role": "ELF RANGER",
 		"subtitle": "Blonde Woodland Archer",
-		"scene_path": "res://scenes/player/Pari.tscn",
-		"sheet_path": "res://assets/textures/player_pari.png",
-		"portrait_path": "res://assets/textures/portrait_pari.png",
+		"scene_path": "res://scenes/player/Sylvara.tscn",
+		"sheet_path": "res://assets/textures/player_sylvara.png",
+		"portrait_path": "res://assets/textures/portrait_sylvara.png",
 		"frame_count": 15,
 		"accent": Color(0.40, 0.94, 0.58),
 		"hp": 100,
@@ -89,9 +89,9 @@ const CHARACTERS: Array[Dictionary] = [
 		"name": "Velmira",
 		"role": "VAMPIRE",
 		"subtitle": "Crimson Hemomancer",
-		"scene_path": "res://scenes/player/Shabnam.tscn",
-		"sheet_path": "res://assets/textures/player_shabnam.png",
-		"portrait_path": "res://assets/textures/portrait_shabnam.png",
+		"scene_path": "res://scenes/player/Velmira.tscn",
+		"sheet_path": "res://assets/textures/player_velmira.png",
+		"portrait_path": "res://assets/textures/portrait_velmira.png",
 		"frame_count": 16,
 		"accent": Color(0.98, 0.30, 0.45),
 		"hp": 75,
@@ -111,22 +111,12 @@ const CHARACTERS: Array[Dictionary] = [
 	},
 ]
 
-const LEGACY_ALIASES: Dictionary = {
-	"borzo": "behemoth",
-	"bahman": "knight",
-	"pari": "sylvara",
-	"shabnam": "velmira",
-}
-
 static var selected_id: String = "behemoth"
 static var quick_retry_same_hero: bool = false
 
 
 static func normalize_id(id: String) -> String:
-	var key := id.to_lower()
-	if LEGACY_ALIASES.has(key):
-		return String(LEGACY_ALIASES[key])
-	return key
+	return id.to_lower()
 
 
 static func get_entry(id: String) -> Dictionary:

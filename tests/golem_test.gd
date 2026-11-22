@@ -21,7 +21,7 @@ extends Node
 const FAKE_PLAYER := preload("res://tests/fake_player.gd")
 
 ## Layers: the golem's slam sensor (AttackArea) scans layer 64, which is what
-## a player's hurtbox lives on. Same numbers as Player.tscn.
+## a player's hurtbox lives on. Same numbers as Behemoth.tscn.
 const LAYER_PLAYER_HURTBOX: int = 64
 
 var _failures: int = 0

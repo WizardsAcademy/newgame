@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cparitex00001"
-path="res://.godot/imported/player_pari.png-5abdadfc8d72d3537ce0831114286a8b.ctex"
+uid="uid://bj4ey0ykrkn10"
+path="res://.godot/imported/player_behemoth.png-28bc9f1ac365359ec6336617993759ca.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/player_pari.png"
-dest_files=["res://.godot/imported/player_pari.png-5abdadfc8d72d3537ce0831114286a8b.ctex"]
+source_file="res://assets/textures/player_behemoth.png"
+dest_files=["res://.godot/imported/player_behemoth.png-28bc9f1ac365359ec6336617993759ca.ctex"]
 
 [params]
 

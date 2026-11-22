@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://e44skh80he6h"
-path="res://.godot/imported/portrait_borzo.png-ac20dc16f9061adbde8b68f706913c1f.ctex"
+uid="uid://cvelmiratex01"
+path="res://.godot/imported/player_velmira.png-dc9f4d315cf43ac664a2289566d19ea1.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/portrait_borzo.png"
-dest_files=["res://.godot/imported/portrait_borzo.png-ac20dc16f9061adbde8b68f706913c1f.ctex"]
+source_file="res://assets/textures/player_velmira.png"
+dest_files=["res://.godot/imported/player_velmira.png-dc9f4d315cf43ac664a2289566d19ea1.ctex"]
 
 [params]
 

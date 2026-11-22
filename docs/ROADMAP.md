@@ -11,7 +11,7 @@
 | 1 | Movement + basic attack (brawler) | ✅ |
 | 2 | First enemy (slime: chase/lunge) | ✅ |
 | 3 | Juice: screen shake, hit-stop, procedural SFX | ✅ |
-| 4 | Player health, game over, Borzo sprite | ✅ |
+| 4 | Player health, game over, Behemoth sprite | ✅ |
 | 5 | Endless wave system with scaling | ✅ |
 | 6 | Polish: death particles, shadows, footstep dust, hurt flash, wave banner | ✅ |
 
@@ -78,11 +78,10 @@
 ## Phase 9 — Meta progression and second character
 
 - [ ] Death currency + hub/menu scene (character select + skill tree)
-- [ ] Borzo's skill tree — data in one file (JSON/Dictionary), not hardcoded
-- [ ] Second character: Bahman — built on a shared `PlayerBase`, not a copy
-  of player.gd
-- DoD: repeated deaths should convey real growth; Bahman must feel clearly
-  mechanically different from Borzo
+- [ ] Behemoth's skill tree — data in one file (JSON/Dictionary), not hardcoded
+- [x] Additional heroes: Knight, Sylvara, Velmira — built on shared `PlayerBase`
+- DoD: repeated deaths should convey real growth; each hero must feel clearly
+  mechanically different from Behemoth
 
 ## Phase 10 — Local co-op (2 players)
 

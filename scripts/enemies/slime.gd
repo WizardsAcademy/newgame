@@ -184,7 +184,7 @@ const EmberBlastScene := preload("res://scenes/fx/EmberBlast.tscn")
 @onready var death_sfx: AudioStreamPlayer = $DeathSFX
 
 ## The player is looked up once at spawn time. `group: "player"` is set
-## by Player.tscn, so this keeps working no matter where the player is in
+## by Behemoth.tscn (and all hero scenes), so this keeps working no matter where the player is in
 ## the scene tree.
 var player: Node2D = null
 

@@ -17,10 +17,10 @@ Designed specifically for the circular bottom-left Hero HUD Medallion:
     4 : hurt      (taking a hit: 'AKH!' wince / shout / sparks!)
 
 Writes:
-    assets/textures/portrait_borzo.png     (320 x 64)
-    assets/textures/portrait_bahman.png    (320 x 64)
-    assets/textures/portrait_pari.png      (320 x 64)
-    assets/textures/portrait_shabnam.png   (320 x 64)
+    assets/textures/portrait_behemoth.png  (320 x 64)
+    assets/textures/portrait_knight.png    (320 x 64)
+    assets/textures/portrait_sylvara.png   (320 x 64)
+    assets/textures/portrait_velmira.png   (320 x 64)
     docs/images/portraits_preview.png
 """
 
@@ -431,10 +431,10 @@ def portrait_brawler(state: str) -> Image.Image:
 def main() -> None:
     states = ["idle_a", "idle_b", "blink", "low_hp", "hurt"]
     builders = [
-        ("portrait_borzo.png", "BEHEMOTH", portrait_brawler),
-        ("portrait_bahman.png", "FALLEN KNIGHT", portrait_knight),
-        ("portrait_pari.png", "SYLVARA (ELF)", portrait_sylvara),
-        ("portrait_shabnam.png", "VELMIRA (VAMPIRE)", portrait_velmira),
+        ("portrait_behemoth.png", "BEHEMOTH", portrait_brawler),
+        ("portrait_knight.png", "FALLEN KNIGHT", portrait_knight),
+        ("portrait_sylvara.png", "SYLVARA (ELF)", portrait_sylvara),
+        ("portrait_velmira.png", "VELMIRA (VAMPIRE)", portrait_velmira),
     ]
 
     zoom, pad = 2, 12

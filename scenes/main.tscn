@@ -1,6 +1,6 @@
 [gd_scene load_steps=12 format=3]
 
-[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player_scene"]
+[ext_resource type="PackedScene" path="res://scenes/player/Behemoth.tscn" id="1_player_scene"]
 [ext_resource type="Script" path="res://scripts/main.gd" id="3_main_script"]
 [ext_resource type="Script" path="res://scripts/enemies/wave_spawner.gd" id="5_wave_spawner"]
 [ext_resource type="Script" path="res://scripts/ui/upgrade_menu.gd" id="6_upgrade_menu"]

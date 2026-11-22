@@ -23,7 +23,7 @@ class_name SFXGenerator
 ##      confirmation that damage landed, even if visual effects overlap.
 ##      Living on the enemy scene also means a Slime, Skeleton, or Metal Golem
 ##      can each have its own material impact sound later without changing
-##      `player.gd`!
+##      `player_base.gd`!
 ##
 ## =========================================================================
 ## HOW `AudioStreamWAV` SYNTHESIS WORKS

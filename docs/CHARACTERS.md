@@ -17,13 +17,15 @@
 
 ## 1. Behemoth — Medieval Pit-Champion (`120 HP`)
 
-- **Sprite Sheet (`96×96` × 10 frames)**: `assets/textures/player_borzo.png` (riveted brigandine vest, iron shoulder pauldron, crimson headband, scarred beard, spiked iron cestus gauntlets with dedicated `jab`, `cross`, `uppercut`, `charge`, and `hurt` frames) + circular `64×64` face portrait strip `assets/textures/portrait_borzo.png`.
+- **Scene & Script**: `scenes/player/Behemoth.tscn`, `scripts/player/behemoth.gd`
+- **Sprite Sheet (`96×96` × 16 frames = `1536×96`)**: `assets/textures/player_behemoth.png` (`tools/make_behemoth_sprites.py` — riveted brigandine vest, iron shoulder pauldron, crimson headband, scarred beard, spiked iron cestus gauntlets with dedicated `jab`, `cross`, `uppercut`, `charge`, and `hurt` frames) + circular `64×64` face portrait strip `assets/textures/portrait_behemoth.png`.
 - **Signature Mechanic**: **Concussive Iron-Cestus Combo** — 3-hit melee combo (`18` → `21` → `29 DMG`); hits 1–2 stun for `0.45s` and the 3rd-hit Shockwave Uppercut stuns for `0.90s`.
 - **`Shift` Skill**: **Shoulder Charge** — drops his spiked pauldron forward and rams enemies for **`18 DMG` + `1.10s` Stun**.
 
 ## 2. Knight — Fallen Knight (`150 HP`, Slowest `68 px/s`)
 
-- **Sprite Sheet (`96×96` × 10 frames)**: `assets/textures/player_bahman.png` (cracked visor greathelm, tattered crimson betrayal cloak, dark steel plate, oversized **Zweihander Greatsword** with full swing/spin arc, Tower Shield `guard`, `charge`, and `hurt` frames) + `assets/textures/portrait_bahman.png`.
+- **Scene & Script**: `scenes/player/Knight.tscn`, `scripts/player/knight.gd`
+- **Sprite Sheet (`96×96` × 16 frames = `1536×96`)**: `assets/textures/player_knight.png` (`tools/make_knight_sprites.py` — cracked visor greathelm, tattered crimson betrayal cloak, dark steel plate, oversized **Zweihander Greatsword** with full swing/spin arc, Tower Shield `guard`, `charge`, and `hurt` frames) + `assets/textures/portrait_knight.png`.
 - **Signature Mechanic**:
   - **Passive Fallen Plate Armor**: Reduces unshielded hits by `-3` flat damage (minimum `1`).
   - **Tower Shield (`Right-Click` / `E`)**: Blocks **100% of HP damage** (`0 HP` lost!) by consuming **Green Energy** instead (`14 + 1.5 × DMG`, plus `14/s` hold upkeep). If Green Energy hits `0`, the Shield **breaks (`shield_exhausted`)** and cannot be raised again until Green Energy regenerates back to `100%`.
@@ -31,13 +33,15 @@
 
 ## 3. Sylvara — Blonde Elven Ranger (`100 HP`, Fastest `124 px/s`)
 
-- **Sprite Sheet (`96×96` × 9 frames)**: `assets/textures/player_pari.png` (flowing golden hair, emerald elven tiara, forest tunic, feathered quiver, and **golden-yew Recurve Bow held visibly in hand** with `bow_draw`, `bow_charge`, `bow_release`, `charge`, and `hurt` frames) + `assets/textures/portrait_pari.png`.
+- **Scene & Script**: `scenes/player/Sylvara.tscn`, `scripts/player/sylvara.gd`
+- **Sprite Sheet (`96×96` × 15 frames = `1440×96`)**: `assets/textures/player_sylvara.png` (`tools/make_sylvara_sprites.py` — flowing golden hair, emerald elven tiara, forest tunic, feathered quiver, and **golden-yew Recurve Bow held visibly in hand** with `bow_draw`, `bow_charge`, `bow_release`, `charge`, and `hurt` frames) + `assets/textures/portrait_sylvara.png`.
 - **Signature Mechanic**: **Elven Recurve Bow** — swift `15 DMG` arrows (every 4th quick shot looses a 3-arrow fan); holding Attack visibly draws and charges a **`30 DMG` Piercing Great-Arrow**.
 - **`Shift` Skill**: **Sylvan Gale Vault** — leaps in a swirl of emerald leaves (`0 DMG`), phases cleanly through enemies, slows nearby foes (`×0.55` speed for `1.8s`), and grants `+28%` Tailwind movement haste.
 
 ## 4. Velmira — Silver-Haired Hemomancer (`75 HP`)
 
-- **Sprite Sheet (`96×96` × 16 frames = `1536×96`)**: `assets/textures/player_shabnam.png` (`tools/make_velmira_sprites.py` — moonlit **white/silver hair** with crimson temple rose, gothic crimson-collared bodice, smooth normal `idle`, 4-directional `walk`, `attack`, `charge`, `hurt`, and `die` blood-pool frames) + `320×64` portrait `assets/textures/portrait_shabnam.png`.
+- **Scene & Script**: `scenes/player/Velmira.tscn`, `scripts/player/velmira.gd`
+- **Sprite Sheet (`96×96` × 16 frames = `1536×96`)**: `assets/textures/player_velmira.png` (`tools/make_velmira_sprites.py` — moonlit **white/silver hair** with crimson temple rose, gothic crimson-collared bodice, smooth normal `idle`, 4-directional `walk`, `attack`, `charge`, `hurt`, and `die` blood-pool frames) + `320×64` portrait `assets/textures/portrait_velmira.png`.
 - **Signature Mechanic**:
   - **Returning Liquid Blood Whip**: Lashing out sacrifices `6%` Max HP (`5 HP`), **strictly locked at a `1 HP` floor** (Velmira can NEVER kill herself by attacking; only enemy damage can kill her). A sinuous crimson blood orb (`128 px` reach) whips outward and curves back into Velmira: if it hit `N >= 1` enemies (`13 DMG` each), it heals **`spent_hp + 1 × N`** on return (`+1 HP` net per enemy hit; `0` heal on miss).
   - **2-Fang + Filling Crimson Circle Curse**: Each Blood Whip hit builds `1/4` of a circular crimson gauge topped with two vampire fangs on the target. On the **4th hit (`4/4`)**, the circle explodes for **30% of the enemy's Max HP** (capped at `55` on bosses) and heals Velmira `+4 HP`.

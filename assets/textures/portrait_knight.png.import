@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://huo3nx5pg7fl"
-path="res://.godot/imported/portrait_bahman.png-12576f4ac8288a83bd8aeecf2825af2f.ctex"
+path="res://.godot/imported/portrait_knight.png-c6ec43e4b41bf87751cade8f8583d388.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/portrait_bahman.png"
-dest_files=["res://.godot/imported/portrait_bahman.png-12576f4ac8288a83bd8aeecf2825af2f.ctex"]
+source_file="res://assets/textures/portrait_knight.png"
+dest_files=["res://.godot/imported/portrait_knight.png-c6ec43e4b41bf87751cade8f8583d388.ctex"]
 
 [params]
 

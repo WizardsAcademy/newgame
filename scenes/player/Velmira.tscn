@@ -1,7 +1,7 @@
-[gd_scene load_steps=34 format=3 uid="uid://cshabnamscn01"]
+[gd_scene load_steps=34 format=3 uid="uid://cvelmirascn01"]
 
-[ext_resource type="Script" path="res://scripts/player/shabnam.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://assets/textures/player_shabnam.png" id="2_sheet"]
+[ext_resource type="Script" path="res://scripts/player/velmira.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/textures/player_velmira.png" id="2_sheet"]
 [ext_resource type="Texture2D" path="res://assets/textures/white_pixel.png" id="3_white"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]

@@ -51,11 +51,11 @@ sides of a single collision.
 ```text
 scenes/
   main.tscn              arena scene + UI + WaveSpawner
-  player/Player.tscn     the player
+  player/                Behemoth.tscn, Knight.tscn, Sylvara.tscn, Velmira.tscn
   enemies/Slime.tscn     one scene per enemy
 scripts/
   main.gd                signal wiring + HUD + game over
-  player/player.gd       input / movement / combo
+  player/                player_base.gd + behemoth.gd / knight.gd / sylvara.gd / velmira.gd
   enemies/slime.gd       enemy state machine (AI, health, signals)
   enemies/slime_visuals.gd the slime's look: poses, hop, squash, goo FX
   enemies/archer_visuals.gd the archer's look: shamble, rattle, bow draw,
@@ -93,7 +93,7 @@ tests/                   headless test scripts
 
 ## Multiplayer-Readiness Rules (follow from day one)
 
-1. **Read input in one place**: all input reading in player.gd lives only
+1. **Read input in one place**: all input reading in `player_base.gd` lives only
    in `_read_input()`; in Phase 10 this same function goes behind the
    input profile of player 1/2 without touching the rest of the code.
 2. **Decisions happen at the "owner" only**: every game number and

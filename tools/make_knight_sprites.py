@@ -9,10 +9,10 @@ Art direction:
   - Scarred Dark-Iron Tower/Kite Shield + COLOSSAL Zweihander Greatsword!
 
 Writes:
-    assets/textures/player_bahman.png    960 x 96 (10 frames of 96x96)
+    assets/textures/player_knight.png    1536 x 96 (16 frames of 96x96)
     docs/images/knight_preview.png       review sheet
 
-SHEET LAYOUT (matches scenes/player/Bahman.tscn):
+SHEET LAYOUT (matches scenes/player/Knight.tscn):
     0 : idle
     1 : walk A
     2 : walk B
@@ -435,8 +435,8 @@ def main() -> None:
     for i, p in enumerate(poses):
         fr = build_knight_vertical_pose(p) if p.startswith(("down_", "up_")) else build_knight_pose(p)
         sheet.alpha_composite(fr, (i * FRAME, 0))
-    sheet.save("assets/textures/player_bahman.png")
-    print("wrote assets/textures/player_bahman.png", sheet.size)
+    sheet.save("assets/textures/player_knight.png")
+    print("wrote assets/textures/player_knight.png", sheet.size)
 
     zoom, pad = 2, 10
     w = pad + len(poses) * (FRAME * zoom + pad)
