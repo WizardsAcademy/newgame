@@ -10,8 +10,10 @@ Exits non-zero if:
   - any 96x96 cell has zero visible pixels, or
   - semi-transparent pixel percentage exceeds 2.0%.
 
-Pass `--strict` to also enforce the art contract targets (`f0_h` in 70..74,
-`ground_y == {80}`, `colours <= 24`, zero `#000000` pixels).
+Pass `--strict` to also enforce the art & skeleton contract targets
+(`f0_h` per `HERO_SKELETON_SPEC.md`: behemoth 66..70, knight 74..80,
+sylvara 78..84, velmira 62..68; `ground_y == {80}`; `colours <= 24`;
+zero `#000000` pixels).
 """
 
 from __future__ import annotations
@@ -23,8 +25,13 @@ from PIL import Image
 
 CELL = 96
 GROUND_Y_TARGET = 80
-BODY_H_MIN = 70
-BODY_H_MAX = 74
+HERO_BODY_H_BOUNDS: dict[str, tuple[int, int]] = {
+    "behemoth": (66, 70),
+    "knight": (74, 80),
+    "sylvara": (78, 84),
+    "velmira": (62, 68),
+}
+DEFAULT_BODY_H_BOUNDS = (62, 84)
 MAX_COLOURS = 24
 MAX_SEMI_ALPHA_PCT = 2.0
 
@@ -162,9 +169,10 @@ def main() -> int:
         )
         all_errors.extend(r["errors"])
         if args.strict:
-            if not (BODY_H_MIN <= r["f0_h"] <= BODY_H_MAX):
+            h_lo, h_hi = HERO_BODY_H_BOUNDS.get(r["name"], DEFAULT_BODY_H_BOUNDS)
+            if not (h_lo <= r["f0_h"] <= h_hi):
                 all_errors.append(
-                    f"{r['name']}: standing f0 body_h={r['f0_h']} outside [{BODY_H_MIN}, {BODY_H_MAX}]"
+                    f"{r['name']}: standing f0 body_h={r['f0_h']} outside [{h_lo}, {h_hi}]"
                 )
             if r["grounds"] != [GROUND_Y_TARGET]:
                 all_errors.append(
