@@ -1,307 +1,359 @@
-#!/usr/bin/env python3
-"""Generate Behemoth's 16-frame 96x96 Pit-Champion Brawler sheet (`HERO_SKELETON_SPEC.md`).
+#!/usr/bin/env python
+"""Generate Behemoth's 10-frame 96x96 Medieval Pit-Champion Brawler sheet.
 
-Bespoke Skeleton #1 — Thickest, Hunched Pit-Champion (NOT tallest):
-  - `body_h = 68` (`crown_y = 12 .. GROUND_Y = 80`)
-  - `head_ratio = 31%` (`crown_y = 12 .. chin_y = 33`), head sunk between bull-traps
-    and pushed `+3px` FORWARD (`hx = cx + 3`)
-  - `shoulder_w = 48` (`x = 23..70`), `20px` wider than `hip_w = 28` (`x = 34..61`)
-  - Heavy gorilla-like brawler arms hang DOWN from massive boulder pauldrons so
-    both Iron Cestus fists hang BELOW the belt/hip line (`y = 52..58`)
-  - Muscular pit-fighter legs visibly narrower than torso:
-    `leg_mass ~ 485` (`[380..560]`), `stance_w = 26` (`x = 34..59`)
+Art direction:
+  - Medieval Arena / Guild Pit-Champion: riveted leather brigandine vest,
+    iron-plated left pauldron, brass lion-head belt, crimson medieval sash &
+    headband tails, battle scar, thick braided beard, muscular bare forearms,
+    and heavy spiked medieval Iron Cestus gauntlets!
+  - Clean articulated arm & fist animations: clearly coils back and punches
+    with lead Jab, heavy rear Cross, skyward Uppercut, and lowered Shoulder
+    Charge (`Shift`)!
+
+Writes:
+    assets/textures/player_behemoth.png  1536 x 96 (16 frames of 96x96)
+    docs/images/behemoth_preview.png     review sheet
+
+SHEET LAYOUT (matches scenes/player/Behemoth.tscn):
+    0 : idle            (twin iron-cestus guard)
+    1 : walk A
+    2 : walk B
+    3 : punch windup    (torso twists, rear right arm coils back)
+    4 : punch jab       (lead left arm snaps straight forward + fist smear)
+    5 : punch cross     (heavy right arm drives far forward + golden arc)
+    6 : punch uppercut  (rising iron uppercut + golden shock-gleam)
+    7 : shoulder charge (lowered iron-pauldron shoulder ramming pose)
+    8 : hurt            (recoiling hit stagger + wincing face)
+    9 : blink           (eyes shut)
 """
 
-from __future__ import annotations
-
+import math
 from PIL import Image, ImageDraw
-from hero_art_lib import CELL, GROUND_Y, RAMPS, HeroCanvas
+
+FRAME = 96
+FRAMES = 10
+
+OUTLINE = (12, 9, 10, 255)
+SKIN_SHA = (176, 118, 86, 255)
+SKIN_MID = (218, 158, 118, 255)
+SKIN_HI = (244, 192, 152, 255)
+HAIR_DARK = (48, 30, 20, 255)
+HAIR_MID = (82, 52, 32, 255)
+LEATHER_DARK = (64, 38, 24, 255)
+LEATHER_MID = (104, 64, 38, 255)
+LEATHER_HI = (146, 94, 56, 255)
+PANTS_DARK = (38, 34, 42, 255)
+PANTS_MID = (60, 54, 66, 255)
+IRON_DARK = (46, 52, 66, 255)
+IRON_MID = (82, 92, 112, 255)
+IRON_HI = (152, 168, 194, 255)
+BRASS_DARK = (138, 96, 28, 255)
+BRASS_HI = (238, 192, 72, 255)
+SASH_RED = (168, 28, 42, 255)
+SASH_HI = (224, 62, 74, 255)
 
 
-def _draw_cestus(c: HeroCanvas, fx: float, fy: float, rx: float = 5.0, ry: float = 4.2, spike_dir: int = 1) -> None:
-    """Heavy riveted Iron Cestus gauntlet with brass knuckle studs."""
-    c.rrect(fx - rx, fy - ry, fx + rx, fy + ry, 2, "steel", bias=0.10)
-    c.rrect(fx - rx + 1, fy - ry, fx + rx - 1, fy - ry + 2, 1, "leather")
-    sx = int(round(fx + rx)) if spike_dir >= 0 else int(round(fx - rx))
-    for sy in (-2, 1):
-        c.dot(sx + spike_dir, int(round(fy + sy)), "steel", 3)
-    c.dot(int(round(fx)), int(round(fy - 1)), "gold", 3)
+def put(img: Image.Image, x: int, y: int, col) -> None:
+    if 0 <= x < FRAME and 0 <= y < FRAME:
+        img.putpixel((x, y), col)
 
 
-def _draw_behemoth_head(
-    c: HeroCanvas,
-    hx: int,
-    crown_y: int,
-    blink: bool = False,
-    hurt: bool = False,
-    facing_mode: str = "side",
-) -> None:
-    """Sunk, forward-jutting pit-fighter head + thick bull neck (`y = crown_y .. crown_y + 21`)."""
-    # Thick muscular bull neck connecting skull straight into hunched traps (`y = crown_y + 13 .. crown_y + 22`)
-    c.rrect(hx - 6, crown_y + 13, hx + 6, crown_y + 22, 2, "skin", bias=-0.04)
+def pill_limb(img: Image.Image, x0: float, y0: float, x1: float, y1: float, r: int,
+              dark_c, mid_c, hi_c) -> None:
+    steps = max(int(math.hypot(x1 - x0, y1 - y0) * 2), 4)
+    d = ImageDraw.Draw(img)
+    for pass_id in range(3):
+        for i in range(steps + 1):
+            t = i / steps
+            cx = x0 + (x1 - x0) * t
+            cy = y0 + (y1 - y0) * t
+            if pass_id == 0:
+                rr = r + 1
+                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=OUTLINE)
+            elif pass_id == 1:
+                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=dark_c)
+                rr2 = max(r - 1, 1)
+                d.ellipse([cx - rr2, cy - rr2 - 1, cx + rr2, cy + rr2 - 1], fill=mid_c)
+            else:
+                rr3 = max(r - 2, 1)
+                d.ellipse([cx - rr3, cy - rr3 - 1, cx + rr3 - 1, cy - 1], fill=hi_c)
 
-    # Skull & dark cropped hair dome (`y = crown_y .. crown_y + 15`)
-    c.rrect(hx - 7, crown_y, hx + 7, crown_y + 15, 4, "leather", bias=-0.10)
 
-    if facing_mode == "up":
-        # Back of cropped hair + crimson headband knot & twin tails resting on bull neck
-        c.rrect(hx - 8, crown_y + 3, hx + 8, crown_y + 6, 1, "crimson", bias=0.12)
-        c.dot(hx, crown_y + 5, "gold", 3)
-        c.poly([(hx - 2, crown_y + 6), (hx - 6, crown_y + 16), (hx - 2, crown_y + 17)], "crimson")
-        c.poly([(hx + 2, crown_y + 6), (hx + 6, crown_y + 16), (hx + 2, crown_y + 17)], "crimson")
-        return
+def draw_cestus_fist(img: Image.Image, fx: float, fy: float, dir_ang_deg: float = 0.0,
+                     golden_gleam: bool = False) -> None:
+    """Heavy medieval spiked Iron Cestus gauntlet at the end of Behemoth's arm!"""
+    d = ImageDraw.Draw(img)
+    ix, iy = int(round(fx)), int(round(fy))
+    # Iron wrist bracer + heavy knuckle box
+    d.rounded_rectangle([ix - 6, iy - 5, ix + 6, iy + 5], radius=2, fill=IRON_MID, outline=OUTLINE)
+    d.rectangle([ix - 4, iy - 4, ix + 4, iy - 1], fill=IRON_HI)
+    # Brass rivets + spiked knuckles pointing along dir_ang_deg
+    rad = math.radians(dir_ang_deg)
+    ux, uy = math.cos(rad), math.sin(rad)
+    px, py = -uy, ux
+    for k in (-3, 0, 3):
+        sx = int(round(fx + ux * 7 + px * k))
+        sy = int(round(fy + uy * 7 + py * k))
+        put(img, sx, sy, BRASS_HI if golden_gleam else IRON_HI)
+        put(img, int(round(fx + ux * 6 + px * k)), int(round(fy + uy * 6 + py * k)), OUTLINE)
+    if golden_gleam:
+        d.ellipse([ix - 9, iy - 9, ix + 9, iy + 9], outline=BRASS_HI)
 
-    fx = 1 if facing_mode == "side" else 0
-    # Broad scarred brow & face (`x = hx - 7 .. hx + 8` = `16px` wide)
-    c.rrect(hx - 7, crown_y + 3, hx + 7 + fx, crown_y + 15, 3, "skin", bias=0.10)
 
-    # Crimson pit-champion headband (`y = crown_y + 3 .. crown_y + 6`)
-    c.rrect(hx - 8, crown_y + 3, hx + 7 + fx, crown_y + 6, 1, "crimson", bias=0.14)
-    c.dot(hx + 2 + fx, crown_y + 4, "gold", 3)
+def draw_arm_with_cestus(img: Image.Image, sx: float, sy: float, ex: float, ey: float,
+                         fx: float, fy: float, golden: bool = False) -> None:
+    """Articulated muscular upper-arm -> elbow -> forearm -> Iron Cestus fist!"""
+    pill_limb(img, sx, sy, ex, ey, 4, SKIN_SHA, SKIN_MID, SKIN_HI)
+    pill_limb(img, ex, ey, fx, fy, 4, SKIN_SHA, SKIN_MID, SKIN_HI)
+    # Leather forearm wrap just behind the gauntlet
+    wx, wy = ex + (fx - ex) * 0.62, ey + (fy - ey) * 0.62
+    pill_limb(img, wx, wy, fx, fy, 4, LEATHER_DARK, LEATHER_MID, BRASS_DARK)
+    ang = math.degrees(math.atan2(fy - ey, fx - ex))
+    draw_cestus_fist(img, fx, fy, ang, golden_gleam=golden)
 
-    # Thick braided dark beard (`y = crown_y + 11 .. crown_y + 19`)
-    c.poly(
-        [
-            (hx - 6, crown_y + 11),
-            (hx + 6 + fx, crown_y + 11),
-            (hx + 5 + fx, crown_y + 19),
-            (hx - 5, crown_y + 19),
-        ],
-        "leather",
-        bias=-0.14,
-    )
-    c.dot(hx + 1 + fx, crown_y + 18, "gold", 3)
 
-    # Fierce sunken eyes under heavy brow
-    ex_pair = (hx, hx + 5) if facing_mode == "side" else (hx - 4, hx + 3)
-    ey = crown_y + 9
+def draw_brawler_head(img: Image.Image, cx: int, cy: int, blink: bool = False, hurt: bool = False,
+                      tail_sway: int = 0) -> None:
+    d = ImageDraw.Draw(img)
+    # Flowing crimson medieval headband tails behind head
+    d.polygon([
+        (cx - 8, cy - 6),
+        (cx - 21 - tail_sway, cy - 3),
+        (cx - 18 - tail_sway, cy + 3),
+        (cx - 23 - tail_sway, cy + 7),
+        (cx - 9, cy + 1),
+    ], fill=SASH_RED, outline=OUTLINE)
+    d.line([(cx - 9, cy - 4), (cx - 18 - tail_sway, cy - 2)], fill=SASH_HI)
+
+    # Thick brown hair crown & head silhouette
+    d.rounded_rectangle([cx - 9, cy - 11, cx + 9, cy + 9], radius=4, fill=SKIN_MID, outline=OUTLINE)
+    d.rounded_rectangle([cx - 9, cy - 12, cx + 9, cy - 5], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+    d.line([(cx - 6, cy - 10), (cx + 4, cy - 10)], fill=HAIR_MID)
+
+    # Crimson & iron-studded medieval brow headband
+    d.rectangle([cx - 9, cy - 7, cx + 9, cy - 3], fill=SASH_RED, outline=OUTLINE)
+    for rx in (cx - 5, cx + 1, cx + 6):
+        put(img, rx, cy - 5, BRASS_HI)
+
+    # Battle scar over left eye
+    d.line([(cx - 3, cy - 3), (cx - 1, cy + 3)], fill=SASH_RED)
+
+    # Eyes
     if hurt:
-        for ex in ex_pair:
-            c.stroke(ex - 1, ey - 1, ex + 1, ey + 1, "skin", 0)
+        d.line([(cx - 4, cy - 1), (cx - 2, cy + 1)], fill=OUTLINE)
+        d.line([(cx + 5, cy - 1), (cx + 3, cy + 1)], fill=OUTLINE)
     elif blink:
-        for ex in ex_pair:
-            c.stroke(ex - 1, ey, ex + 1, ey, "skin", 0)
+        d.line([(cx - 4, cy), (cx - 1, cy)], fill=OUTLINE)
+        d.line([(cx + 3, cy), (cx + 6, cy)], fill=OUTLINE)
     else:
-        for ex in ex_pair:
-            c.stroke(ex - 1, ey - 1, ex + 1, ey - 1, "leather", 0)
-            c.dot(ex, ey, "obsidian", 0)
-            c.dot(ex + 1, ey, "gold", 3)
+        for ex in (cx - 3, cx + 4):
+            put(img, ex, cy - 1, OUTLINE)
+            put(img, ex + 1, cy - 1, BRASS_HI)
+            put(img, ex, cy, OUTLINE)
+
+    # Thick medieval braided beard & mustache!
+    d.rounded_rectangle([cx - 7, cy + 3, cx + 8, cy + 10], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+    d.line([(cx - 5, cy + 4), (cx + 6, cy + 4)], fill=HAIR_MID, width=2)
+    if hurt:
+        # Shouting mouth inside beard
+        d.rectangle([cx + 1, cy + 5, cx + 5, cy + 7], fill=SASH_RED)
+        put(img, cx + 2, cy + 5, (255, 255, 255, 255))
+    else:
+        # Brass beard clasp
+        put(img, cx + 2, cy + 9, BRASS_HI)
 
 
-def build_behemoth_side(pose: str) -> Image.Image:
-    c = HeroCanvas()
-    # Spine centered at cx = 43; head pushed +3px FORWARD (`hx = 46`)!
-    cx = 43
-    crown_y = 12  # exact 80 - 12 = 68px standing height!
-    l_leg_x, l_fy = 35, 79
-    r_leg_x, r_fy = 51, 79
+def build_brawler_pose(pose: str) -> Image.Image:
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    cx, cy = 44, 49
+    leg_l, leg_r = (-7, 27), (7, 27)
+    tail_sway = 0
 
     if pose == "walk_a":
-        l_leg_x, l_fy = 36, 78
-        r_leg_x, r_fy = 57, 79
-        crown_y = 13
+        cy -= 1
+        leg_l, leg_r = (-10, 25), (9, 28)
+        tail_sway = 2
     elif pose == "walk_b":
-        l_leg_x, l_fy = 41, 79
-        r_leg_x, r_fy = 52, 77
-        crown_y = 13
+        cy -= 1
+        leg_l, leg_r = (-3, 28), (4, 24)
+        tail_sway = 1
     elif pose == "windup":
-        cx = 44
-        crown_y = 13
-        l_leg_x, r_leg_x = 36, 54
+        cx -= 4
+        leg_l, leg_r = (-9, 27), (8, 27)
     elif pose == "jab":
-        cx = 50
-        crown_y = 13
-        l_leg_x, r_leg_x = 37, 58
+        cx += 3
+        leg_l, leg_r = (-9, 27), (10, 27)
+        tail_sway = 3
     elif pose == "cross":
-        cx = 52
-        crown_y = 13
-        l_leg_x, r_leg_x = 37, 59
+        cx += 6
+        leg_l, leg_r = (-11, 27), (11, 27)
+        tail_sway = 5
     elif pose == "uppercut":
-        cx = 48
-        crown_y = 14
-        l_leg_x, l_fy = 38, 79
-        r_leg_x, r_fy = 56, 73
+        cx += 4
+        cy -= 3
+        leg_l, leg_r = (-8, 29), (9, 26)
+        tail_sway = 4
     elif pose == "charge":
-        cx = 51
-        crown_y = 15
-        l_leg_x, r_leg_x = 37, 59
+        cx += 7
+        cy += 2
+        leg_l, leg_r = (-14, 26), (10, 26)
+        tail_sway = 7
     elif pose == "hurt":
-        cx = 43
-        crown_y = 15
-        l_leg_x, r_leg_x = 36, 53
+        cx -= 5
+        cy += 1
+        tail_sway = -3
 
-    hip_y = 54
-    waist_y = 50
-    sh_y = 39
-
-    # 1. Muscular pit-fighter legs (`y = 55..79`), VISIBLY NARROWER than the 48px boulder shoulders!
-    #    Beefy thighs (`r = 3.2`) + iron kneecaps + wrapped calves (`leg_mass ~ 485`, `stance_w = 26`).
-    for idx, (lx, fy) in enumerate(((l_leg_x, l_fy), (r_leg_x, r_fy))):
-        hip_anchor = cx - 6 if idx == 0 else cx + 6
-        knee_x = int(round(0.4 * hip_anchor + 0.6 * lx))
-        knee_y = 66
-        c.tapered_limb(hip_anchor, hip_y, 3.2, knee_x, knee_y, 2.6, "obsidian", bias=-0.06 if idx == 0 else 0.08)
-        c.tapered_limb(knee_x, knee_y, 2.6, lx, fy - 4, 2.2, "leather", bias=0.06)
-        c.rrect(knee_x - 3, knee_y - 2, knee_x + 3, knee_y + 1, 1, "steel", bias=0.14)
-        # Planted iron-capped pit boots (`stance_w = 26` on idle: `35..60`)
-        if idx == 0:
-            c.rrect(lx - 4, fy - 4, lx + 3, fy, 1, "leather", bias=0.06)
-            c.rrect(lx - 4, fy - 2, lx, fy, 1, "steel", bias=0.14)
-        else:
-            c.rrect(lx - 3, fy - 4, lx + 5, fy, 1, "leather", bias=0.08)
-            c.rrect(lx + 1, fy - 2, lx + 5, fy, 1, "steel", bias=0.18)
-
-    # 2. Sloping Bull-Trap V-Taper Torso (`22px` traps at `chin_y = 33` -> `48px` boulder shoulders -> `20px` waist!)
-    torso_pts = [
-        (cx - 10, crown_y + 21),  # sloping traps begin at y=33 (`23px` > 17*1.10 -> chin_y=33 -> 31% head!)
-        (cx + 12, crown_y + 21),
-        (cx + 22, sh_y - 2),
-        (cx + 23, sh_y + 2),      # right boulder shoulder (`x = 70` on idle)
-        (cx + 11, waist_y),       # narrow 21px waist
-        (cx + 9, hip_y + 2),
-        (cx - 9, hip_y + 2),
-        (cx - 10, waist_y),
-        (cx - 24, sh_y + 2),      # left boulder shoulder (`x = 23` on idle -> exact `48px` span!)
-        (cx - 22, sh_y - 2),
-    ]
-    c.poly(torso_pts, "leather", bias=0.08)
-
-    # Brigandine steel chest harness & rivets (`y = 36..48`)
-    c.poly(
-        [(cx - 13, sh_y - 3), (cx + 14, sh_y - 3), (cx + 9, waist_y - 2), (cx - 9, waist_y - 2)],
-        "steel",
-        bias=-0.02,
-    )
-    for rx_off in (-6, 0, 6):
-        c.dot(cx + rx_off, sh_y + 1, "gold", 3)
-
-    # Rounded spiked iron left pauldron (`spike stays at y >= 34` below `chin_y = 33`)
-    c.ellipse(cx - 18, sh_y, 6, 5, "steel", bias=0.20)
-    c.poly([(cx - 20, sh_y - 3), (cx - 23, sh_y - 5), (cx - 16, sh_y - 4)], "steel", bias=0.28)
-    # Heavy right iron pauldron
-    c.ellipse(cx + 18, sh_y, 5, 5, "steel", bias=0.08)
-
-    # Crimson championship belt & brass buckle (`y = 49..54`)
-    c.rrect(cx - 10, waist_y - 1, cx + 10, waist_y + 3, 1, "crimson", bias=0.10)
-    c.rrect(cx - 2, waist_y - 1, cx + 4, waist_y + 3, 1, "gold", bias=0.24)
-
-    # 3. Sunk, forward-pushed head (`hx = cx + 3 = 50`, nestled down into bull traps!)
-    _draw_behemoth_head(
-        c,
-        cx + 3,
-        crown_y,
-        blink=(pose == "blink"),
-        hurt=(pose == "hurt"),
-        facing_mode="side",
-    )
-
-    # 4. Heavy Gorilla/Pit-Champion Arms hanging DOWN so both Cestus fists hang BELOW hip line!
+    # 1. Rear Arm (drawn behind torso so torso overlap reads 3D!)
     if pose in ("idle", "blink", "walk_a", "walk_b"):
-        sw = -2 if pose == "walk_a" else (2 if pose == "walk_b" else 0)
-        # Massive biceps -> forearms hanging vertically-inward so fists sit at `y = 54..58`
-        # (`hip_w` at `y = 54` = `28px` spanning `x = 34..61`, strictly above `leg_top = 59`!)
-        c.tapered_limb(cx - 19, sh_y + 3, 3.8, cx - 13, 47, 3.2, "skin", bias=0.12)
-        c.tapered_limb(cx - 13, 47, 3.0, cx - 9, 53 - sw, 2.7, "skin", bias=0.10)
-        _draw_cestus(c, cx - 8, 55 - sw // 2, rx=4.8, ry=3.5, spike_dir=-1)
-
-        c.tapered_limb(cx + 18, sh_y + 3, 3.6, cx + 14, 47, 3.0, "skin", bias=0.06)
-        c.tapered_limb(cx + 14, 47, 2.9, cx + 10, 53 + sw, 2.6, "skin", bias=0.04)
-        _draw_cestus(c, cx + 9, 55 + sw // 2, rx=4.8, ry=3.5, spike_dir=1)
+        draw_arm_with_cestus(img, cx + 8, cy - 5, cx + 15, cy + 2, cx + 21, cy - 3)
     elif pose == "windup":
-        c.tapered_limb(cx - 18, sh_y + 2, 3.6, cx - 26, sh_y + 7, 3.0, "skin")
-        _draw_cestus(c, cx - 28, sh_y + 8, rx=5.5, ry=4.5, spike_dir=-1)
-        c.tapered_limb(cx + 16, sh_y + 2, 3.4, cx + 21, sh_y + 5, 2.8, "skin")
-        _draw_cestus(c, cx + 24, sh_y + 5, rx=5.5, ry=4.5, spike_dir=1)
+        # Rear right arm pulled far back behind hip!
+        draw_arm_with_cestus(img, cx - 8, cy - 4, cx - 18, cy + 2, cx - 22, cy - 4)
     elif pose == "jab":
-        c.tapered_limb(cx - 18, sh_y + 3, 3.4, cx - 10, 53, 2.7, "skin")
-        _draw_cestus(c, cx - 8, 55, rx=4.8, ry=3.6, spike_dir=-1)
-        c.tapered_limb(cx + 14, sh_y, 3.8, cx + 29, sh_y - 1, 3.1, "skin", bias=0.14)
-        _draw_cestus(c, cx + 35, sh_y - 1, rx=6.5, ry=5.0, spike_dir=1)
-        c.stroke(cx + 20, sh_y - 6, cx + 38, sh_y - 6, "gold", 3)
-    elif pose == "cross":
-        c.tapered_limb(cx - 16, sh_y + 3, 3.2, cx - 12, 52, 2.6, "skin")
-        _draw_cestus(c, cx - 10, 54, rx=4.5, ry=3.5, spike_dir=-1)
-        # Muscular shoulder -> elbow -> explosive heavy cross (no wooden-pole arm!)
-        c.tapered_limb(cx + 10, sh_y - 1, 4.0, cx + 23, sh_y + 1, 3.5, "skin", bias=0.16)
-        c.tapered_limb(cx + 23, sh_y + 1, 3.4, cx + 33, sh_y - 1, 3.0, "skin", bias=0.18)
-        _draw_cestus(c, cx + 38, sh_y - 1, rx=7.0, ry=5.5, spike_dir=1)
-        c.arc_stroke(cx + 28, sh_y, 15, 12, -48, 48, "gold", 3, width=2, selout_wrap=True)
-    elif pose == "uppercut":
-        c.tapered_limb(cx - 17, sh_y + 3, 3.2, cx - 10, 53, 2.6, "skin")
-        _draw_cestus(c, cx - 9, 55, rx=4.5, ry=3.5, spike_dir=-1)
-        c.tapered_limb(cx + 11, sh_y + 2, 3.8, cx + 21, 30, 3.2, "skin", bias=0.14)
-        c.tapered_limb(cx + 21, 30, 3.2, cx + 24, 21, 2.9, "skin", bias=0.18)
-        _draw_cestus(c, cx + 25, 18, rx=6.0, ry=4.8, spike_dir=1)
-        c.arc_stroke(cx + 18, 28, 14, 15, -80, 25, "gold", 3, width=2, selout_wrap=True)
-    elif pose == "charge":
-        c.tapered_limb(cx - 10, sh_y + 2, 3.8, cx + 18, sh_y + 3, 3.2, "skin", bias=0.12)
-        _draw_cestus(c, cx + 23, sh_y + 2, rx=6.5, ry=5.0, spike_dir=1)
-        c.ellipse(cx + 16, sh_y - 1, 6, 5, "steel", bias=0.22)
+        # Guard hand tucked by chin while lead arm jabs!
+        draw_arm_with_cestus(img, cx - 7, cy - 4, cx - 12, cy + 3, cx - 5, cy + 1)
     elif pose == "hurt":
-        c.tapered_limb(cx - 18, sh_y + 2, 3.4, cx - 22, sh_y - 2, 2.8, "skin")
-        _draw_cestus(c, cx - 24, sh_y - 3, rx=4.5, ry=3.8, spike_dir=-1)
-        c.tapered_limb(cx + 16, sh_y + 3, 3.2, cx + 19, sh_y + 8, 2.6, "skin")
-        _draw_cestus(c, cx + 20, sh_y + 10, rx=5.0, ry=4.0, spike_dir=1)
+        draw_arm_with_cestus(img, cx + 8, cy - 5, cx + 16, cy - 12, cx + 21, cy - 16)
 
-    return c.finalize(ground_y=GROUND_Y)
+    # 2. Medieval Trousers & Heavy Studded Boots
+    for lx, ly in ((cx + leg_l[0], cy + leg_l[1]), (cx + leg_r[0], cy + leg_r[1])):
+        pill_limb(img, cx + (leg_l[0] // 2 if lx < cx else leg_r[0] // 2), cy + 12, lx, ly - 5, 4,
+                  PANTS_DARK, PANTS_MID, PANTS_MID)
+        d.rounded_rectangle([lx - 5, ly - 6, lx + 6, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        d.line([(lx - 4, ly - 5), (lx + 4, ly - 5)], fill=LEATHER_HI)
+        put(img, lx + 3, ly - 2, IRON_HI)
+
+    # 3. Broad Medieval Brigandine Vest + Brass Championship Belt + Crimson Sash
+    torso = [
+        (cx - 12, cy - 9),
+        (cx + 12, cy - 9),
+        (cx + 9, cy + 13),
+        (cx - 9, cy + 13),
+    ]
+    d.polygon(torso, fill=LEATHER_MID, outline=OUTLINE)
+    # V-neck bare muscular chest V + stitched leather studs
+    d.polygon([(cx - 3, cy - 8), (cx + 5, cy - 8), (cx + 1, cy + 1)], fill=SKIN_MID)
+    for sy in (cy - 4, cy + 2, cy + 7):
+        put(img, cx - 7, sy, BRASS_HI)
+        put(img, cx + 7, sy, BRASS_HI)
+    # Crimson waist sash + wide brass lion-buckle belt
+    d.polygon([(cx - 9, cy + 11), (cx - 4, cy + 11), (cx - 7, cy + 21), (cx - 12, cy + 19)],
+              fill=SASH_RED, outline=OUTLINE)
+    d.rectangle([cx - 10, cy + 9, cx + 10, cy + 14], fill=LEATHER_DARK, outline=OUTLINE)
+    d.rounded_rectangle([cx - 3, cy + 8, cx + 5, cy + 14], radius=1, fill=BRASS_HI, outline=OUTLINE)
+    put(img, cx + 1, cy + 11, BRASS_DARK)
+
+    # Iron-plated medieval pauldron on lead shoulder
+    px_sh = cx + (11 if pose == "charge" else -11)
+    d.ellipse([px_sh - 6, cy - 11, px_sh + 6, cy - 1], fill=IRON_MID, outline=OUTLINE)
+    d.arc([px_sh - 5, cy - 10, px_sh + 5, cy - 2], 190, 350, fill=IRON_HI)
+
+    # 4. Head
+    draw_brawler_head(img, cx + (5 if pose == "charge" else (-2 if pose == "hurt" else 1)),
+                      cy - 18, blink=(pose == "blink"), hurt=(pose == "hurt"), tail_sway=tail_sway)
+
+    # 5. Foreground Punching / Charging Arm + Clean Motion Smears!
+    if pose in ("idle", "blink"):
+        draw_arm_with_cestus(img, cx - 9, cy - 4, cx - 4, cy + 5, cx + 10, cy + 1)
+    elif pose == "walk_a":
+        draw_arm_with_cestus(img, cx - 9, cy - 4, cx - 5, cy + 5, cx + 8, cy + 3)
+    elif pose == "walk_b":
+        draw_arm_with_cestus(img, cx - 9, cy - 4, cx - 2, cy + 4, cx + 12, cy - 1)
+    elif pose == "windup":
+        draw_arm_with_cestus(img, cx + 8, cy - 4, cx + 13, cy + 2, cx + 17, cy - 3)
+    elif pose == "jab":
+        # Crisp white-gold straight jab speed lines + extended fist!
+        d.line([(cx + 14, cy - 5), (cx + 36, cy - 5)], fill=(255, 244, 196, 190), width=3)
+        d.line([(cx + 18, cy - 1), (cx + 34, cy - 1)], fill=(255, 195, 92, 150), width=2)
+        draw_arm_with_cestus(img, cx + 9, cy - 5, cx + 22, cy - 5, cx + 36, cy - 4)
+    elif pose == "cross":
+        # Heavy cross punch sweeping across body with curved golden motion trail!
+        pts = [(cx - 4 + k * 3, cy + 6 - int(math.sin(k / 13.0 * math.pi) * 9)) for k in range(15)]
+        d.line(pts, fill=(255, 208, 92, 190), width=4)
+        draw_arm_with_cestus(img, cx - 6, cy - 4, cx + 16, cy - 2, cx + 40, cy - 2, golden=True)
+    elif pose == "uppercut":
+        # Skyward rising uppercut arc!
+        pts = [(cx + 12 + int(math.sin(k / 12.0 * math.pi) * 16), cy + 16 - k * 3) for k in range(13)]
+        d.line(pts, fill=(255, 224, 110, 215), width=4)
+        draw_arm_with_cestus(img, cx + 6, cy - 2, cx + 21, cy + 3, cx + 25, cy - 24, golden=True)
+    elif pose == "charge":
+        # Heavy Shoulder-Smash brace: iron pauldron & crossed cestus braced forward!
+        draw_arm_with_cestus(img, cx + 4, cy - 4, cx + 16, cy + 2, cx + 22, cy - 5, golden=True)
+        for ky in (-10, -2, 7):
+            d.line([(cx + 27, cy + ky), (cx + 36, cy + ky)], fill=BRASS_HI, width=2)
+    elif pose == "hurt":
+        draw_arm_with_cestus(img, cx - 9, cy - 3, cx - 17, cy - 9, cx - 21, cy - 14)
+
+    return img
 
 
-def build_behemoth_vertical(pose: str) -> Image.Image:
-    c = HeroCanvas()
-    cx = 48
-    crown_y = 12
+def build_brawler_vertical_pose(pose: str) -> Image.Image:
+    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Behemoth!"""
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = 48, 49
     is_up = pose.startswith("up_")
     step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
-    l_fy = 79 - (2 if step > 0 else 0)
-    r_fy = 79 - (2 if step < 0 else 0)
-    hip_y, waist_y, sh_y = 54, 50, 39
+    l_dy = -3 * step
+    r_dy = 3 * step
 
-    for idx, (lx, fy) in enumerate(((cx - 8, l_fy), (cx + 8, r_fy))):
-        c.tapered_limb(lx, hip_y, 3.1, lx, 66, 2.5, "obsidian")
-        c.tapered_limb(lx, 66, 2.5, lx, fy - 4, 2.1, "leather")
-        c.rrect(lx - 3, 64, lx + 3, 67, 1, "steel")
-        c.rrect(lx - 4, fy - 4, lx + 4, fy, 1, "leather")
+    # Legs & heavy studded boots (locked to y=76 baseline when idle!)
+    for side, dy in ((-7, l_dy), (7, r_dy)):
+        lx, ly = cx + side, cy + 27 + min(0, dy)
+        pill_limb(img, cx + side // 2, cy + 12, lx, ly - 5, 4, PANTS_DARK, PANTS_MID, PANTS_MID)
+        d.rounded_rectangle([lx - 5, ly - 6, lx + 5, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        d.line([(lx - 4, ly - 5), (lx + 4, ly - 5)], fill=LEATHER_HI)
 
-    # 50px front/back boulder shoulders (>= side idle 48px so `_standing_cell` picks `f00`)
-    c.poly(
-        [
-            (cx - 12, crown_y + 21),
-            (cx + 12, crown_y + 21),
-            (cx + 25, sh_y + 1),
-            (cx + 11, waist_y),
-            (cx + 10, hip_y + 2),
-            (cx - 10, hip_y + 2),
-            (cx - 11, waist_y),
-            (cx - 25, sh_y + 1),
-        ],
-        "leather",
-        bias=0.06,
-    )
+    # Symmetrical broad brigandine torso
+    torso = [(cx - 13, cy - 9), (cx + 13, cy - 9), (cx + 10, cy + 13), (cx - 10, cy + 13)]
+    d.polygon(torso, fill=LEATHER_MID, outline=OUTLINE)
     if not is_up:
-        c.poly([(cx - 13, sh_y - 3), (cx + 13, sh_y - 3), (cx + 9, waist_y - 2), (cx - 9, waist_y - 2)], "steel")
+        # Front: bare V-chest + lion buckle + crimson sash
+        d.polygon([(cx - 4, cy - 8), (cx + 4, cy - 8), (cx, cy + 1)], fill=SKIN_MID)
+        d.polygon([(cx - 8, cy + 11), (cx - 3, cy + 11), (cx - 6, cy + 21), (cx - 11, cy + 19)], fill=SASH_RED, outline=OUTLINE)
+        d.rectangle([cx - 10, cy + 9, cx + 10, cy + 14], fill=LEATHER_DARK, outline=OUTLINE)
+        d.rounded_rectangle([cx - 4, cy + 8, cx + 4, cy + 14], radius=1, fill=BRASS_HI, outline=OUTLINE)
     else:
-        # Crossed leather back-harness straps on back view!
-        c.stroke(cx - 12, sh_y - 3, cx + 9, waist_y - 1, "obsidian", 2, width=2)
-        c.stroke(cx + 12, sh_y - 3, cx - 9, waist_y - 1, "obsidian", 2, width=2)
+        # Back: X-strapped leather harness + knotted headband tails!
+        d.line([(cx - 9, cy - 7), (cx + 8, cy + 9)], fill=LEATHER_DARK, width=3)
+        d.line([(cx + 9, cy - 7), (cx - 8, cy + 9)], fill=LEATHER_DARK, width=3)
+        d.rectangle([cx - 10, cy + 9, cx + 10, cy + 14], fill=LEATHER_DARK, outline=OUTLINE)
 
-    sp_x = cx - 19 if not is_up else cx + 19
-    c.ellipse(sp_x, sh_y, 6, 5, "steel", bias=0.20)
-    c.poly([(sp_x - 2, sh_y - 3), (sp_x, sh_y - 6), (sp_x + 3, sh_y - 3)], "steel", bias=0.28)
-    c.ellipse(cx + (19 if not is_up else -19), sh_y, 5, 5, "steel", bias=0.08)
+    # Iron pauldron on left shoulder (`cx - 12` when front, `cx + 12` when viewed from behind!)
+    psh = cx - 12 if not is_up else cx + 12
+    d.ellipse([psh - 6, cy - 11, psh + 6, cy - 1], fill=IRON_MID, outline=OUTLINE)
+    d.arc([psh - 5, cy - 10, psh + 5, cy - 2], 190, 350, fill=IRON_HI)
 
-    c.rrect(cx - 11, waist_y - 1, cx + 11, waist_y + 3, 1, "crimson")
+    # Both Iron-Cestus arms swinging naturally with stride
+    l_arm_y = cy + 2 + r_dy
+    r_arm_y = cy + 2 + l_dy
+    draw_arm_with_cestus(img, cx - 12, cy - 4, cx - 17, cy + 2, cx - 14, l_arm_y)
+    draw_arm_with_cestus(img, cx + 12, cy - 4, cx + 17, cy + 2, cx + 14, r_arm_y)
+
+    # Head (front beard & eyes vs back hair & tied crimson headband tails!)
+    hy = cy - 18
     if not is_up:
-        c.rrect(cx - 3, waist_y - 1, cx + 3, waist_y + 3, 1, "gold")
-
-    # Draw head BEFORE or WITH bull neck so head sits cleanly into traps on both down & up!
-    _draw_behemoth_head(c, cx, crown_y, facing_mode="up" if is_up else "down")
-
-    c.tapered_limb(cx - 20, sh_y + 3, 3.6, cx - 12, 53 + step * 2, 2.7, "skin")
-    _draw_cestus(c, cx - 10, 55 + step * 2, rx=4.8, ry=3.5, spike_dir=-1)
-    c.tapered_limb(cx + 20, sh_y + 3, 3.6, cx + 12, 53 - step * 2, 2.7, "skin")
-    _draw_cestus(c, cx + 10, 55 - step * 2, rx=4.8, ry=3.5, spike_dir=1)
-
-    return c.finalize(ground_y=GROUND_Y)
+        d.rounded_rectangle([cx - 9, hy - 11, cx + 9, hy + 9], radius=4, fill=SKIN_MID, outline=OUTLINE)
+        d.rounded_rectangle([cx - 9, hy - 12, cx + 9, hy - 5], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+        d.rectangle([cx - 9, hy - 7, cx + 9, hy - 3], fill=SASH_RED, outline=OUTLINE)
+        for rx in (cx - 5, cx, cx + 5):
+            put(img, rx, hy - 5, BRASS_HI)
+        for ex in (cx - 4, cx + 3):
+            put(img, ex, hy - 1, OUTLINE)
+            put(img, ex + 1, hy - 1, BRASS_HI)
+        d.rounded_rectangle([cx - 8, hy + 3, cx + 8, hy + 10], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+        put(img, cx, hy + 9, BRASS_HI)
+    else:
+        d.rounded_rectangle([cx - 9, hy - 12, cx + 9, hy + 8], radius=4, fill=HAIR_DARK, outline=OUTLINE)
+        d.line([(cx - 6, hy - 9), (cx + 6, hy - 9)], fill=HAIR_MID, width=2)
+        d.rectangle([cx - 9, hy - 6, cx + 9, hy - 2], fill=SASH_RED, outline=OUTLINE)
+        # Streaming crimson headband knot & twin tails down his back!
+        d.ellipse([cx - 3, hy - 5, cx + 3, hy + 1], fill=SASH_HI, outline=OUTLINE)
+        d.polygon([(cx - 2, hy), (cx - 7 + step, hy + 12), (cx - 3 + step, hy + 13), (cx, hy + 1)], fill=SASH_RED, outline=OUTLINE)
+        d.polygon([(cx + 2, hy), (cx + 7 + step, hy + 12), (cx + 3 + step, hy + 13), (cx, hy + 1)], fill=SASH_RED, outline=OUTLINE)
+    return img
 
 
 def main() -> None:
@@ -309,24 +361,24 @@ def main() -> None:
         "idle", "walk_a", "walk_b", "windup", "jab", "cross", "uppercut", "charge", "hurt", "blink",
         "down_idle", "down_walk_a", "down_walk_b", "up_idle", "up_walk_a", "up_walk_b",
     ]
-    sheet = Image.new("RGBA", (CELL * len(poses), CELL), (0, 0, 0, 0))
+    sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
     for i, p in enumerate(poses):
-        fr = build_behemoth_vertical(p) if p.startswith(("down_", "up_")) else build_behemoth_side(p)
-        sheet.alpha_composite(fr, (i * CELL, 0))
+        fr = build_brawler_vertical_pose(p) if p.startswith(("down_", "up_")) else build_brawler_pose(p)
+        sheet.alpha_composite(fr, (i * FRAME, 0))
     sheet.save("assets/textures/player_behemoth.png")
     print("wrote assets/textures/player_behemoth.png", sheet.size)
 
     zoom, pad = 2, 10
-    w = pad + len(poses) * (CELL * zoom + pad)
-    h = 30 + CELL * zoom + 24
-    prev = Image.new("RGBA", (w, h), (26, 20, 18, 255))
+    w = pad + len(poses) * (FRAME * zoom + pad)
+    h = 30 + FRAME * zoom + 24
+    prev = Image.new("RGBA", (w, h), (24, 19, 18, 255))
     d = ImageDraw.Draw(prev)
-    d.text((pad, 8), "BEHEMOTH (SKELETON SPEC: 68px, 48w shoulders, 470 leg_mass)", fill=RAMPS["gold"][3])
+    d.text((pad, 8), "MEDIEVAL BRAWLER (BEHEMOTH) - 10 frames x 96x96", fill=(248, 222, 182, 255))
     for i, p in enumerate(poses):
-        x = pad + i * (CELL * zoom + pad)
-        fr = sheet.crop((i * CELL, 0, (i + 1) * CELL, CELL))
-        prev.alpha_composite(fr.resize((CELL * zoom, CELL * zoom), Image.NEAREST), (x, 28))
-        d.text((x, 28 + CELL * zoom + 4), f"{i}:{p}", fill=RAMPS["moon"][2])
+        x = pad + i * (FRAME * zoom + pad)
+        fr = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
+        prev.alpha_composite(fr.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST), (x, 28))
+        d.text((x, 28 + FRAME * zoom + 4), f"{i}:{p}", fill=(224, 192, 148, 255))
     prev.save("docs/images/behemoth_preview.png")
 
 

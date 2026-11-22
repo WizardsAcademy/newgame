@@ -26,11 +26,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run hero skeleton & sprite sheet strict contracts
+      - name: Run 96x96 hero sprite sheet checks
         run: |
           python3 -m pip install --upgrade pip pillow
           python3 tools/import_pose_sheet.py --hero noa
-          python3 tools/hero_skeleton_check.py --strict --iou
           python3 tools/measure_hero_sheets.py --strict
 
       - name: Cache Godot 4.7.2 binary

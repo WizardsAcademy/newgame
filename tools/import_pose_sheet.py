@@ -227,19 +227,31 @@ def key_and_defringe_pose(
                     bg[y][x] = True
 
     # Pre-clean neutral grey painted ground-shadow bars at bottom so flood-fill
-    # flows cleanly into the white space between the boots.
+    # flows cleanly into the white space between the boots and leaves zero floor bars.
     if strip_ground_shadow:
-        for y in range(max(0, h - 6), h):
+        for y in range(max(0, h - 8), h):
             for x in range(w):
                 r, g, b, _ = px[x, y]
                 lum, sat = _lum_sat(r, g, b)
-                if sat < 26.0 and lum > 72.0:
-                    bg[y][x] = True
+                is_crimson = (r - g) > 22
+                if not is_crimson and sat < 39.0 and lum > 52.0:
+                    if y >= h - 5 or lum > 84.0:
+                        bg[y][x] = True
 
     def _within_white_tol(r: int, g: int, b: int, a: int) -> bool:
         if a == 0:
             return True
         return max(abs(255 - r), abs(255 - g), abs(255 - b)) <= tolerance
+
+    # Open any horizontal floor-shadow line (`y >= h - 6`) sitting beneath open
+    # white air (`y = h - 7` or `h - 8` within white tolerance) so flood-fill
+    # flows freely into the gap between strides/boots!
+    if strip_ground_shadow and h >= 10:
+        for x in range(w):
+            if _within_white_tol(*px[x, h - 7]) or _within_white_tol(*px[x, h - 8]):
+                for yy in range(h - 7, h):
+                    if _within_white_tol(*px[x, yy]) or _lum_sat(*px[x, yy][:3])[1] < 40.0:
+                        bg[yy][x] = True
 
     # Step 1: 4-connected border flood-fill with `tolerance = 42`.
     q: deque[tuple[int, int]] = deque()
@@ -260,6 +272,17 @@ def key_and_defringe_pose(
                 if _within_white_tol(*px[nx, ny]):
                     bg[ny][nx] = True
                     q.append((nx, ny))
+
+    # Strip any 1..3px horizontal floor-shadow bridge along the bottom (`y >= h - 5`)
+    # that has background air directly above it (`y - 1` or `y - 2` is background).
+    if strip_ground_shadow and h >= 10:
+        for x in range(w):
+            if bg[h - 6][x] or bg[h - 7][x]:
+                # Check if there is any background gap between `h - 7` and `h - 1`
+                top_air = next((yy for yy in range(h - 7, h) if bg[yy][x]), None)
+                if top_air is not None:
+                    for yy in range(top_air, h):
+                        bg[yy][x] = True
 
     # Keep largest 8-connected foreground component (strips neighbor crop slivers & labels).
     vis = [[False] * w for _ in range(h)]
@@ -1021,18 +1044,10 @@ def import_noa(cfg: dict) -> None:
 
     f0_idle = place_pose_in_cell(cleaned_map["idle_down"], snapper, target_h, ground_y)
     f1_idle_b = make_breath_variant(f0_idle, ground_y)
-    f2_walk1 = place_pose_in_cell(
-        cleaned_map["walk_1"], snapper, target_h, ground_y, ensure_two_foot_stance=True
-    )
-    f3_walk2 = place_pose_in_cell(
-        cleaned_map["walk_2"], snapper, target_h, ground_y, ensure_two_foot_stance=True
-    )
-    f4_walk3 = place_pose_in_cell(
-        cleaned_map["walk_3"], snapper, target_h, ground_y, ensure_two_foot_stance=True
-    )
-    f5_walk4 = place_pose_in_cell(
-        cleaned_map["walk_4"], snapper, target_h, ground_y, ensure_two_foot_stance=True
-    )
+    f2_walk1 = place_pose_in_cell(cleaned_map["walk_1"], snapper, target_h, ground_y)
+    f3_walk2 = place_pose_in_cell(cleaned_map["walk_2"], snapper, target_h, ground_y)
+    f4_walk3 = place_pose_in_cell(cleaned_map["walk_3"], snapper, target_h, ground_y)
+    f5_walk4 = place_pose_in_cell(cleaned_map["walk_4"], snapper, target_h, ground_y)
     f6_down_a, f7_down_b = make_walk_down_pair(f0_idle, ground_y)
     f8_idle_up = place_pose_in_cell(cleaned_map["idle_up"], snapper, target_h, ground_y)
     f9_up_a = place_pose_in_cell(cleaned_map["walk_up"], snapper, target_h, ground_y)
@@ -1064,7 +1079,72 @@ def import_noa(cfg: dict) -> None:
     ]
 
     sheet = Image.new("RGBA", (CELL * len(frames_and_labels), CELL), (0, 0, 0, 0))
-    for idx, (_lbl, cell) in enumerate(frames_and_labels):
+    bright_rim = {NOA_PALETTE_24[0], NOA_PALETTE_24[1]}
+    mid_lilac = (*NOA_PALETTE_24[3], 255)
+    deep_lilac = (*NOA_PALETTE_24[5], 255)
+
+    for idx, (lbl, cell) in enumerate(frames_and_labels):
+        # Polish cell silhouette: remove detached floating specks (< 20px, keeping
+        # f13's intentional crimson blood orbs) and de-halo bright 1px white-AA edges.
+        cpx = cell.load()
+        vis_c: set[tuple[int, int]] = set()
+        for cy0 in range(CELL):
+            for cx0 in range(CELL):
+                if cpx[cx0, cy0][3] > 0 and (cx0, cy0) not in vis_c:
+                    q_c: deque[tuple[int, int]] = deque([(cx0, cy0)])
+                    vis_c.add((cx0, cy0))
+                    pts_c: list[tuple[int, int]] = []
+                    crimson_cnt = 0
+                    while q_c:
+                        ux, uy = q_c.popleft()
+                        pts_c.append((ux, uy))
+                        cr, cg, _cb, _ca = cpx[ux, uy]
+                        if cr - cg > 45:
+                            crimson_cnt += 1
+                        for dx in (-1, 0, 1):
+                            for dy in (-1, 0, 1):
+                                if dx == 0 and dy == 0:
+                                    continue
+                                nx, ny = ux + dx, uy + dy
+                                if (
+                                    0 <= nx < CELL
+                                    and 0 <= ny < CELL
+                                    and cpx[nx, ny][3] > 0
+                                    and (nx, ny) not in vis_c
+                                ):
+                                    vis_c.add((nx, ny))
+                                    q_c.append((nx, ny))
+                    if len(pts_c) < 20 and not (lbl == "charge" and crimson_cnt >= 2):
+                        for ux, uy in pts_c:
+                            cpx[ux, uy] = (0, 0, 0, 0)
+
+        snap_copy = cell.copy()
+        spx = snap_copy.load()
+        for cy0 in range(CELL):
+            for cx0 in range(CELL):
+                cr, cg, cb, ca = spx[cx0, cy0]
+                if ca == 0 or (cr, cg, cb) not in bright_rim:
+                    continue
+                touches_air = False
+                dark_nb = False
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nx, ny = cx0 + dx, cy0 + dy
+                    if not (0 <= nx < CELL and 0 <= ny < CELL) or spx[nx, ny][3] == 0:
+                        touches_air = True
+                    else:
+                        nr, ng, nb, _ = spx[nx, ny]
+                        if (nr + ng + nb) / 3.0 < 105.0:
+                            dark_nb = True
+                if touches_air:
+                    cpx[cx0, cy0] = deep_lilac if dark_nb else mid_lilac
+
+        # Keep exact ground_y row intact if pruning shifted bottom_y by 1px.
+        cbb = cell.getbbox()
+        if cbb is not None and cbb[3] != ground_y:
+            shifted = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
+            shifted.alpha_composite(cell.crop(cbb), (cbb[0], ground_y - (cbb[3] - cbb[1])))
+            cell = shifted
+
         sheet.alpha_composite(cell, (idx * CELL, 0))
 
     face_path = src_dir / "face.png"
