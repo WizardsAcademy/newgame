@@ -18,9 +18,9 @@ Current state (verified on `main`):
   - `assets/textures/player_behemoth.png` (16 frames, 20 colours)
   - `assets/textures/player_knight.png` (16 frames, 19 colours)
   - `assets/textures/player_sylvara.png` (15 frames, 21 colours)
-  - `assets/textures/player_velmira.png` (16 frames, 15 colours)
+  - `assets/textures/player_noa.png` (16 frames, 15 colours)
   - `assets/textures/portrait_*.png` (48–58 colours each, 0% semi-transparent)
-- Scenes: `scenes/player/Behemoth.tscn`, `Knight.tscn`, `Sylvara.tscn`, `Velmira.tscn`
+- Scenes: `scenes/player/Behemoth.tscn`, `Knight.tscn`, `Sylvara.tscn`, `Noa.tscn`
   (all `extends PlayerBase`, see `scripts/player/player_base.gd`).
 - Enemy art is 1:1 in world units and **must not change**: slime 32×32 cell,
   golem 80×80 cell, archer 64×64 cell.
@@ -39,10 +39,10 @@ The hero art is technically clean (limited palette, binary alpha) but reads as
 | Behemoth | 60.4 px | 78–80 | 0.36 | ~43 px |
 | **Knight** | **74.9 px** | **84–96** | 0.36 | **~54 px** |
 | Sylvara | 59.4 px | **68**, 79, 80 | 0.34 | ~40 px |
-| **Velmira** | **56.4 px** | 77–81 | 0.34 | **~38 px** |
+| **Noa** | **56.4 px** | 77–81 | 0.34 | **~38 px** |
 
 Consequences visible in game: the slime is taller than the heroes; Knight is 45%
-taller than Velmira; Sylvara jumps ~11 px vertically between frames; Knight
+taller than Noa; Sylvara jumps ~11 px vertically between frames; Knight
 sinks to the cell bottom. Nothing shares a ground line or a body height.
 
 ### Non-goals (do NOT do these)
@@ -124,7 +124,7 @@ the contract test runs and reports which heroes violate the targets.
 ### Phase 2 — Put them on screen at the right size (2 hours)
 
 1. Set `Visuals.scale = Vector2(0.5, 0.5)` in the four hero scenes
-   (`Behemoth.tscn`, `Knight.tscn`, `Sylvara.tscn`, `Velmira.tscn`) — one value
+   (`Behemoth.tscn`, `Knight.tscn`, `Sylvara.tscn`, `Noa.tscn`) — one value
    for all four, no per-hero exceptions.
 2. Set `Visuals.position.y` so the drawn feet land on the node origin.
 3. Keep body collision at 16×16; only visual size changes. Verify the attack
@@ -141,18 +141,18 @@ no blur, all suites green, gameplay timing unchanged.
 
 ---
 
-### Phase 3 — Velmira attack VFX (the known bug)
+### Phase 3 — Noa attack VFX (the known bug)
 
 `scripts/player/shabnam.gd` currently draws the attack **twice**:
 
-- the `velmira_fx.png` sprite strip (`BloodSplashSlash._sprite`), **and**
+- the `noa_fx.png` sprite strip (`BloodSplashSlash._sprite`), **and**
 - a procedural three-layer crescent + droplets in `BloodSplashSlash._draw()`.
 
 Pick **one** and delete the other. Recommended: keep the hand-drawn strip,
 delete the crescent polygons from `_draw()`, keep only the six blood droplets
 and add an additive glow layer on top of the sprite.
 
-Also remove the two stray art cells from `player_velmira.png`:
+Also remove the two stray art cells from `player_noa.png`:
 frame 4 (a 65×61 red orb) and frame 9 (a 57×13 blood puddle on the floor) —
 they are leftovers from an older pipeline and show up mid-animation. Replace
 frame 4 with a proper slash pose, or reindex the animation so the orb is never
@@ -173,7 +173,7 @@ This is the only phase where art has to be drawn. Work in this order:
    - Behemoth — broad, hunched, shoulders wider than hips, fists forward.
    - Knight — tall, upright, sword resting on the shoulder, cape wedge behind.
    - Sylvara — narrow, bow hoop visible against the body, quiver breaking the back line.
-   - Velmira — heavy hair mass with an asymmetric fall, narrow shoulders.
+   - Noa — heavy hair mass with an asymmetric fall, narrow shoulders.
 2. **Ramp pass.** For every material (skin, cloth, leather, steel, hair, gold)
    define exactly 4 colours: `shadow / base / light / highlight`, sampled from
    the shared 32-colour base ramp. Light source: **top-left** for all four heroes.
@@ -195,9 +195,9 @@ never `#000000`; a silhouette sheet exists proving 4 distinct shapes.
    (cell, body height, ground line, palette, outline rule, shading rule). This
    is the file future PRs are measured against.
 2. Update `README.md`: it still claims `32×32` sprites, Behemoth 100 HP,
-   Knight 120 HP / 60% shield, Velmira 85 HP — all wrong. Use the real values
+   Knight 120 HP / 60% shield, Noa 85 HP — all wrong. Use the real values
    from `docs/CHARACTERS.md` (120 / 150 / 100 / 75 HP, Knight 100% block).
-3. Fix the dead link in `docs/ROADMAP.md` to the deleted `VELMIRA_REDESIGN.md`
+3. Fix the dead link in `docs/ROADMAP.md` to the deleted `NOA_REDESIGN.md`
    and `VAMPIRE_IDLE.md`.
 4. Add `.github/workflows/tests.yml` running the 5 existing suites plus
    `tests/sprite_contract_test.tscn` on every PR. Any red = no merge.

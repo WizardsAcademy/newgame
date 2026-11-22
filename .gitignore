@@ -5,8 +5,8 @@
 .import/
 
 # Exported builds (when we export the game later)
-export/
-build/
+/export/
+/build/
 
 # OS junk files
 .DS_Store

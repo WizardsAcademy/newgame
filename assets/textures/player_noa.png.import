@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cvelmiratex01"
-path="res://.godot/imported/player_velmira.png-dc9f4d315cf43ac664a2289566d19ea1.ctex"
+uid="uid://cnoatex00001"
+path="res://.godot/imported/player_noa.png-defe8f99360dbeb014a173de666f4233.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/player_velmira.png"
-dest_files=["res://.godot/imported/player_velmira.png-dc9f4d315cf43ac664a2289566d19ea1.ctex"]
+source_file="res://assets/textures/player_noa.png"
+dest_files=["res://.godot/imported/player_noa.png-defe8f99360dbeb014a173de666f4233.ctex"]
 
 [params]
 

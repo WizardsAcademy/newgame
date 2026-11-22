@@ -1,12 +1,12 @@
 extends Node
 ## Comprehensive Headless Verification Suite for:
 ##   1. Global 4-Directional Facing (`idle_up`/`walk_up`, `idle_down`/`walk_down`,
-##      `idle`/`walk`) across ALL 4 heroes + Grounded Velmira walk (ZERO floating).
+##      `idle`/`walk`) across ALL 4 heroes + Grounded Noa walk (ZERO floating).
 ##   2. Circular-clipped Bottom-Left `HeroHUD` portrait (`ShaderMaterial` mask).
 ##   3. SANDBOX full-map enemy aggro (`detection_range = 2500`) vs STAGES normal
 ##      aggro (`detection_range = 200`, `adi`).
 ##   4. Knight Hit-Only Shield Stamina + exhaustion lockout until 100% recovery.
-##   5. Velmira Unified 96x96 Sheet (`1536x96` = 16 frames of `96x96`), Sweeping
+##   5. Noa Unified 96x96 Sheet (`1536x96` = 16 frames of `96x96`), Sweeping
 ##      Crimson Blood-Splash Slash (NO yoyo!), 30% Ground Blood Fountain, Classic
 ##      5-Bat `Shift` Swarm (no shadow ghost, no leak on exit), & 8-frame Blood-Melt `die`.
 ##   6. Dark-Fantasy Game Over (`DEAD AGAIN?` + `NOT YET` in `dark_fantasy.ttf`)
@@ -65,7 +65,7 @@ func _first_living_enemy(enemies_root: Node) -> Node2D:
 
 
 func _run() -> void:
-	print("\n=== 4-Dir Heroes, Circular HUD, Sandbox vs Stages Aggro, Blood-Splash Velmira & Revival Suite ===\n")
+	print("\n=== 4-Dir Heroes, Circular HUD, Sandbox vs Stages Aggro, Blood-Splash Noa & Revival Suite ===\n")
 
 	# -----------------------------------------------------------------
 	# 1. ALL 4 HERO SHEETS, PORTRAITS, DARK-FANTASY FONT & CLASSIC BATS
@@ -73,24 +73,24 @@ func _run() -> void:
 	var tex_behemoth: Texture2D = load("res://assets/textures/player_behemoth.png")
 	var tex_knight: Texture2D = load("res://assets/textures/player_knight.png")
 	var tex_sylvara: Texture2D = load("res://assets/textures/player_sylvara.png")
-	var tex_velmira: Texture2D = load("res://assets/textures/player_velmira.png")
-	var tex_vel_fx: Texture2D = load("res://assets/textures/velmira_fx.png")
+	var tex_noa: Texture2D = load("res://assets/textures/player_noa.png")
+	var tex_vel_fx: Texture2D = load("res://assets/textures/noa_fx.png")
 	var tex_bats: Texture2D = load("res://assets/textures/crimson_bat.png")
 	var dark_font: Font = load("res://assets/fonts/dark_fantasy.ttf")
 
 	_check_eq("Behemoth 4-dir sheet is 1536x96 (16 frames)", tex_behemoth.get_size(), Vector2(1536, 96))
 	_check_eq("Knight 4-dir sheet is 1536x96 (16 frames)", tex_knight.get_size(), Vector2(1536, 96))
 	_check_eq("Sylvara 4-dir sheet is 1440x96 (15 frames)", tex_sylvara.get_size(), Vector2(1440, 96))
-	_check_eq("Velmira 4-dir sheet is 1536x96 (16 frames)", tex_velmira.get_size(), Vector2(1536, 96))
-	_check_eq("Velmira Hand-Crafted Blood FX strip is 1024x128 (8x 128x128)", tex_vel_fx.get_size(), Vector2(1024, 128))
-	_check_eq("Velmira Classic Crimson Bat strip is 72x24 (3x 24x24)", tex_bats.get_size(), Vector2(72, 24))
+	_check_eq("Noa 4-dir sheet is 1536x96 (16 frames)", tex_noa.get_size(), Vector2(1536, 96))
+	_check_eq("Noa Hand-Crafted Blood FX strip is 1024x128 (8x 128x128)", tex_vel_fx.get_size(), Vector2(1024, 128))
+	_check_eq("Noa Classic Crimson Bat strip is 72x24 (3x 24x24)", tex_bats.get_size(), Vector2(72, 24))
 	_check("Dark-Fantasy Gothic font loaded cleanly", dark_font != null)
 
 	for p_path in [
 		"res://assets/textures/portrait_behemoth.png",
 		"res://assets/textures/portrait_knight.png",
 		"res://assets/textures/portrait_sylvara.png",
-		"res://assets/textures/portrait_velmira.png",
+		"res://assets/textures/portrait_noa.png",
 	]:
 		var ptex: Texture2D = load(p_path)
 		_check_eq("Face portrait strip %s is 320x64 (5x 64x64)" % p_path.get_file(),
@@ -99,7 +99,7 @@ func _run() -> void:
 	# -----------------------------------------------------------------
 	# 2. LOBBY, CIRCULAR-CLIPPED HUD, SANDBOX FULL-MAP CHASE vs STAGES NORMAL, & REVIVAL!
 	# -----------------------------------------------------------------
-	CharacterRegistry.selected_id = "velmira"
+	CharacterRegistry.selected_id = "noa"
 	CharacterRegistry.quick_retry_same_hero = false
 	var main := MAIN_SCENE.instantiate()
 	add_child(main)
@@ -172,7 +172,7 @@ func _run() -> void:
 	var game_over_ui: Control = main.get_node("UI/GameOver")
 	main.player.take_damage(500, main.player.global_position + Vector2(20, 0))
 	await _wait(0.20)
-	_check_eq("Velmira plays 8-frame Blood-Pool 'die' animation on death",
+	_check_eq("Noa plays 8-frame Blood-Pool 'die' animation on death",
 		main.player.is_dead and main.player.anim_player.current_animation == "die", true)
 	await _wait(1.05) # Wait for `DEAD AGAIN?` fade-in
 	_check_eq("GameOver overlay is visible", game_over_ui.visible, true)
@@ -198,7 +198,7 @@ func _run() -> void:
 	await _tick(4)
 
 	# -----------------------------------------------------------------
-	# 3. 4-DIRECTIONAL MOVEMENT ON ALL 4 HEROES + KNIGHT STAMINA + VELMIRA BLOOD SPLASH & CLASSIC BATS
+	# 3. 4-DIRECTIONAL MOVEMENT ON ALL 4 HEROES + KNIGHT STAMINA + NOA BLOOD SPLASH & CLASSIC BATS
 	# -----------------------------------------------------------------
 	var world := Node2D.new()
 	add_child(world)
@@ -206,19 +206,19 @@ func _run() -> void:
 	var behemoth := CharacterRegistry.instantiate_hero("behemoth")
 	var knight := CharacterRegistry.instantiate_hero("knight")
 	var sylvara := CharacterRegistry.instantiate_hero("sylvara")
-	var velmira := CharacterRegistry.instantiate_hero("velmira")
+	var noa := CharacterRegistry.instantiate_hero("noa")
 
 	behemoth.position = Vector2(120, 120)
 	knight.position = Vector2(120, 240)
 	sylvara.position = Vector2(120, 360)
-	velmira.position = Vector2(120, 480)
-	for h in [behemoth, knight, sylvara, velmira]:
+	noa.position = Vector2(120, 480)
+	for h in [behemoth, knight, sylvara, noa]:
 		h.input_enabled = false
 		world.add_child(h)
 	await _tick(3)
 
 	# Verify ALL 4 heroes look UP (`walk_up`/`idle_up`) & DOWN (`walk_down`/`idle_down`)!
-	for h in [behemoth, knight, sylvara, velmira]:
+	for h in [behemoth, knight, sylvara, noa]:
 		h.set_move_facing(Vector2.UP)
 		h.velocity = Vector2(0.0, -60.0)
 		h._update_animation()
@@ -242,14 +242,14 @@ func _run() -> void:
 		h.set_move_facing(Vector2.RIGHT)
 		h._update_animation()
 
-	for h in [behemoth, knight, sylvara, velmira]:
+	for h in [behemoth, knight, sylvara, noa]:
 		h.input_enabled = true
 
-	# Verify Velmira's boots stay 100% grounded on node origin (`visuals.position.y == -16.0`, zero vertical float)!
-	var vy0: float = (velmira.visuals as Node2D).position.y
+	# Verify Noa's boots stay 100% grounded on node origin (`visuals.position.y == -16.0`, zero vertical float)!
+	var vy0: float = (noa.visuals as Node2D).position.y
 	await _wait(0.22)
-	var vy1: float = (velmira.visuals as Node2D).position.y
-	_check("Velmira visuals.position.y is strictly grounded at -16.0 (zero floating bob)",
+	var vy1: float = (noa.visuals as Node2D).position.y
+	_check("Noa visuals.position.y is strictly grounded at -16.0 (zero floating bob)",
 		is_equal_approx(vy0, -16.0) and is_equal_approx(vy1, -16.0),
 		"vy0=%.2f vy1=%.2f" % [vy0, vy1])
 
@@ -268,54 +268,54 @@ func _run() -> void:
 		knight.shield_exhausted and not knight.is_shielding, true)
 	knight.set_shielding(false)
 
-	# --- VELMIRA: Classic 5-Bat Shift (NO purple shadow form!) + Sweeping Blood-Splash Slash (NO yoyo!) ---
-	velmira.global_position = Vector2(520, 480)
-	velmira.set_move_facing(Vector2.RIGHT)
-	velmira._try_start_dash()
+	# --- NOA: Classic 5-Bat Shift (NO purple shadow form!) + Sweeping Blood-Splash Slash (NO yoyo!) ---
+	noa.global_position = Vector2(520, 480)
+	noa.set_move_facing(Vector2.RIGHT)
+	noa._try_start_dash()
 	await _tick(2)
-	_check_eq("Velmira body disappears during Classic Bat-Swarm Shift", velmira.visuals.visible, false)
+	_check_eq("Noa body disappears during Classic Bat-Swarm Shift", noa.visuals.visible, false)
 	_check("Classic Bat-Swarm Shift spawns 5 pixel bats & ZERO shadow-ghost sprite",
-		velmira._swarm_root != null
-		and velmira._swarm_root.get_child_count() == 5
-		and world.get_node_or_null("VelmiraShadowForm") == null)
+		noa._swarm_root != null
+		and noa._swarm_root.get_child_count() == 5
+		and world.get_node_or_null("NoaShadowForm") == null)
 	await _wait(0.28)
 	await _tick(2)
-	_check_eq("Velmira re-materializes cleanly after Bat-Swarm Shift", velmira.visuals.visible, true)
+	_check_eq("Noa re-materializes cleanly after Bat-Swarm Shift", noa.visuals.visible, true)
 
 	# Self-HP Cost into empty air + STRICT 1-HP Floor!
-	velmira.global_position = Vector2(520, 480)
-	velmira.current_health = 60
-	velmira._start_attack()
+	noa.global_position = Vector2(520, 480)
+	noa.current_health = 60
+	noa._start_attack()
 	await _wait(0.38)
 	await _tick(2)
 	_check_eq("Blood-Splash into empty air costs 5 HP and spawns NO yoyo orb (60 -> 55)",
-		velmira.current_health == 55 and world.get_node_or_null("BloodWhipOrb") == null, true)
+		noa.current_health == 55 and world.get_node_or_null("BloodWhipOrb") == null, true)
 
-	velmira.current_health = 1
-	velmira._start_attack()
+	noa.current_health = 1
+	noa._start_attack()
 	await _wait(0.38)
 	await _tick(2)
-	_check_eq("Velmira at 1 HP NEVER kills herself with Blood-Splash (1 -> 1, alive!)",
-		velmira.current_health == 1 and not velmira.is_dead, true)
+	_check_eq("Noa at 1 HP NEVER kills herself with Blood-Splash (1 -> 1, alive!)",
+		noa.current_health == 1 and not noa.is_dead, true)
 
 	# Sweeping Blood-Splash hitting 1 enemy -> heals `5 + 1 = 6` (+1 net HP), 14 DMG, & 4th hit 30% Fountain!
-	velmira.current_health = 50
+	noa.current_health = 50
 	var splash_foe := _make_dummy_slime(world, Vector2(582, 480), 100)
 	await _tick(2)
 
-	velmira._start_attack()
+	noa._start_attack()
 	await _wait(0.40)
 	await _tick(2)
-	_check_eq("Blood-Splash hitting 1 enemy yields +1 net HP (50 - 5 + 6 = 51)", velmira.current_health, 51)
+	_check_eq("Blood-Splash hitting 1 enemy yields +1 net HP (50 - 5 + 6 = 51)", noa.current_health, 51)
 	_check_eq("First Blood-Splash deals 14 DMG (100 -> 86)", splash_foe.current_health, 86)
 
 	for _i in range(2):
-		velmira._start_attack()
+		noa._start_attack()
 		await _wait(0.40)
 		await _tick(2)
 	_check_eq("After 3 Blood-Splash hits: enemy at 58 HP (100 - 3*14)", splash_foe.current_health, 58)
 
-	velmira._start_attack()
+	noa._start_attack()
 	await _wait(0.40)
 	await _tick(2)
 	_check_eq("4th Blood-Splash erupts 30% Ground Blood Fountain (58 - 14 - 30 = 14 HP)!",

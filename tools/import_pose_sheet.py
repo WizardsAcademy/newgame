@@ -13,17 +13,20 @@ Pipeline:
   Step 2 — 1px ring de-fringe:
            On the 1px foreground ring 4-adjacent to background, drops pixels with
            `luminance > 190` and `saturation < 20`. Prints killed pixel counts.
-  Step 3 — Perceptual palette snap:
-           Premultiplied-alpha area scale to spec `body_h` anchored at `GROUND_Y = 80`,
-           then CIE Lab nearest-perceptual match + 2x2 ordered Bayer dither onto a
-           <= 24-colour subset of `tools/hero_art_lib.py` `RAMPS` (never median-cut).
+  Step 3 — Sharp feature-preserving scale & perceptual cel-palette snap:
+           Premultiplied Lanczos downscale to `body_h` (`68`, anchored at
+           `GROUND_Y = 80`) with ruby-iris & dark-lineart preservation + crisp
+           1px gothic selout, followed by pure nearest-perceptual CIE Lab
+           cel-shading onto a `<= 24`-colour palette (`HERO_PALETTES["noa"]` or
+           `RAMPS` subset) with ZERO checkerboard dithering by default so smooth
+           porcelain skin and pearl-lilac hair never turn "shatranji" (never median-cut).
   Step 4 — Contract assertions:
            Binary alpha (`0` or `255`), `<= 24` colours, zero `#000000`,
            every frame grounded at `GROUND_Y = 80`, and standing `body_h` within spec.
 
 Usage:
-    python3 tools/import_pose_sheet.py                  # builds velmira by default
-    python3 tools/import_pose_sheet.py --hero velmira
+    python3 tools/import_pose_sheet.py                # builds noa by default
+    python3 tools/import_pose_sheet.py --hero noa
 """
 
 from __future__ import annotations
@@ -40,27 +43,43 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.hero_art_lib import CELL, GROUND_Y, RAMPS  # noqa: E402
+from tools.hero_art_lib import CELL, GROUND_Y, HERO_PALETTES, NOA_PALETTE_24, RAMPS  # noqa: E402
 
 BAYER_2X2: tuple[tuple[int, int], tuple[int, int]] = ((0, 2), (3, 1))
 
+# Named colour indices inside `NOA_PALETTE_24`
+C_PEARL_SPEC = (*NOA_PALETTE_24[0], 255)
+C_PEARL_LIGHT = (*NOA_PALETTE_24[1], 255)
+C_SKIN_LIGHT = (*NOA_PALETTE_24[6], 255)
+C_SKIN_MID = (*NOA_PALETTE_24[7], 255)
+C_SKIN_BLUSH = (*NOA_PALETTE_24[8], 255)
+C_SELOUT = (*NOA_PALETTE_24[10], 255)
+C_VELVET = (*NOA_PALETTE_24[11], 255)
+C_CRIMSON_DEEP = (*NOA_PALETTE_24[15], 255)
+C_CRIMSON_DARK = (*NOA_PALETTE_24[16], 255)
+C_CRIMSON_MID = (*NOA_PALETTE_24[17], 255)
+C_RUBY = (*NOA_PALETTE_24[18], 255)
+C_RUBY_GLOW = (*NOA_PALETTE_24[19], 255)
+C_GOLD_HI = (*NOA_PALETTE_24[23], 255)
+
 HERO_PRESETS: dict[str, dict] = {
-    "velmira": {
-        "src_dir": REPO_ROOT / "art_src" / "velmira",
-        "out_sheet": REPO_ROOT / "assets" / "textures" / "player_velmira.png",
-        "out_portrait": REPO_ROOT / "assets" / "textures" / "portrait_velmira.png",
-        "preview": REPO_ROOT / "docs" / "images" / "velmira_import_preview.png",
-        "ramps": ("moon", "obsidian", "crimson", "skin", "gold", "leather"),
-        "target_body_h": 65,
+    "noa": {
+        "src_dir": REPO_ROOT / "art_src" / "noa",
+        "out_sheet": REPO_ROOT / "assets" / "textures" / "player_noa.png",
+        "out_portrait": REPO_ROOT / "assets" / "textures" / "portrait_noa.png",
+        "preview": REPO_ROOT / "docs" / "images" / "noa_import_preview.png",
+        "palette": NOA_PALETTE_24,
+        "target_body_h": 68,
         "body_h_bounds": (62, 68),
         "ground_y": GROUND_Y,
         "tolerance": 42,
+        "bayer_dither": False,
     },
 }
 
 
 # ---------------------------------------------------------------------------
-# Colour space & perceptual + 2x2 Bayer palette snapper (Step 3)
+# Colour space & perceptual cel-palette snapper (Step 3)
 # ---------------------------------------------------------------------------
 
 def _srgb_to_lab(r: int, g: int, b: int) -> tuple[float, float, float]:
@@ -70,7 +89,7 @@ def _srgb_to_lab(r: int, g: int, b: int) -> tuple[float, float, float]:
 
     rl, gl, bl = _lin(r), _lin(g), _lin(b)
     x = (0.4124564 * rl + 0.3575761 * gl + 0.1804375 * bl) / 0.95047
-    y = 0.2126729 * rl + 0.7151522 * gl + 0.0721750 * bl
+    y = (0.2126729 * rl + 0.7151522 * gl + 0.0721750 * bl)
     z = (0.0193339 * rl + 0.1191920 * gl + 0.9503041 * bl) / 1.08883
 
     def _f(t: float) -> float:
@@ -80,17 +99,25 @@ def _srgb_to_lab(r: int, g: int, b: int) -> tuple[float, float, float]:
     return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
 
 
-def build_hero_palette(ramp_names: tuple[str, ...]) -> list[tuple[int, int, int]]:
+def build_hero_palette(cfg: dict) -> list[tuple[int, int, int]]:
+    if "palette" in cfg and cfg["palette"] is not None:
+        raw = list(cfg["palette"])
+    elif cfg.get("hero") in HERO_PALETTES:
+        raw = list(HERO_PALETTES[cfg["hero"]])
+    else:
+        raw = [
+            (int(col[0]), int(col[1]), int(col[2]))
+            for rname in cfg["ramps"]
+            for col in RAMPS[rname]
+        ]
+
     pal: list[tuple[int, int, int]] = []
     seen: set[tuple[int, int, int]] = set()
-    for rname in ramp_names:
-        if rname not in RAMPS:
-            raise ValueError(f"Unknown ramp {rname!r}; expected one of {sorted(RAMPS)}")
-        for col in RAMPS[rname]:
-            rgb = (int(col[0]), int(col[1]), int(col[2]))
-            if rgb not in seen:
-                seen.add(rgb)
-                pal.append(rgb)
+    for rgb in raw:
+        t = (int(rgb[0]), int(rgb[1]), int(rgb[2]))
+        if t not in seen:
+            seen.add(t)
+            pal.append(t)
     if len(pal) > 24:
         raise ValueError(f"Hero palette exceeds 24 colours ({len(pal)})")
     if (0, 0, 0) in seen:
@@ -98,17 +125,23 @@ def build_hero_palette(ramp_names: tuple[str, ...]) -> list[tuple[int, int, int]
     return pal
 
 
-class PerceptualBayerSnapper:
-    """Nearest-perceptual (CIE Lab) + 2x2 Bayer ordered dither palette snapper."""
+class PerceptualPaletteSnapper:
+    """Nearest-perceptual (CIE Lab) cel-shading snapper (with optional 2x2 Bayer)."""
 
-    def __init__(self, palette_rgb: list[tuple[int, int, int]], max_dither_gap: float = 28.0):
+    def __init__(
+        self,
+        palette_rgb: list[tuple[int, int, int]],
+        bayer_dither: bool = False,
+        max_dither_gap: float = 16.0,
+    ):
         self.palette = list(palette_rgb)
         self.pal_lab = [_srgb_to_lab(*c) for c in self.palette]
+        self.bayer_dither = bayer_dither
         self.max_dither_gap = max_dither_gap
         self._cache: dict[tuple[int, int, int, int, int], tuple[int, int, int]] = {}
 
-    def snap_pixel(self, r: int, g: int, b: int, bx: int, by: int) -> tuple[int, int, int]:
-        key = (r, g, b, bx, by)
+    def snap_pixel(self, r: int, g: int, b: int, bx: int = 0, by: int = 0) -> tuple[int, int, int]:
+        key = (r, g, b, bx if self.bayer_dither else 0, by if self.bayer_dither else 0)
         hit = self._cache.get(key)
         if hit is not None:
             return hit
@@ -124,20 +157,23 @@ class PerceptualBayerSnapper:
             elif d < best_d2:
                 best_i2, best_d2 = idx, d
 
-        sd1 = math.sqrt(best_d1)
-        sd2 = math.sqrt(best_d2)
-        p1 = self.pal_lab[best_i1]
-        p2 = self.pal_lab[best_i2]
-        pal_gap = math.sqrt(
-            (p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2
-        )
-        ratio = sd1 / max(sd1 + sd2, 1e-6)  # in [0.0, 0.5]
-        thresh = (BAYER_2X2[by][bx] + 0.5) / 4.0  # 0.125, 0.375, 0.625, 0.875
-        chosen = (
-            self.palette[best_i2]
-            if (pal_gap <= self.max_dither_gap and ratio > thresh * 0.85)
-            else self.palette[best_i1]
-        )
+        if not self.bayer_dither:
+            chosen = self.palette[best_i1]
+        else:
+            sd1 = math.sqrt(best_d1)
+            sd2 = math.sqrt(best_d2)
+            p1 = self.pal_lab[best_i1]
+            p2 = self.pal_lab[best_i2]
+            pal_gap = math.sqrt(
+                (p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2
+            )
+            ratio = sd1 / max(sd1 + sd2, 1e-6)
+            thresh = (BAYER_2X2[by][bx] + 0.5) / 4.0
+            chosen = (
+                self.palette[best_i2]
+                if (pal_gap <= self.max_dither_gap and ratio > thresh * 0.85)
+                else self.palette[best_i1]
+            )
         self._cache[key] = chosen
         return chosen
 
@@ -191,7 +227,7 @@ def key_and_defringe_pose(
                     bg[y][x] = True
 
     # Pre-clean neutral grey painted ground-shadow bars at bottom so flood-fill
-    # can flow cleanly into the white space between the boots.
+    # flows cleanly into the white space between the boots.
     if strip_ground_shadow:
         for y in range(max(0, h - 6), h):
             for x in range(w):
@@ -286,7 +322,6 @@ def key_and_defringe_pose(
                 if len(pocket) >= 5:
                     pcx = sum(p[0] for p in pocket) / len(pocket)
                     pcy = sum(p[1] for p in pocket) / len(pocket)
-                    # Never pop highlights inside the central face/bangs/collar core!
                     in_face_core = (abs(pcx - mid_x) < 12.0) and (top_y + 8 <= pcy <= top_y + 48)
                     if not in_face_core:
                         for px_x, px_y in pocket:
@@ -332,55 +367,113 @@ def key_and_defringe_pose(
 
 
 # ---------------------------------------------------------------------------
-# Premultiplied-alpha scaling & pose placement helpers
+# Feature-preserving sharp pixel-art downscaler & pose placement
 # ---------------------------------------------------------------------------
 
-def scale_premultiplied(
+def scale_sharp_pixel_art(
     crop: Image.Image,
     target_w: int,
     target_h: int,
-    alpha_cutoff: float = 0.45,
+    alpha_cutoff: float = 0.46,
+    sharpen_selout: bool = True,
 ) -> Image.Image:
-    """Area-scale an RGBA crop in premultiplied space so transparent bg never bleeds."""
-    w, h = crop.size
-    pm_r = Image.new("F", (w, h), 0.0)
-    pm_g = Image.new("F", (w, h), 0.0)
-    pm_b = Image.new("F", (w, h), 0.0)
-    pm_a = Image.new("F", (w, h), 0.0)
-    px = crop.load()
+    """Downscale in premultiplied Lanczos space while preserving ruby irises & dark lineart."""
+    sw, sh = crop.size
+    spx = crop.load()
+    pm_r = Image.new("F", (sw, sh), 0.0)
+    pm_g = Image.new("F", (sw, sh), 0.0)
+    pm_b = Image.new("F", (sw, sh), 0.0)
+    pm_a = Image.new("F", (sw, sh), 0.0)
     pr, pg, pb, pa = pm_r.load(), pm_g.load(), pm_b.load(), pm_a.load()
-    for y in range(h):
-        for x in range(w):
-            r, g, b, a = px[x, y]
+    for y in range(sh):
+        for x in range(sw):
+            r, g, b, a = spx[x, y]
             af = a / 255.0
             pr[x, y] = r * af
             pg[x, y] = g * af
             pb[x, y] = b * af
             pa[x, y] = af
 
-    resample = Image.Resampling.BOX
-    sr = pm_r.resize((target_w, target_h), resample)
-    sg = pm_g.resize((target_w, target_h), resample)
-    sb = pm_b.resize((target_w, target_h), resample)
-    sa = pm_a.resize((target_w, target_h), resample)
+    lr = pm_r.resize((target_w, target_h), Image.Resampling.LANCZOS).load()
+    lg = pm_g.resize((target_w, target_h), Image.Resampling.LANCZOS).load()
+    lb = pm_b.resize((target_w, target_h), Image.Resampling.LANCZOS).load()
+    la = pm_a.resize((target_w, target_h), Image.Resampling.BILINEAR).load()
 
     out = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
     opx = out.load()
-    lr, lg, lb, la = sr.load(), sg.load(), sb.load(), sa.load()
-    for y in range(target_h):
-        for x in range(target_w):
-            af = la[x, y]
-            if af >= alpha_cutoff:
-                r = int(round(max(0.0, min(255.0, lr[x, y] / af))))
-                g = int(round(max(0.0, min(255.0, lg[x, y] / af))))
-                b = int(round(max(0.0, min(255.0, lb[x, y] / af))))
-                opx[x, y] = (r, g, b, 255)
-    return out
+    sx_ratio = sw / float(target_w)
+    sy_ratio = sh / float(target_h)
+
+    for ty in range(target_h):
+        sy0 = max(0, int(ty * sy_ratio))
+        sy1 = min(sh, max(sy0 + 1, int(math.ceil((ty + 1) * sy_ratio))))
+        cy_src = min(sh - 1, int((ty + 0.5) * sy_ratio))
+        for tx in range(target_w):
+            af = la[tx, ty]
+            if af < alpha_cutoff:
+                continue
+            r = int(round(max(0.0, min(255.0, lr[tx, ty] / max(af, 1e-3)))))
+            g = int(round(max(0.0, min(255.0, lg[tx, ty] / max(af, 1e-3)))))
+            b = int(round(max(0.0, min(255.0, lb[tx, ty] / max(af, 1e-3)))))
+
+            sx0 = max(0, int(tx * sx_ratio))
+            sx1 = min(sw, max(sx0 + 1, int(math.ceil((tx + 1) * sx_ratio))))
+            cx_src = min(sw - 1, int((tx + 0.5) * sx_ratio))
+
+            best_crimson = None
+            best_c_score = 0
+            for yy in range(sy0, sy1):
+                for xx in range(sx0, sx1):
+                    sr0, sg0, sb0, sa0 = spx[xx, yy]
+                    if sa0 > 128 and (sr0 - sg0) > 42 and sr0 > 95:
+                        score = (sr0 - sg0) + (sr0 - sb0)
+                        if score > best_c_score:
+                            best_c_score = score
+                            best_crimson = (sr0, sg0, sb0)
+
+            cr, cg, cb, ca = spx[cx_src, cy_src]
+            c_lum = 0.299 * cr + 0.587 * cg + 0.114 * cb
+            if best_crimson is not None and best_c_score >= 65:
+                r = int(round(0.30 * r + 0.70 * best_crimson[0]))
+                g = int(round(0.30 * g + 0.70 * best_crimson[1]))
+                b = int(round(0.30 * b + 0.70 * best_crimson[2]))
+            elif ca > 128 and c_lum < 58.0:
+                r = int(round(0.25 * r + 0.75 * cr))
+                g = int(round(0.25 * g + 0.75 * cg))
+                b = int(round(0.25 * b + 0.75 * cb))
+
+            opx[tx, ty] = (r, g, b, 255)
+
+    if not sharpen_selout:
+        return out
+
+    final = out.copy()
+    fpx = final.load()
+    for ty in range(target_h):
+        for tx in range(target_w):
+            if opx[tx, ty][3] == 0:
+                continue
+            is_edge = (
+                tx == 0
+                or ty == 0
+                or tx == target_w - 1
+                or ty == target_h - 1
+                or opx[tx - 1, ty][3] == 0
+                or opx[tx + 1, ty][3] == 0
+                or opx[tx, ty - 1][3] == 0
+                or opx[tx, ty + 1][3] == 0
+            )
+            if is_edge:
+                r, g, b, _ = opx[tx, ty]
+                lum = 0.299 * r + 0.587 * g + 0.114 * b
+                if lum < 150.0:
+                    fpx[tx, ty] = (int(r * 0.55), int(g * 0.55), int(b * 0.58), 255)
+    return final
 
 
 def place_pose_in_cell(
     cleaned: Image.Image,
-    snapper: PerceptualBayerSnapper,
+    snapper: PerceptualPaletteSnapper,
     target_h: int,
     ground_y: int = GROUND_Y,
     x_offset: int = 0,
@@ -392,10 +485,9 @@ def place_pose_in_cell(
     crop = cleaned.crop(bb)
     cw, ch = crop.size
     tw = max(1, int(round(cw * (target_h / float(ch)))))
-    scaled = scale_premultiplied(crop, tw, target_h)
+    scaled = scale_sharp_pixel_art(crop, tw, target_h)
     snapped = snapper.snap_image(scaled)
 
-    # Guarantee exact top/bottom occupancy after alpha thresholding.
     sbb = snapped.getbbox()
     if sbb is None:
         raise ValueError("Scaled pose became empty")
@@ -407,8 +499,6 @@ def place_pose_in_cell(
     cell.alpha_composite(scrop, (dest_x, dest_y))
 
     if ensure_two_foot_stance:
-        # If trailing boot sole sits 1..2px above `ground_y - 1`, extend its heel
-        # onto `ground_y - 1` so both boots plant cleanly on the ground line.
         cpx = cell.load()
         gy = ground_y - 1
         xs_gy = [x for x in range(CELL) if cpx[x, gy][3] > 0]
@@ -422,13 +512,15 @@ def place_pose_in_cell(
             span_gy = max(xs_gy) - min(xs_gy) + 1
             if span_gy < 9:
                 lo_x, hi_x = min(xs_above), max(xs_above)
-                boot_dark = RAMPS["obsidian"][0]
-                # Plant trailing boot heel 10px behind leading boot so stance_w is ~11-12px.
-                heel_x = max(lo_x, xs_gy[0] - 10) if (xs_gy[0] - lo_x) >= (hi_x - xs_gy[-1]) else min(hi_x, xs_gy[-1] + 10)
+                heel_x = (
+                    max(lo_x, xs_gy[0] - 10)
+                    if (xs_gy[0] - lo_x) >= (hi_x - xs_gy[-1])
+                    else min(hi_x, xs_gy[-1] + 10)
+                )
                 for x in (heel_x, heel_x + 1 if heel_x < xs_gy[0] else heel_x - 1):
                     if 0 <= x < CELL:
-                        cpx[x, gy - 1] = boot_dark
-                        cpx[x, gy] = boot_dark
+                        cpx[x, gy - 1] = C_SELOUT
+                        cpx[x, gy] = C_SELOUT
     return cell
 
 
@@ -442,7 +534,6 @@ def make_breath_variant(base_cell: Image.Image, ground_y: int = GROUND_Y) -> Ima
     assert bb is not None
     split_y = bb[1] + int((bb[3] - bb[1]) * 0.74)
     out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
-    # Lower skirt & boots remain 100% anchored on ground_y.
     lower = base_cell.crop((0, split_y, CELL, CELL))
     upper = base_cell.crop((0, 0, CELL, split_y))
     out.alpha_composite(lower, (0, split_y))
@@ -463,11 +554,9 @@ def make_walk_down_pair(
     frames: list[Image.Image] = []
     for lift_left, sway_dx in ((True, -1), (False, 1)):
         out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
-        # Subtle 1px hair/shoulder sway on upper body.
         upper = idle_down_cell.crop((0, 0, CELL, hem_y))
         out.alpha_composite(upper, (sway_dx, 0))
 
-        # Lower coat & boots: planted side stays at ground_y, stepping side lifts 2px.
         left_half = idle_down_cell.crop((0, hem_y, mid_x, ground_y))
         right_half = idle_down_cell.crop((mid_x, hem_y, CELL, ground_y))
         if lift_left:
@@ -500,22 +589,17 @@ def make_charge_frame(lunge_cell: Image.Image, ground_y: int = GROUND_Y) -> Imag
     bb = out.getbbox()
     assert bb is not None
     px = out.load()
-    c_dark = RAMPS["crimson"][1]
-    c_mid = RAMPS["crimson"][2]
-    c_hi = RAMPS["crimson"][3]
-    o_dark = RAMPS["obsidian"][0]
 
-    # Crisp pixel-art crimson trailing wisps behind cloak (pure RAMPS colours).
     for idx, wy in enumerate((bb[1] + 22, bb[1] + 32, bb[1] + 43)):
         wx = max(3, bb[0] - 4 + (idx % 2) * 2)
         if wx + 4 < CELL and 0 <= wy < ground_y - 4:
-            px[wx, wy] = o_dark
-            px[wx + 1, wy] = c_dark
-            px[wx + 2, wy] = c_mid
-            px[wx + 3, wy] = c_hi
+            px[wx, wy] = C_SELOUT
+            px[wx + 1, wy] = C_CRIMSON_DARK
+            px[wx + 2, wy] = C_RUBY
+            px[wx + 3, wy] = C_RUBY_GLOW
             if wy + 1 < ground_y - 2:
-                px[wx + 1, wy + 1] = o_dark
-                px[wx + 2, wy + 1] = c_dark
+                px[wx + 1, wy + 1] = C_SELOUT
+                px[wx + 2, wy + 1] = C_CRIMSON_DARK
     return out
 
 
@@ -528,11 +612,11 @@ def make_hurt_frame(side_cell: Image.Image, ground_y: int = GROUND_Y) -> Image.I
     opx = out.load()
     top_y = bb[1]
     h = ground_y - top_y
-    crouch = 6  # Compress to body_h = 59 so hurt reads as a distinct flinch crouch
+    crouch = 7  # Distinct flinch crouch (< 0.92 * standing_h)
 
     for dy in range(h - crouch):
         sy = top_y + int(round(dy * (h - 1) / float(max(h - crouch - 1, 1))))
-        t = 1.0 - (dy / float(max(h - crouch - 1, 1)))  # 1 at crown, 0 at boots
+        t = 1.0 - (dy / float(max(h - crouch - 1, 1)))
         shear_x = -int(round(3.0 * t))
         ty = top_y + crouch + dy
         for sx in range(CELL):
@@ -541,15 +625,14 @@ def make_hurt_frame(side_cell: Image.Image, ground_y: int = GROUND_Y) -> Image.I
                 tx = max(0, min(CELL - 1, sx + shear_x))
                 opx[tx, ty] = rgba
 
-    # Subtle crimson impact glint at chest/shoulder.
     spark_x = min(CELL - 4, (bb[0] + bb[2]) // 2 + 3)
     spark_y = top_y + crouch + 22
     for ox, oy, col in (
-        (0, 0, RAMPS["moon"][3]),
-        (-1, 0, RAMPS["crimson"][3]),
-        (1, 0, RAMPS["crimson"][3]),
-        (0, -1, RAMPS["crimson"][2]),
-        (0, 1, RAMPS["crimson"][2]),
+        (0, 0, C_PEARL_SPEC),
+        (-1, 0, C_RUBY_GLOW),
+        (1, 0, C_RUBY_GLOW),
+        (0, -1, C_RUBY),
+        (0, 1, C_RUBY),
     ):
         if 0 <= spark_x + ox < CELL and 0 <= spark_y + oy < ground_y:
             opx[spark_x + ox, spark_y + oy] = col
@@ -558,19 +641,18 @@ def make_hurt_frame(side_cell: Image.Image, ground_y: int = GROUND_Y) -> Image.I
 
 def make_die_frame(
     idle_down_cell: Image.Image,
-    snapper: PerceptualBayerSnapper,
+    snapper: PerceptualPaletteSnapper,
     ground_y: int = GROUND_Y,
 ) -> Image.Image:
     """Synthesize fallen vampiric collapse grounded cleanly at `ground_y`."""
     bb = idle_down_cell.getbbox()
     assert bb is not None
     crop = idle_down_cell.crop(bb)
-    # Rotate & drape into a low, wide fallen cloak + spilled silver hair silhouette.
     rotated = crop.rotate(-76, resample=Image.Resampling.BILINEAR, expand=True)
     rbb = rotated.getbbox()
     assert rbb is not None
     rcrop = rotated.crop(rbb)
-    fallen = scale_premultiplied(rcrop, 54, 24, alpha_cutoff=0.40)
+    fallen = scale_sharp_pixel_art(rcrop, 56, 25, alpha_cutoff=0.40)
     snapped = snapper.snap_image(fallen)
     sbb = snapped.getbbox()
     assert sbb is not None
@@ -583,15 +665,15 @@ def make_die_frame(
 
 
 # ---------------------------------------------------------------------------
-# 5-state Portrait builder (`face.png` -> `320x64`)
+# Close-Up 5-State Portrait Builder (`face.png` -> `320x64`, ZERO checkerboard)
 # ---------------------------------------------------------------------------
 
 def build_portrait_strip(
     face_path: Path,
-    snapper: PerceptualBayerSnapper,
+    snapper: PerceptualPaletteSnapper,
     tolerance: int = 42,
 ) -> tuple[Image.Image, Image.Image, int]:
-    """Import `face.png` into a 320x64 5-state circular HUD portrait strip."""
+    """Import `face.png` into a crisp close-up 320x64 5-state circular HUD portrait strip."""
     PCELL = 64
     keyed_face, killed = key_and_defringe_pose(
         face_path,
@@ -604,13 +686,15 @@ def build_portrait_strip(
     if fbb is None:
         raise ValueError(f"{face_path} keyed out to empty image")
 
-    fcrop = keyed_face.crop(fbb)
+    fcrop_full = keyed_face.crop(fbb)
+    # Close-up framing focusing on crown, pointed ear, ruby eyes, porcelain face & collar
+    # so the 64x64 HUD medallion gets ~75% higher pixel density on Noa's face!
+    fcrop = fcrop_full.crop((0, 0, min(fcrop_full.width, 82), min(fcrop_full.height, 78)))
     fw, fh = fcrop.size
-    # Scale face so crown, pointed ears & collar fill the 64x64 medallion richly.
-    scale = 56.0 / float(max(fw, fh))
+    scale = 60.0 / float(max(fw, fh))
     tw = max(1, int(round(fw * scale)))
     th = max(1, int(round(fh * scale)))
-    scaled_face = scale_premultiplied(fcrop, tw, th, alpha_cutoff=0.42)
+    scaled_face = scale_sharp_pixel_art(fcrop, tw, th, alpha_cutoff=0.44, sharpen_selout=False)
     snapped_face = snapper.snap_image(scaled_face)
 
     def _medallion_base(low_hp: bool = False, hurt: bool = False) -> Image.Image:
@@ -623,15 +707,15 @@ def build_portrait_strip(
                 if dist > rad:
                     continue
                 if dist > rad - 1.3:
-                    dpx[x, y] = RAMPS["obsidian"][0]
+                    dpx[x, y] = C_SELOUT
                 elif hurt and dist > rad - 2.6:
-                    dpx[x, y] = RAMPS["crimson"][2]
+                    dpx[x, y] = C_RUBY
                 elif low_hp:
-                    dpx[x, y] = RAMPS["crimson"][0] if (x + y) % 2 == 0 else RAMPS["obsidian"][0]
+                    # Smooth gradient crimson-velvet backdrop (NO checkerboard!)
+                    dpx[x, y] = C_CRIMSON_DEEP if y < 34 else C_SELOUT
                 else:
-                    dpx[x, y] = RAMPS["obsidian"][0] if y >= 22 else (
-                        RAMPS["obsidian"][1] if (x + y) % 2 == 0 else RAMPS["obsidian"][0]
-                    )
+                    # Smooth nocturnal plum-obsidian backdrop (NO checkerboard!)
+                    dpx[x, y] = C_VELVET if y < 22 else C_SELOUT
         return disc
 
     def _clip_to_medallion(frame: Image.Image) -> Image.Image:
@@ -639,77 +723,80 @@ def build_portrait_strip(
         cx, cy, rad = 31.5, 31.5, 29.5
         for y in range(PCELL):
             for x in range(PCELL):
-                if math.hypot(x - cx, y - cy) > rad:
+                dist = math.hypot(x - cx, y - cy)
+                if dist > rad:
                     fpx[x, y] = (0, 0, 0, 0)
-                elif math.hypot(x - cx, y - cy) > rad - 1.1 and fpx[x, y][3] > 0:
-                    fpx[x, y] = RAMPS["obsidian"][0]
+                elif dist > rad - 1.1 and fpx[x, y][3] > 0:
+                    fpx[x, y] = C_SELOUT
         return frame
 
-    fx0 = (PCELL - tw) // 2
-    fy0 = PCELL - th - 2
+    fx0 = (PCELL - tw) // 2 - 1
+    fy0 = PCELL - th - 1
 
-    # Locate the two 3/4-angle ruby eye clusters (excluding the pointed ear on the left).
-    spx = snapped_face.load()
-    crimson_set = {c[:3] for c in RAMPS["crimson"]}
+    # Locate the two 3/4-angle ruby eye clusters on the close-up face
+    base0 = _medallion_base()
+    base0.alpha_composite(snapped_face, (fx0, fy0))
+    b0px = base0.load()
+    crimson_rgbs = {NOA_PALETTE_24[16], NOA_PALETTE_24[17], NOA_PALETTE_24[18], NOA_PALETTE_24[19]}
     eye_pts = [
-        (fx0 + x, fy0 + y)
-        for y in range(th)
-        for x in range(tw)
-        if spx[x, y][3] > 0
-        and spx[x, y][:3] in crimson_set
-        and 29 <= (fx0 + x) <= 47
-        and 25 <= (fy0 + y) <= 31
+        (x, y)
+        for y in range(26, 44)
+        for x in range(28, 56)
+        if b0px[x, y][3] > 0 and b0px[x, y][:3] in crimson_rgbs
     ]
-    near_eye = [p for p in eye_pts if p[0] < 40]
-    far_eye = [p for p in eye_pts if p[0] >= 40]
+    near_eye = [p for p in eye_pts if p[0] < 44]
+    far_eye = [p for p in eye_pts if p[0] >= 44]
 
     states: list[Image.Image] = []
     # 0: Normal calm regal idle
-    s0 = _medallion_base()
-    s0.alpha_composite(snapped_face, (fx0, fy0))
-    states.append(_clip_to_medallion(s0))
+    states.append(_clip_to_medallion(base0))
 
-    # 1: Living idle B (1px gentle breath lift + bright eye specular glint)
+    # 1: Living idle B (1px gentle breath lift + bright pearl eye catchlight)
     s1 = _medallion_base()
     s1.alpha_composite(snapped_face, (fx0, fy0 - 1))
     s1px = s1.load()
     if near_eye:
         nx = min(p[0] for p in near_eye) + 1
         ny = min(p[1] for p in near_eye) - 1
-        s1px[nx, ny] = RAMPS["moon"][3]
+        if 0 <= nx < PCELL and 0 <= ny < PCELL:
+            s1px[nx, ny] = C_PEARL_SPEC
     states.append(_clip_to_medallion(s1))
 
-    # 2: Blink (closed silver-lashed eyelids cleanly over the two 3/4 ruby irises)
+    # 2: Blink (seamless rose-porcelain closed eyelids preserving overlapping hair bangs!)
     s2 = _medallion_base()
     s2.alpha_composite(snapped_face, (fx0, fy0))
     s2px = s2.load()
+    hair_rgbs = set(NOA_PALETTE_24[1:6])
     for grp in (near_eye, far_eye):
         if not grp:
             continue
         gx0, gx1 = min(p[0] for p in grp), max(p[0] for p in grp)
         gy0, gy1 = min(p[1] for p in grp), max(p[1] for p in grp)
-        for ey in range(gy0, gy1 + 1):
-            for ex in range(gx0, gx1 + 1):
-                s2px[ex, ey] = RAMPS["moon"][3] if ey < gy1 else RAMPS["obsidian"][1]
+        for ey in range(gy0 - 1, gy1 + 1):
+            for ex in range(gx0 - 1, gx1 + 2):
+                if 0 <= ex < PCELL and 0 <= ey < PCELL:
+                    cur = s2px[ex, ey][:3]
+                    if cur not in hair_rgbs:
+                        s2px[ex, ey] = C_SKIN_BLUSH if ey == gy0 - 1 else C_SKIN_MID
         for lx in range(gx0 - 1, gx1 + 1):
-            if 0 <= lx < PCELL:
-                s2px[lx, gy1] = RAMPS["obsidian"][0]
+            if 0 <= lx < PCELL and s2px[lx, gy1][:3] not in hair_rgbs:
+                s2px[lx, gy1] = C_SELOUT
     states.append(_clip_to_medallion(s2))
 
-    # 3: Low-HP (HP <= 35% — dark crimson aura, glowing ruby glare & furrowed brow)
+    # 3: Low-HP (HP <= 35% — smooth crimson aura, glowing ruby irises & furrowed brow)
     s3 = _medallion_base(low_hp=True)
     s3.alpha_composite(snapped_face, (fx0, fy0))
     s3px = s3.load()
     for ex, ey in eye_pts:
-        s3px[ex, ey] = RAMPS["crimson"][3] if (ex + ey) % 2 == 0 else RAMPS["crimson"][2]
+        s3px[ex, ey] = C_RUBY_GLOW if ey == min(p[1] for p in eye_pts) else C_RUBY
     if near_eye:
         bx = min(p[0] for p in near_eye) + 1
         by = min(p[1] for p in near_eye) - 2
-        s3px[bx, by] = RAMPS["obsidian"][1]
-        s3px[bx + 1, by + 1] = RAMPS["obsidian"][0]
-        # Subtle crimson cheek droplet
-        s3px[bx - 2, by + 8] = RAMPS["crimson"][2]
-        s3px[bx - 2, by + 9] = RAMPS["crimson"][3]
+        if 0 <= bx + 1 < PCELL and 0 <= by + 9 < PCELL:
+            s3px[bx, by] = C_VELVET
+            s3px[bx + 1, by + 1] = C_SELOUT
+            s3px[bx - 2, by + 8] = C_CRIMSON_MID
+            s3px[bx - 2, by + 9] = C_RUBY
     states.append(_clip_to_medallion(s3))
 
     # 4: Hurt ("AKH!" recoil — tilted -1,+1, squeezed > < wince eyes, crimson rim)
@@ -722,22 +809,25 @@ def build_portrait_strip(
         gx0, gx1 = min(p[0] for p in grp) - 1, max(p[0] for p in grp) - 1
         gy0, gy1 = min(p[1] for p in grp) + 1, max(p[1] for p in grp) + 1
         for ey in range(gy0 - 1, gy1 + 1):
-            for ex in range(gx0, gx1 + 1):
-                if 0 <= ex < PCELL and 0 <= ey < PCELL:
-                    s4px[ex, ey] = RAMPS["moon"][3]
+            for ex in range(gx0 - 1, gx1 + 2):
+                if 0 <= ex < PCELL and 0 <= ey < PCELL and s4px[ex, ey][:3] not in hair_rgbs:
+                    s4px[ex, ey] = C_SKIN_MID
         if is_near:
-            for dx, dy in ((0, -1), (1, 0), (2, 0), (0, 1)):
+            for dx, dy in ((0, -1), (1, 0), (2, 0), (3, 0), (0, 1)):
                 if 0 <= gx0 + dx < PCELL and 0 <= gy1 - 1 + dy < PCELL:
-                    s4px[gx0 + dx, gy1 - 1 + dy] = RAMPS["obsidian"][0]
+                    s4px[gx0 + dx, gy1 - 1 + dy] = C_SELOUT
         else:
             for dx, dy in ((1, -1), (0, 0), (1, 1)):
                 if 0 <= gx0 + dx < PCELL and 0 <= gy1 + dy < PCELL:
-                    s4px[gx0 + dx, gy1 + dy] = RAMPS["obsidian"][0]
-    # Small parted "AKH!" mouth + tiny white fang on 3/4 jawline
-    s4px[36, 36] = RAMPS["crimson"][1]
-    s4px[37, 36] = RAMPS["moon"][3]
-    s4px[36, 37] = RAMPS["crimson"][2]
-    s4px[37, 37] = RAMPS["crimson"][1]
+                    s4px[gx0 + dx, gy1 + dy] = C_SELOUT
+    if near_eye:
+        mx = max(p[0] for p in near_eye) + 4
+        my = max(p[1] for p in near_eye) + 8
+        if mx + 1 < PCELL - 4 and my + 1 < PCELL - 4:
+            s4px[mx, my] = C_CRIMSON_DARK
+            s4px[mx + 1, my] = C_PEARL_SPEC
+            s4px[mx, my + 1] = C_RUBY
+            s4px[mx + 1, my + 1] = C_CRIMSON_DARK
     states.append(_clip_to_medallion(s4))
 
     strip = Image.new("RGBA", (PCELL * 5, PCELL), (0, 0, 0, 0))
@@ -799,7 +889,7 @@ def assert_sheet_contract(
 
 
 # ---------------------------------------------------------------------------
-# Diagnostic preview (`docs/images/velmira_import_preview.png`)
+# Diagnostic preview (`docs/images/noa_import_preview.png`)
 # ---------------------------------------------------------------------------
 
 def render_import_preview(
@@ -825,9 +915,9 @@ def render_import_preview(
     draw = ImageDraw.Draw(canvas)
     draw.text(
         (pad, 12),
-        f"VELMIRA HAND-DRAWN POSE IMPORT  |  tol=42 flood-fill  |  de-fringed={total_fringe_killed}px  |  "
-        f"palette={sheet_colours}/24 RAMPS (Lab + 2x2 Bayer)  |  GROUND_Y={GROUND_Y}",
-        fill=RAMPS["crimson"][3],
+        f"NOA HAND-DRAWN POSE IMPORT  |  tol=42 flood-fill  |  de-fringed={total_fringe_killed}px  |  "
+        f"palette={sheet_colours}/24 smooth cel-shaded (0% checkerboard)  |  GROUND_Y={GROUND_Y}",
+        fill=C_RUBY_GLOW,
     )
 
     for idx, (fname, raw_im, clean_snapped, killed) in enumerate(raw_cleaned_pairs):
@@ -840,28 +930,21 @@ def render_import_preview(
             fill=(30, 24, 42, 255),
             outline=(68, 56, 92, 255),
         )
-        # Left: raw source on white; Right: keyed + de-fringed + palette-snapped on dark checker
         canvas.alpha_composite(raw_im, (x0 + 12, y0 + 10))
-        chk = Image.new("RGBA", (96, 96), (38, 32, 54, 255))
-        cd = ImageDraw.Draw(chk)
-        for cy in range(0, 96, 8):
-            for cx in range(0, 96, 8):
-                if ((cx + cy) // 8) % 2 == 0:
-                    cd.rectangle([cx, cy, cx + 7, cy + 7], fill=(28, 22, 40, 255))
-        chk.alpha_composite(clean_snapped, (0, 0))
-        canvas.alpha_composite(chk, (x0 + 124, y0 + 10))
+        slate = Image.new("RGBA", (96, 96), (34, 28, 48, 255))
+        slate.alpha_composite(clean_snapped, (0, 0))
+        canvas.alpha_composite(slate, (x0 + 124, y0 + 10))
         draw.text(
             (x0 + 10, y0 + 112),
             f"{fname}  (-{killed}px fringe)",
-            fill=RAMPS["moon"][2],
+            fill=C_PEARL_LIGHT,
         )
 
-    # Middle section: 16-frame 1536x96 output sheet (1x & 1.5x strip with GROUND_Y=80 line)
     sy = top_grid_h + 12
     draw.text(
         (pad, sy),
-        "FINAL 16-FRAME SPRITE SHEET: assets/textures/player_velmira.png (1536x96, binary alpha, 0 #000000)",
-        fill=RAMPS["gold"][3],
+        "FINAL 16-FRAME SPRITE SHEET: assets/textures/player_noa.png (1536x96, 68px tall, 0% checkerboard, 0 #000000)",
+        fill=C_GOLD_HI,
     )
     strip_y = sy + 24
     for i, lbl in enumerate(frame_labels):
@@ -870,23 +953,19 @@ def render_import_preview(
             [fx, strip_y, fx + 95, strip_y + 191],
             fill=(28, 22, 40, 255) if i % 2 == 0 else (34, 27, 48, 255),
         )
-        # Draw GROUND_Y=80 line at 2x scale -> y = strip_y + 160 (clipped inside 192px)
         cell = sheet.crop((i * CELL, 0, (i + 1) * CELL, CELL))
-        # Show cropped 1.5x or 1x + zoom: 1x full cell + 1x ground marker is 100% crisp!
         draw.rectangle([fx, strip_y, fx + 95, strip_y + 95], outline=(58, 48, 80, 255))
         draw.line([(fx, strip_y + GROUND_Y), (fx + 95, strip_y + GROUND_Y)], fill=(110, 48, 72, 255))
         canvas.alpha_composite(cell, (fx, strip_y))
-        # Also show 1.5x zoomed center crop right below for easy visual inspection
-        z = cell.crop((12, 12, 84, 84)).resize((96, 96), Image.Resampling.NEAREST)
+        z = cell.crop((10, 8, 86, 84)).resize((96, 96), Image.Resampling.NEAREST)
         canvas.alpha_composite(z, (fx, strip_y + 96))
-        draw.text((fx + 3, strip_y + 196), f"f{i}:{lbl}", fill=RAMPS["moon"][2])
+        draw.text((fx + 3, strip_y + 196), f"f{i}:{lbl}", fill=C_PEARL_LIGHT)
 
-    # Bottom section: 5-state portrait strip at 2x zoom
     py = top_grid_h + sheet_sec_h + 6
     draw.text(
         (pad, py),
-        "5-STATE PORTRAIT STRIP: assets/textures/portrait_velmira.png (320x64 -> 2x zoom)",
-        fill=RAMPS["gold"][3],
+        "CLOSE-UP 5-STATE PORTRAIT STRIP: assets/textures/portrait_noa.png (320x64 -> 2x zoom, smooth cel-shaded)",
+        fill=C_GOLD_HI,
     )
     p_names = ["0:normal", "1:breath", "2:blink", "3:low_hp", "4:hurt"]
     for i, plbl in enumerate(p_names):
@@ -894,20 +973,20 @@ def render_import_preview(
         pcell = portrait_strip.crop((i * 64, 0, (i + 1) * 64, 64))
         pzoom = pcell.resize((128, 128), Image.Resampling.NEAREST)
         canvas.alpha_composite(pzoom, (px0, py + 24))
-        draw.text((px0 + 24, py + 154), plbl, fill=RAMPS["moon"][2])
+        draw.text((px0 + 24, py + 154), plbl, fill=C_PEARL_LIGHT)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(out_path)
 
 
 # ---------------------------------------------------------------------------
-# Velmira sheet orchestration
+# Noa sheet orchestration
 # ---------------------------------------------------------------------------
 
-def import_velmira(cfg: dict) -> None:
+def import_noa(cfg: dict) -> None:
     src_dir: Path = cfg["src_dir"]
-    palette = build_hero_palette(tuple(cfg["ramps"]))
-    snapper = PerceptualBayerSnapper(palette)
+    palette = build_hero_palette(cfg)
+    snapper = PerceptualPaletteSnapper(palette, bayer_dither=bool(cfg.get("bayer_dither", False)))
     target_h = int(cfg["target_body_h"])
     ground_y = int(cfg["ground_y"])
     tol = int(cfg["tolerance"])
@@ -940,7 +1019,6 @@ def import_velmira(cfg: dict) -> None:
         cleaned_map[key] = cleaned
         preview_pairs.append((fname, raw_im, snapper.snap_image(cleaned), killed))
 
-    # Build 16 grounded 96x96 frames (`f0..f15`):
     f0_idle = place_pose_in_cell(cleaned_map["idle_down"], snapper, target_h, ground_y)
     f1_idle_b = make_breath_variant(f0_idle, ground_y)
     f2_walk1 = place_pose_in_cell(
@@ -989,7 +1067,6 @@ def import_velmira(cfg: dict) -> None:
     for idx, (_lbl, cell) in enumerate(frames_and_labels):
         sheet.alpha_composite(cell, (idx * CELL, 0))
 
-    # Build 5-state portrait strip (`face.png` -> `320x64`)
     face_path = src_dir / "face.png"
     raw_face = Image.open(face_path).convert("RGBA")
     portrait_strip, keyed_face, face_killed = build_portrait_strip(face_path, snapper, tolerance=tol)
@@ -998,10 +1075,9 @@ def import_velmira(cfg: dict) -> None:
 
     print(f"  [de-fringe] TOTAL killed across 11 poses: {total_fringe_killed} pixels")
 
-    # Step 4: Contract assertions on both deliverables BEFORE saving
     sheet_info = assert_sheet_contract(
         sheet,
-        label="player_velmira.png",
+        label="player_noa.png",
         expected_size=(1536, 96),
         max_colours=24,
         ground_y=ground_y,
@@ -1009,7 +1085,7 @@ def import_velmira(cfg: dict) -> None:
     )
     port_info = assert_sheet_contract(
         portrait_strip,
-        label="portrait_velmira.png",
+        label="portrait_noa.png",
         expected_size=(320, 64),
         max_colours=24,
         ground_y=None,
@@ -1048,19 +1124,23 @@ def import_velmira(cfg: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--hero", default="velmira", choices=sorted(HERO_PRESETS))
+    parser.add_argument("--hero", default="noa", choices=sorted(HERO_PRESETS))
     parser.add_argument("--tolerance", type=int, default=None, help="Override border flood-fill tolerance")
     parser.add_argument("--body-h", type=int, default=None, help="Override standing body height")
+    parser.add_argument("--bayer", action="store_true", help="Enable optional 2x2 Bayer dithering")
     args = parser.parse_args()
 
     cfg = dict(HERO_PRESETS[args.hero])
+    cfg["hero"] = args.hero
     if args.tolerance is not None:
         cfg["tolerance"] = args.tolerance
     if args.body_h is not None:
         cfg["target_body_h"] = args.body_h
+    if args.bayer:
+        cfg["bayer_dither"] = True
 
-    if args.hero == "velmira":
-        import_velmira(cfg)
+    if args.hero == "noa":
+        import_noa(cfg)
     return 0
 
 

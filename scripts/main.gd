@@ -6,7 +6,7 @@ extends Node2D
 ##      - Game starts in the playable Medieval Castle Guild Hall (`LobbyHub`)!
 ##      - Walk up to the Oak Wardrobe (`Komod`) on the left to swap heroes.
 ##      - Walk into the East Training Room to test combos, stuns, bow charges,
-##        and Velmira's 2-Fang 30% Curse on the `TrainingDummy`.
+##        and Noa's 2-Fang 30% Curse on the `TrainingDummy`.
 ##      - Walk through the `"STAGES"` Gate to start Dungeon Stage progression.
 ##      - Walk through the corner `"SANDBOX"` Door in the Training Room to enter
 ##        the `1280x720` Arena Sandbox Map!

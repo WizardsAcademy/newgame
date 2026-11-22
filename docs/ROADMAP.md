@@ -40,12 +40,12 @@
   recovery, elite flare, crumble → rubble) with footstep dust and camera
   nudge, and the same HP/damage/radius — `docs/GOLEM_REDESIGN.md`,
   generator in `tools/make_golem_sprites.py`
-- [x] Unified Hero Art Pass (Behemoth, Knight, Sylvara, Velmira): all 4
+- [x] Unified Hero Art Pass (Behemoth, Knight, Sylvara, Noa): all 4
   heroes unified on `96×96` strips (`72 px` standing height, `GROUND_Y = 80`,
   `Visuals.scale = 0.5`, shared 32-colour 4-step top-left ramp, selective
   selout outlines, ~30% head ratio, distinct silhouettes) —
   `docs/ART_CONTRACT.md` & `docs/CHARACTERS.md`, generators in
-  `tools/make_{behemoth,knight,sylvara,velmira}_sprites.py`
+  `tools/make_{behemoth,knight,sylvara,noa}_sprites.py`
 - [x] Archer art pass: the 16×16 placeholder became a 32×32, 12-pose
   hooded skeleton (shamble, bone rattle, bow draw → release, mocking head
   tilt, white hit flash, collapse into a bone heap) with the same HP,
@@ -78,7 +78,7 @@
 
 - [ ] Death currency + hub/menu scene (character select + skill tree)
 - [ ] Behemoth's skill tree — data in one file (JSON/Dictionary), not hardcoded
-- [x] Additional heroes: Knight, Sylvara, Velmira — built on shared `PlayerBase`
+- [x] Additional heroes: Knight, Sylvara, Noa — built on shared `PlayerBase`
 - DoD: repeated deaths should convey real growth; each hero must feel clearly
   mechanically different from Behemoth
 

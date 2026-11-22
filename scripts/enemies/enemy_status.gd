@@ -7,7 +7,7 @@ extends Node2D
 ##      Pauses enemy movement/attacks and orbits 3 golden stars overhead.
 ##   2. **Sylvan Slow** (Sylvara's Wind-Vault gust):
 ##      Temporarily slows pursuing enemies with emerald wind wisps.
-##   3. **Vampire 2-Fang + Filling Crimson Circle Debuff** (Velmira):
+##   3. **Vampire 2-Fang + Filling Crimson Circle Debuff** (Noa):
 ##      Draws 2 crisp Vampire Fangs + a crimson circular gauge (`0..4` stacks).
 ##      When the circle fills (`4/4`), it EXPLODES for **30% of enemy Max HP**!
 
@@ -15,7 +15,7 @@ const FANG_STACKS_TO_BURST: int = 4
 const FANG_DECAY_SECONDS: float = 6.0
 const FANG_MAX_HP_RATIO: float = 0.30
 const BOSS_BURST_CAP: int = 55
-const VELMIRA_FX_PATH: String = "res://assets/textures/velmira_fx.png"
+const NOA_FX_PATH: String = "res://assets/textures/noa_fx.png"
 
 var stun_left: float = 0.0
 var _boss_stun_dr_left: float = 0.0
@@ -184,9 +184,9 @@ func _spawn_fang_explosion_fx() -> void:
 	sfx.play()
 	sfx.finished.connect(sfx.queue_free)
 
-	# Spawn 100% hand-crafted 3-frame Pixel-Art Ground Crimson Blood Fountain (`frames 5 -> 6 -> 7` of `velmira_fx.png`)!
-	if ResourceLoader.exists(VELMIRA_FX_PATH):
-		var fx_tex: Texture2D = load(VELMIRA_FX_PATH)
+	# Spawn 100% hand-crafted 3-frame Pixel-Art Ground Crimson Blood Fountain (`frames 5 -> 6 -> 7` of `noa_fx.png`)!
+	if ResourceLoader.exists(NOA_FX_PATH):
+		var fx_tex: Texture2D = load(NOA_FX_PATH)
 		if fx_tex != null:
 			var fcell := float(maxi(fx_tex.get_height(), 1))
 			var total_cols := maxi(int(fx_tex.get_width() / fcell), 1)
@@ -311,7 +311,7 @@ func _draw() -> void:
 		draw_arc(Vector2(0.0, 8.0), 10.0, a0, a0 + 2.1, 10, Color(0.42, 0.98, 0.64, 0.78), 1.6)
 		draw_arc(Vector2(0.0, 8.0), 10.0, a0 + PI, a0 + PI + 2.1, 10, Color(0.75, 1.0, 0.82, 0.68), 1.4)
 
-	# 3. Velmira's 2-Fang + Filling Crimson Circle Debuff!
+	# 3. Noa's 2-Fang + Filling Crimson Circle Debuff!
 	if fang_stacks > 0 or _burst_flash_left > 0.0:
 		var cy := top_y - (9.0 if stun_left > 0.0 else 2.0)
 		var center := Vector2(0.0, cy)

@@ -6,7 +6,7 @@ class_name CharacterRegistry
 ##   1. Behemoth - Medieval Pit-Champion (120 HP, Stunning Punches + Shoulder Charge Stun)
 ##   2. Knight   - Fallen Knight         (150 HP, Armor + Energy 100% Shield + Giant Greatsword)
 ##   3. Sylvara  - Blonde Elven Ranger   (100 HP, Fastest Speed, Held Recurve Bow + Sylvan Vault)
-##   4. Velmira  - White-Haired Vampire  (75 HP, Returning Blood Whip + 30% Fang Mark + Bat Swarm)
+##   4. Noa  - White-Haired Vampire  (75 HP, Returning Blood Whip + 30% Fang Mark + Bat Swarm)
 
 const CHARACTERS: Array[Dictionary] = [
 	{
@@ -85,13 +85,13 @@ const CHARACTERS: Array[Dictionary] = [
 		"death_line": "Sylvara's golden arrow falls silent in the glade.",
 	},
 	{
-		"id": "velmira",
-		"name": "Velmira",
+		"id": "noa",
+		"name": "Noa",
 		"role": "VAMPIRE",
 		"subtitle": "Crimson Hemomancer",
-		"scene_path": "res://scenes/player/Velmira.tscn",
-		"sheet_path": "res://assets/textures/player_velmira.png",
-		"portrait_path": "res://assets/textures/portrait_velmira.png",
+		"scene_path": "res://scenes/player/Noa.tscn",
+		"sheet_path": "res://assets/textures/player_noa.png",
+		"portrait_path": "res://assets/textures/portrait_noa.png",
 		"frame_count": 16,
 		"accent": Color(0.98, 0.30, 0.45),
 		"hp": 75,
@@ -107,7 +107,7 @@ const CHARACTERS: Array[Dictionary] = [
 		"passive_info": "2-Fang Blood Curse: 4th hit erupts a massive Crimson Blood Fountain for 30% of enemy Max HP!",
 		"dash_info": "Bat-Swarm Vanish [Shift]: Dissolves into 5 flapping Vampire Bats & materializes ahead!",
 		"desc": "75 HP vampire princess: sweeping Blood-Splash arcs, 30% Blood Fountain & Bat-Swarm Shift.",
-		"death_line": "Velmira melts into a dark crimson pool.",
+		"death_line": "Noa melts into a dark crimson pool.",
 	},
 ]
 

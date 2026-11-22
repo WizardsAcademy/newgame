@@ -7,7 +7,7 @@ plus the places you will want to touch when you add the next enemy.
 
 | File | What it is |
 | --- | --- |
-| `scenes/player/Behemoth.tscn` | Default hero root (`Knight.tscn`, `Sylvara.tscn`, `Velmira.tscn` swap in), `Hitbox` Area2D, `attack` animation |
+| `scenes/player/Behemoth.tscn` | Default hero root (`Knight.tscn`, `Sylvara.tscn`, `Noa.tscn` swap in), `Hitbox` Area2D, `attack` animation |
 | `scripts/player/behemoth.gd` | Input (via `player_base.gd`), swing timing, hit detection, damage |
 | `scenes/enemies/Slime.tscn` | Rounded jelly: `Visuals` (shadow + goo + 12-pose body), hurtbox, health bar |
 | `scripts/enemies/slime.gd` | Health, hit flash, death, follow AI, attack state machine |

@@ -1,7 +1,7 @@
-[gd_scene load_steps=34 format=3 uid="uid://cvelmirascn01"]
+[gd_scene load_steps=34 format=3 uid="uid://cnoascn00001"]
 
-[ext_resource type="Script" path="res://scripts/player/velmira.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://assets/textures/player_velmira.png" id="2_sheet"]
+[ext_resource type="Script" path="res://scripts/player/noa.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/textures/player_noa.png" id="2_sheet"]
 [ext_resource type="Texture2D" path="res://assets/textures/white_pixel.png" id="3_white"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
@@ -280,8 +280,8 @@ collision_layer = 2
 collision_mask = 5
 motion_mode = 1
 script = ExtResource("1_script")
-character_id = "velmira"
-character_name = "Velmira"
+character_id = "noa"
+character_name = "Noa"
 move_speed = 104.0
 attack_duration = 0.34
 attack_damage = 14
