@@ -10,10 +10,10 @@ Art direction:
   - Clear Bow-Draw & Glowing Emerald Charge animation + Sylvan Leaf Vault + Hurt!
 
 Writes:
-    assets/textures/player_pari.png     864 x 96 (9 frames of 96x96)
-    docs/images/sylvara_preview.png     review sheet
+    assets/textures/player_sylvara.png   1440 x 96 (15 frames of 96x96)
+    docs/images/sylvara_preview.png      review sheet
 
-SHEET LAYOUT (matches scenes/player/Pari.tscn):
+SHEET LAYOUT (matches scenes/player/Sylvara.tscn):
     0 : idle            (Recurve Bow held at ready)
     1 : walk A
     2 : walk B
@@ -426,8 +426,8 @@ def main() -> None:
     for i, p in enumerate(poses):
         fr = build_sylvara_vertical_pose(p) if p.startswith(("down_", "up_")) else build_sylvara_pose(p)
         sheet.alpha_composite(fr, (i * FRAME, 0))
-    sheet.save("assets/textures/player_pari.png")
-    print("wrote assets/textures/player_pari.png", sheet.size)
+    sheet.save("assets/textures/player_sylvara.png")
+    print("wrote assets/textures/player_sylvara.png", sheet.size)
 
     zoom, pad = 2, 10
     w = pad + len(poses) * (FRAME * zoom + pad)

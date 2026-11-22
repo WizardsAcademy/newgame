@@ -13,7 +13,7 @@ matching `portrait_velmira` in `tools/make_hero_portraits.py` 1:1!):
     Blood-Splash cast (`cast_windup`, `cast_slash`), `hurt`, and `die_pool`.
 
 Writes:
-    assets/textures/player_shabnam.png   1536 x 96 (16 frames of 96x96)
+    assets/textures/player_velmira.png   1536 x 96 (16 frames of 96x96)
     docs/images/velmira_preview.png      review sheet
 """
 
@@ -404,8 +404,8 @@ def main() -> None:
     for i, p in enumerate(poses):
         fr = build_velmira_vertical_pose(p) if p.startswith(("down_", "up_")) else build_velmira_pose(p)
         sheet.alpha_composite(fr, (i * FRAME, 0))
-    sheet.save("assets/textures/player_shabnam.png")
-    print("wrote assets/textures/player_shabnam.png", sheet.size)
+    sheet.save("assets/textures/player_velmira.png")
+    print("wrote assets/textures/player_velmira.png", sheet.size)
 
     zoom, pad = 2, 10
     w = pad + len(poses) * (FRAME * zoom + pad)

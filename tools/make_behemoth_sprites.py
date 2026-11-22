@@ -11,10 +11,10 @@ Art direction:
     Charge (`Shift`)!
 
 Writes:
-    assets/textures/player_borzo.png    960 x 96 (10 frames of 96x96)
-    docs/images/brawler_preview.png     review sheet
+    assets/textures/player_behemoth.png  1536 x 96 (16 frames of 96x96)
+    docs/images/behemoth_preview.png     review sheet
 
-SHEET LAYOUT (matches scenes/player/Player.tscn):
+SHEET LAYOUT (matches scenes/player/Behemoth.tscn):
     0 : idle            (twin iron-cestus guard)
     1 : walk A
     2 : walk B
@@ -365,8 +365,8 @@ def main() -> None:
     for i, p in enumerate(poses):
         fr = build_brawler_vertical_pose(p) if p.startswith(("down_", "up_")) else build_brawler_pose(p)
         sheet.alpha_composite(fr, (i * FRAME, 0))
-    sheet.save("assets/textures/player_borzo.png")
-    print("wrote assets/textures/player_borzo.png", sheet.size)
+    sheet.save("assets/textures/player_behemoth.png")
+    print("wrote assets/textures/player_behemoth.png", sheet.size)
 
     zoom, pad = 2, 10
     w = pad + len(poses) * (FRAME * zoom + pad)
@@ -379,7 +379,7 @@ def main() -> None:
         fr = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
         prev.alpha_composite(fr.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST), (x, 28))
         d.text((x, 28 + FRAME * zoom + 4), f"{i}:{p}", fill=(224, 192, 148, 255))
-    prev.save("docs/images/brawler_preview.png")
+    prev.save("docs/images/behemoth_preview.png")
 
 
 if __name__ == "__main__":

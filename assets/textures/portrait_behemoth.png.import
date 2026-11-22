@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cshabnamtex01"
-path="res://.godot/imported/player_shabnam.png-c9a480f850d0b6307470c35a32f68406.ctex"
+uid="uid://e44skh80he6h"
+path="res://.godot/imported/portrait_behemoth.png-60cb0f1741d1488ef2d660765fa56855.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/player_shabnam.png"
-dest_files=["res://.godot/imported/player_shabnam.png-c9a480f850d0b6307470c35a32f68406.ctex"]
+source_file="res://assets/textures/portrait_behemoth.png"
+dest_files=["res://.godot/imported/portrait_behemoth.png-60cb0f1741d1488ef2d660765fa56855.ctex"]
 
 [params]
 

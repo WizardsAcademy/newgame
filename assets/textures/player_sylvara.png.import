@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://s0njg6emfhoq"
-path="res://.godot/imported/portrait_pari.png-c75acea635d9c689ec7da8bf87f12de8.ctex"
+uid="uid://csylvaratex01"
+path="res://.godot/imported/player_sylvara.png-0d5b43cfa7d205dc609e5750ea3710cf.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/portrait_pari.png"
-dest_files=["res://.godot/imported/portrait_pari.png-c75acea635d9c689ec7da8bf87f12de8.ctex"]
+source_file="res://assets/textures/player_sylvara.png"
+dest_files=["res://.godot/imported/player_sylvara.png-0d5b43cfa7d205dc609e5750ea3710cf.ctex"]
 
 [params]
 

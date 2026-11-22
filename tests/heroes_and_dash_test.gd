@@ -70,10 +70,10 @@ func _run() -> void:
 	# -----------------------------------------------------------------
 	# 1. ALL 4 HERO SHEETS, PORTRAITS, DARK-FANTASY FONT & CLASSIC BATS
 	# -----------------------------------------------------------------
-	var tex_behemoth: Texture2D = load("res://assets/textures/player_borzo.png")
-	var tex_knight: Texture2D = load("res://assets/textures/player_bahman.png")
-	var tex_sylvara: Texture2D = load("res://assets/textures/player_pari.png")
-	var tex_velmira: Texture2D = load("res://assets/textures/player_shabnam.png")
+	var tex_behemoth: Texture2D = load("res://assets/textures/player_behemoth.png")
+	var tex_knight: Texture2D = load("res://assets/textures/player_knight.png")
+	var tex_sylvara: Texture2D = load("res://assets/textures/player_sylvara.png")
+	var tex_velmira: Texture2D = load("res://assets/textures/player_velmira.png")
 	var tex_vel_fx: Texture2D = load("res://assets/textures/velmira_fx.png")
 	var tex_bats: Texture2D = load("res://assets/textures/crimson_bat.png")
 	var dark_font: Font = load("res://assets/fonts/dark_fantasy.ttf")
@@ -87,10 +87,10 @@ func _run() -> void:
 	_check("Dark-Fantasy Gothic font loaded cleanly", dark_font != null)
 
 	for p_path in [
-		"res://assets/textures/portrait_borzo.png",
-		"res://assets/textures/portrait_bahman.png",
-		"res://assets/textures/portrait_pari.png",
-		"res://assets/textures/portrait_shabnam.png",
+		"res://assets/textures/portrait_behemoth.png",
+		"res://assets/textures/portrait_knight.png",
+		"res://assets/textures/portrait_sylvara.png",
+		"res://assets/textures/portrait_velmira.png",
 	]:
 		var ptex: Texture2D = load(p_path)
 		_check_eq("Face portrait strip %s is 320x64 (5x 64x64)" % p_path.get_file(),

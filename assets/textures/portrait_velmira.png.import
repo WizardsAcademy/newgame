@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cbahmantex001"
-path="res://.godot/imported/player_bahman.png-c32ff3d61979fda8f8490c2492dbc142.ctex"
+uid="uid://eipux3mujldf"
+path="res://.godot/imported/portrait_velmira.png-d15987f8aacf0b33d8ee8afe20c7313c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/player_bahman.png"
-dest_files=["res://.godot/imported/player_bahman.png-c32ff3d61979fda8f8490c2492dbc142.ctex"]
+source_file="res://assets/textures/portrait_velmira.png"
+dest_files=["res://.godot/imported/portrait_velmira.png-d15987f8aacf0b33d8ee8afe20c7313c.ctex"]
 
 [params]
 

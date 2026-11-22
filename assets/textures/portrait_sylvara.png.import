@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bj4ey0ykrkn10"
-path="res://.godot/imported/player_borzo.png-4145681a8670d5d1f2d369698e7db0e0.ctex"
+uid="uid://s0njg6emfhoq"
+path="res://.godot/imported/portrait_sylvara.png-1b91d6f6758e3d69984df9fd5513300e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/player_borzo.png"
-dest_files=["res://.godot/imported/player_borzo.png-4145681a8670d5d1f2d369698e7db0e0.ctex"]
+source_file="res://assets/textures/portrait_sylvara.png"
+dest_files=["res://.godot/imported/portrait_sylvara.png-1b91d6f6758e3d69984df9fd5513300e.ctex"]
 
 [params]
 

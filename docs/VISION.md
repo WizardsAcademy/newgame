@@ -50,7 +50,7 @@ Long-term structure (after co-op):
 ## Tone and Look
 
 - 24×24 pixel art, limited palette, simple dark background
-- Persian-flavored names and fantasy: Borzo, Bahman, Shabnam, Pari —
+- Dark-fantasy medieval heroes: Behemoth, Knight, Sylvara, Velmira —
   the rest of the content (enemies, places, upgrade names) draws from
   the same space
 - Audio: procedural SFX via `SFXGenerator` — no music files or external

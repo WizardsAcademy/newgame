@@ -6,7 +6,7 @@ extends Node2D
 ##  - `Visual` slices a 6x6 region (`region_rect = Rect2(0, 0, 6, 6)`) out of
 ##    `white_pixel.png` and tints it with the player's warm gold fist color,
 ##    so it looks like a crisp impact flash rather than a second character body.
-##  - It is spawned ONLY inside `player.gd`'s `_try_hit()` when an attack
+##  - It is spawned ONLY inside `player_base.gd`'s `_try_hit()` when an attack
 ##    actually connects with an enemy - never during an empty-air swing.
 ##  - Keeping it in a standalone scene (`res://scenes/fx/HitSpark.tscn`) lets
 ##    any weapon or enemy reuse the same impact effect in three lines:

@@ -7,8 +7,8 @@ plus the places you will want to touch when you add the next enemy.
 
 | File | What it is |
 | --- | --- |
-| `scenes/player/Player.tscn` | Player root, `Hitbox` Area2D, `attack` animation |
-| `scripts/player/player.gd` | Input, swing timing, hit detection, damage |
+| `scenes/player/Behemoth.tscn` | Default hero root (`Knight.tscn`, `Sylvara.tscn`, `Velmira.tscn` swap in), `Hitbox` Area2D, `attack` animation |
+| `scripts/player/behemoth.gd` | Input (via `player_base.gd`), swing timing, hit detection, damage |
 | `scenes/enemies/Slime.tscn` | Rounded jelly: `Visuals` (shadow + goo + 12-pose body), hurtbox, health bar |
 | `scripts/enemies/slime.gd` | Health, hit flash, death, follow AI, attack state machine |
 | `scripts/enemies/slime_visuals.gd` | Every slime pixel: hop cycle, squash & stretch, poses, goo FX (see `SLIME_REDESIGN.md`) |
@@ -62,7 +62,7 @@ never talks to the HUD, a sound manager or a score counter. It applies
 damage, then **broadcasts a fact**:
 
 ```gdscript
-signal attack_hit(enemy)          # player.gd
+signal attack_hit(enemy)          # player_base.gd
 signal health_changed(current_health, max_health)   # slime.gd
 signal died                       # slime.gd
 ```
@@ -80,7 +80,7 @@ func _on_attack_hit(enemy: Node) -> void:
 ```
 
 This keeps modules independent: deleting the HUD must not break combat,
-and adding a combo counter must not require editing `player.gd`.
+and adding a combo counter must not require editing `player_base.gd`.
 
 ## Collision layers
 
@@ -139,7 +139,7 @@ kill counter, all fed by signals - see `scripts/main.gd`.
    `CollisionShape2D`), `HealthBar`.
 3. Keep `Hurtbox` on layer 5 with mask 8, and the body on layer 3.
 4. Implement `take_damage(amount: int)` - that is the whole contract the
-   player's hitbox needs. Nothing in `player.gd` changes.
+   player's hitbox needs. Nothing in `player_base.gd` changes.
 
 ## Verification
 
