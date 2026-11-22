@@ -81,10 +81,10 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.1, 0.28),
+"times": PackedFloat32Array(0, 0.09, 0.28),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f3"), SubResource("AtlasTexture_f4"), SubResource("AtlasTexture_f0")]
+"values": [SubResource("AtlasTexture_f13"), SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f2")]
 }
 
 [sub_resource type="Animation" id="Animation_attack_splash"]
@@ -100,7 +100,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.1, 0.28),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f3"), SubResource("AtlasTexture_f4"), SubResource("AtlasTexture_f0")]
+"values": [SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f12"), SubResource("AtlasTexture_f0")]
 }
 
 [sub_resource type="Animation" id="Animation_charge"]
@@ -117,7 +117,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f5")]
+"values": [SubResource("AtlasTexture_f13")]
 }
 
 [sub_resource type="Animation" id="Animation_die"]
@@ -133,7 +133,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.2, 0.44),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f6"), SubResource("AtlasTexture_f5"), SubResource("AtlasTexture_f9")]
+"values": [SubResource("AtlasTexture_f14"), SubResource("AtlasTexture_f13"), SubResource("AtlasTexture_f15")]
 }
 
 [sub_resource type="Animation" id="Animation_hurt"]
@@ -149,12 +149,12 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f6")]
+"values": [SubResource("AtlasTexture_f14")]
 }
 
 [sub_resource type="Animation" id="Animation_idle"]
 resource_name = "idle"
-length = 2.0
+length = 1.6
 loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
@@ -163,15 +163,15 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.65, 1.3, 1.75, 1.88),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.8),
+"transitions": PackedFloat32Array(1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f8"), SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f7"), SubResource("AtlasTexture_f0")]
+"values": [SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f1")]
 }
 
 [sub_resource type="Animation" id="Animation_idle_down"]
 resource_name = "idle_down"
-length = 0.8
+length = 1.6
 loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
@@ -180,10 +180,10 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
+"times": PackedFloat32Array(0, 0.8),
+"transitions": PackedFloat32Array(1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f10")]
+"values": [SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f1")]
 }
 
 [sub_resource type="Animation" id="Animation_idle_up"]
@@ -200,12 +200,12 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f13")]
+"values": [SubResource("AtlasTexture_f8")]
 }
 
 [sub_resource type="Animation" id="Animation_walk"]
 resource_name = "walk"
-length = 0.34
+length = 0.56
 loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
@@ -214,10 +214,10 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.17),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0, 0.14, 0.28, 0.42),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f1"), SubResource("AtlasTexture_f2")]
+"values": [SubResource("AtlasTexture_f2"), SubResource("AtlasTexture_f3"), SubResource("AtlasTexture_f4"), SubResource("AtlasTexture_f5")]
 }
 
 [sub_resource type="Animation" id="Animation_walk_down"]
@@ -234,7 +234,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.17),
 "transitions": PackedFloat32Array(1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f12")]
+"values": [SubResource("AtlasTexture_f6"), SubResource("AtlasTexture_f7")]
 }
 
 [sub_resource type="Animation" id="Animation_walk_up"]
@@ -251,7 +251,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.17),
 "transitions": PackedFloat32Array(1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f14"), SubResource("AtlasTexture_f15")]
+"values": [SubResource("AtlasTexture_f9"), SubResource("AtlasTexture_f10")]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]

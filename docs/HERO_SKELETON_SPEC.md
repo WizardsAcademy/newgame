@@ -40,8 +40,10 @@ All numbers are pixels inside the **96×96 cell**, `GROUND_Y = 80`.
 - Knight is the **human baseline**: 76 tall, 30 shoulders — nothing extreme.
 - Sylvara is **taller than the Knight but clearly thinner**: 80 tall, 24
   shoulders, 200 leg mass.
-- Velmira is **the shortest of all**: 64 tall, and as slender as Sylvara
-  (22 shoulders, 200 leg mass).
+- Velmira is **the shortest of all**: 65 tall (`[62, 68]`), imported from
+  hand-drawn `art_src/velmira/*.png` via `tools/import_pose_sheet.py` with a
+  narrow `12–13 px` boot stance inside her floor-length crimson-lined overcoat
+  and sweeping ankle-length silver haircape.
 
 ---
 
