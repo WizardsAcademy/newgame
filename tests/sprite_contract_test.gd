@@ -11,15 +11,21 @@ extends Node
 ##   - `Visuals` uses NEAREST texture filtering (never linear / mipmap)
 ##   - `Visuals.texture` AtlasTexture cell size == 96x96
 ##   - every 96x96 frame has visible pixels and <= 2.0% semi-transparent alpha
-##   - standing body height (`frame 0`) is in [70, 74] px (target 72 px)
+##   - standing body height (`frame 0`) matches docs/HERO_SKELETON_SPEC.md per hero:
+##     behemoth [66, 70], knight [74, 80], sylvara [78, 84], velmira [62, 68]
 ##   - every frame lands on `GROUND_Y = 80` (`bottom_y == 80`, single ground line)
 ##   - palette count <= 24 colours per hero sheet
 ##   - no `.png.import` file in `assets/textures/` enables `mipmaps/generate=true`
 
 const CELL_SIZE: int = 96
 const TARGET_GROUND_Y: int = 80
-const MIN_STANDING_H: int = 70
-const MAX_STANDING_H: int = 74
+const STANDING_H_BOUNDS := {
+	"behemoth": Vector2i(66, 70),
+	"knight": Vector2i(74, 80),
+	"sylvara": Vector2i(78, 84),
+	"velmira": Vector2i(62, 68),
+}
+const DEFAULT_STANDING_H := Vector2i(62, 84)
 const MAX_COLOURS_PER_HERO: int = 24
 const MAX_SEMI_ALPHA_PCT: float = 2.0
 
@@ -200,8 +206,9 @@ func _run() -> void:
 
 			_check("%s has zero empty frames" % hero_name, empty_frames.is_empty(),
 				"empty=%s" % str(empty_frames))
-			_check("%s standing body height (frame 0) in [%d, %d]" % [hero_name, MIN_STANDING_H, MAX_STANDING_H],
-				f0_h >= MIN_STANDING_H and f0_h <= MAX_STANDING_H,
+			var h_bounds: Vector2i = STANDING_H_BOUNDS.get(hero_id, DEFAULT_STANDING_H)
+			_check("%s standing body height (frame 0) in [%d, %d]" % [hero_name, h_bounds.x, h_bounds.y],
+				f0_h >= h_bounds.x and f0_h <= h_bounds.y,
 				"f0_body_h=%d" % f0_h)
 			var grounds: Array = ground_set.keys()
 			grounds.sort()

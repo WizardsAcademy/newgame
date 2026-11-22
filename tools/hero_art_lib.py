@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Shared 32-colour palette, top-left 4-step shader, and selective selout engine.
+"""Shared 32-colour palette, top-left 4-step shader, selective selout, and
+anatomical limb/mask primitives for the Hero Skeleton Spec (`docs/HERO_SKELETON_SPEC.md`).
 
-Implements the Hero Art Contract (Phase 4):
+Guarantees:
   - Shared 32-colour master palette: 8 material ramps x 4 steps
     (`shadow/selout`, `base`, `light`, `highlight`), zero `#000000`.
   - Consistent top-left directional light `(-0.68, -0.73)` across all heroes.
   - Selective selout: every 1px outline uses step 0 (`shadow`) of the adjacent
-    material (e.g. skin `#40262a`, steel `#1a2030`) — never pure black.
+    material (never pure black `#000000`).
   - Binary alpha (`0` or `255`), `<= 24` colours per hero, `GROUND_Y = 80`.
+  - `tapered_limb` & `cutout_poly` / `cutout_ellipse` so each hero has a bespoke
+    anatomical skeleton with slender legs narrower than the torso and crisp
+    silhouette cutouts (bow hoop, daylight between legs, etc.).
 """
 
 from __future__ import annotations
@@ -17,7 +21,6 @@ from PIL import Image, ImageDraw
 
 CELL = 96
 GROUND_Y = 80
-TARGET_STANDING_H = 72  # top_y = 8 .. bottom_y = 80
 
 # Shared 32-colour master ramp (8 materials x 4 steps: shadow/selout, base, light, highlight).
 # Zero #000000 anywhere in the palette.
@@ -109,8 +112,8 @@ class HeroCanvas:
         x0, y0, x1, y1 = bb
         cx = 0.5 * (x0 + x1 - 1)
         cy = 0.5 * (y0 + y1 - 1)
-        rx = max(0.5 * (x1 - x0), 1.5)
-        ry = max(0.5 * (y1 - y0), 1.5)
+        rx = max(0.5 * (x1 - x0), 1.2)
+        ry = max(0.5 * (y1 - y0), 1.2)
         mpx = mask.load()
 
         for y in range(y0, y1):
@@ -128,16 +131,14 @@ class HeroCanvas:
                     or mpx[x, y + 1] == 0
                 )
                 if selout and is_edge:
-                    # Selective selout: step 0 of THIS material.
                     self._px[x, y] = ramp[0]
                     continue
 
                 nx = (x - cx) / rx
                 ny = (y - cy) / ry
-                # Top-left light vector (-0.68, -0.73) + subtle cylindrical falloff
                 light = (-0.68 * nx - 0.73 * ny) - 0.16 * (nx * nx + ny * ny) + bias
 
-                if spec_boost and light >= 0.46:
+                if spec_boost and light >= 0.44:
                     step = 3
                 elif light >= -0.06:
                     step = 2
@@ -206,6 +207,42 @@ class HeroCanvas:
         )
         self._shade_mask(mask, mat, bias=bias, selout=selout, spec_boost=spec_boost)
 
+    def tapered_limb(
+        self,
+        x0: float,
+        y0: float,
+        r0: float,
+        x1: float,
+        y1: float,
+        r1: float,
+        mat: str,
+        bias: float = 0.0,
+        selout: bool = True,
+    ) -> None:
+        """Anatomical tapered limb with exact sub-pixel capsule distance."""
+        mask = Image.new("L", (self.w, self.h), 0)
+        mpx = mask.load()
+        dx, dy = x1 - x0, y1 - y0
+        len_sq = dx * dx + dy * dy
+        rmax = max(r0, r1) + 1.5
+        bx0 = max(0, int(math.floor(min(x0, x1) - rmax)))
+        bx1 = min(self.w - 1, int(math.ceil(max(x0, x1) + rmax)))
+        by0 = max(0, int(math.floor(min(y0, y1) - rmax)))
+        by1 = min(self.h - 1, int(math.ceil(max(y0, y1) + rmax)))
+
+        for py in range(by0, by1 + 1):
+            for px in range(bx0, bx1 + 1):
+                if len_sq <= 1e-6:
+                    t = 0.0
+                else:
+                    t = max(0.0, min(1.0, ((px - x0) * dx + (py - y0) * dy) / len_sq))
+                cx = x0 + dx * t
+                cy = y0 + dy * t
+                r = r0 + (r1 - r0) * t
+                if (px - cx) ** 2 + (py - cy) ** 2 <= r * r:
+                    mpx[px, py] = 255
+        self._shade_mask(mask, mat, bias=bias, selout=selout, spec_boost=True)
+
     def limb(
         self,
         x0: float,
@@ -217,23 +254,32 @@ class HeroCanvas:
         bias: float = 0.0,
         selout: bool = True,
     ) -> None:
+        self.tapered_limb(x0, y0, r, x1, y1, r, mat, bias=bias, selout=selout)
+
+    def erase_poly(self, pts: list[tuple[float, float]], border_mat: str | None = None) -> None:
+        """Carve a crisp transparent negative-space opening (with optional selout border)."""
         mask = Image.new("L", (self.w, self.h), 0)
         d = ImageDraw.Draw(mask)
-        steps = max(int(math.hypot(x1 - x0, y1 - y0) * 2.5), 4)
-        for i in range(steps + 1):
-            t = i / float(steps)
-            px = x0 + (x1 - x0) * t
-            py = y0 + (y1 - y0) * t
-            d.ellipse(
-                [
-                    int(round(px - r)),
-                    int(round(py - r)),
-                    int(round(px + r)),
-                    int(round(py + r)),
-                ],
-                fill=255,
-            )
-        self._shade_mask(mask, mat, bias=bias, selout=selout, spec_boost=True)
+        ipts = [(int(round(x)), int(round(y))) for x, y in pts]
+        d.polygon(ipts, fill=255)
+        mpx = mask.load()
+        bb = mask.getbbox()
+        if bb is None:
+            return
+        for y in range(bb[1], bb[3]):
+            for x in range(bb[0], bb[2]):
+                if mpx[x, y] > 0:
+                    self._px[x, y] = (0, 0, 0, 0)
+        if border_mat is not None:
+            sel = RAMPS[border_mat][0]
+            for y in range(max(0, bb[1] - 1), min(self.h, bb[3] + 1)):
+                for x in range(max(0, bb[0] - 1), min(self.w, bb[2] + 1)):
+                    if self._px[x, y][3] == 0:
+                        continue
+                    for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                        if 0 <= nx < self.w and 0 <= ny < self.h and mpx[nx, ny] > 0:
+                            self._px[x, y] = sel
+                            break
 
     def dot(self, x: int, y: int, mat: str, step: int) -> None:
         ix, iy = int(round(x)), int(round(y))
@@ -293,38 +339,18 @@ class HeroCanvas:
             st = min(3, step + (1 if t < 0.35 else 0)) if selout_wrap else step
             self.stroke(pts[idx][0], pts[idx][1], pts[idx + 1][0], pts[idx + 1][1], mat, st, width)
 
-    def finalize(self, ground_y: int = GROUND_Y, exact_height: int | None = None) -> Image.Image:
-        """Snap bottom pixel row to `ground_y` (and optional exact standing height)."""
+    def finalize(self, ground_y: int = GROUND_Y) -> Image.Image:
+        """Snap bottom pixel row to `ground_y` with ZERO scaling (preserves exact skeleton!)."""
         bb = self.img.getbbox()
         if bb is None:
             return self.img
         x0, y0, x1, y1 = bb
-        crop = self.img.crop(bb)
         w = x1 - x0
         h = y1 - y0
-
-        if exact_height is not None and h != exact_height:
-            k = float(exact_height) / float(max(h, 1))
-            nw = max(1, min(self.w, int(round(w * k))))
-            nh = exact_height
-            crop = crop.resize((nw, nh), Image.NEAREST)
-            cx = 0.5 * (x0 + x1)
-            nx = max(0, min(self.w - nw, int(round(cx - nw * 0.5))))
-            out = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
-            out.alpha_composite(crop, (nx, ground_y - nh))
-            return out
-
+        crop = self.img.crop(bb)
         if h > ground_y:
-            k = float(ground_y) / float(h)
-            nw = max(1, min(self.w, int(round(w * k))))
-            nh = ground_y
-            crop = crop.resize((nw, nh), Image.NEAREST)
-            cx = 0.5 * (x0 + x1)
-            nx = max(0, min(self.w - nw, int(round(cx - nw * 0.5))))
-            out = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
-            out.alpha_composite(crop, (nx, 0))
-            return out
-
+            crop = crop.crop((0, h - ground_y, w, h))
+            h = ground_y
         nx = max(0, min(self.w - w, x0))
         ny = ground_y - h
         out = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
