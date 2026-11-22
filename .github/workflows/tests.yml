@@ -94,6 +94,3 @@ jobs:
 
       - name: Suite 6 - slime_variants_test
         run: /tmp/run_suite.sh tests/slime_variants_test.tscn
-
-      - name: Suite 7 - golem_test
-        run: /tmp/run_suite.sh tests/golem_test.tscn

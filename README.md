@@ -45,5 +45,4 @@ godot --headless --path . tests/archer_test.tscn
 godot --headless --path . tests/boss_test.tscn
 godot --headless --path . tests/combat_test.tscn
 godot --headless --path . tests/slime_variants_test.tscn
-godot --headless --path . tests/golem_test.tscn
 ```
