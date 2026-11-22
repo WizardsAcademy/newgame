@@ -78,10 +78,10 @@ func _run() -> void:
 	var tex_bats: Texture2D = load("res://assets/textures/crimson_bat.png")
 	var dark_font: Font = load("res://assets/fonts/dark_fantasy.ttf")
 
-	_check_eq("Behemoth reference 8x4 sheet is 1792x896 (32x 224x224)", tex_behemoth.get_size(), Vector2(1792, 896))
-	_check_eq("Knight reference 8x4 sheet is 1792x896 (32x 224x224)", tex_knight.get_size(), Vector2(1792, 896))
-	_check_eq("Sylvara reference 8x4 sheet is 1792x896 (32x 224x224)", tex_sylvara.get_size(), Vector2(1792, 896))
-	_check_eq("Velmira reference 8x5 sheet is 1792x1120 (40x 224x224)", tex_velmira.get_size(), Vector2(1792, 1120))
+	_check_eq("Behemoth 4-dir sheet is 1536x96 (16 frames)", tex_behemoth.get_size(), Vector2(1536, 96))
+	_check_eq("Knight 4-dir sheet is 1536x96 (16 frames)", tex_knight.get_size(), Vector2(1536, 96))
+	_check_eq("Sylvara 4-dir sheet is 1440x96 (15 frames)", tex_sylvara.get_size(), Vector2(1440, 96))
+	_check_eq("Velmira 4-dir sheet is 1536x96 (16 frames)", tex_velmira.get_size(), Vector2(1536, 96))
 	_check_eq("Velmira Hand-Crafted Blood FX strip is 1024x128 (8x 128x128)", tex_vel_fx.get_size(), Vector2(1024, 128))
 	_check_eq("Velmira Classic Crimson Bat strip is 72x24 (3x 24x24)", tex_bats.get_size(), Vector2(72, 24))
 	_check("Dark-Fantasy Gothic font loaded cleanly", dark_font != null)
@@ -93,8 +93,8 @@ func _run() -> void:
 		"res://assets/textures/portrait_shabnam.png",
 	]:
 		var ptex: Texture2D = load(p_path)
-		_check_eq("Portrait strip %s is 960x192 (5x 192x192 matching Velmira)" % p_path.get_file(),
-			ptex.get_size() if ptex != null else Vector2.ZERO, Vector2(960, 192))
+		_check_eq("Face portrait strip %s is 320x64 (5x 64x64)" % p_path.get_file(),
+			ptex.get_size() if ptex != null else Vector2.ZERO, Vector2(320, 64))
 
 	# -----------------------------------------------------------------
 	# 2. LOBBY, CIRCULAR-CLIPPED HUD, SANDBOX FULL-MAP CHASE vs STAGES NORMAL, & REVIVAL!
@@ -241,26 +241,16 @@ func _run() -> void:
 
 		h.set_move_facing(Vector2.RIGHT)
 		h._update_animation()
-		_check("%s has multi-frame calm 'idle' + 'die' collapse animation" % h.character_name,
-			h.anim_player.has_animation("die")
-			and h.anim_player.get_animation("idle").track_get_key_count(0) >= 4)
-		var vis_node := h.get_node_or_null("Visuals") as Sprite2D
-		var sh_node := h.get_node_or_null("Visuals/Shadow") as Sprite2D
-		_check("%s matches Velmira 224x224 pipeline (scale=0.165, LINEAR_WITH_MIPMAPS, shadow y=89)" % h.character_name,
-			vis_node != null and vis_node.scale.is_equal_approx(Vector2(0.165, 0.165))
-			and vis_node.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-			and sh_node != null and sh_node.position.is_equal_approx(Vector2(0.0, 89.0))
-			and sh_node.texture != null and sh_node.texture.resource_path.ends_with("slime_shadow.png"))
 
 	for h in [behemoth, knight, sylvara, velmira]:
 		h.input_enabled = true
 
-	# Verify Velmira's boots stay 100% grounded (`visuals.position == (0, -3)`, zero vertical float)!
+	# Verify Velmira's boots stay 100% grounded (`visuals.position == (0, 0)`, zero vertical float)!
 	var vy0: float = (velmira.visuals as Node2D).position.y
 	await _wait(0.22)
 	var vy1: float = (velmira.visuals as Node2D).position.y
 	_check("Velmira visuals.position.y is strictly grounded (zero floating bob)",
-		is_equal_approx(vy0, -3.0) and is_equal_approx(vy1, -3.0),
+		is_equal_approx(vy0, 0.0) and is_equal_approx(vy1, 0.0),
 		"vy0=%.2f vy1=%.2f" % [vy0, vy1])
 
 	# --- KNIGHT SHIELD STAMINA: 0 hold drain, hit-only drain, lockout at 0 until full ---

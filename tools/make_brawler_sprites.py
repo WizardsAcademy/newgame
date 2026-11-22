@@ -1,269 +1,385 @@
-#!/usr/bin/env python3
-"""Build Behemoth's 32-frame (8x4 @ 224x224) sheet & 5-state 192x192 HUD portrait
-directly from `assets/sprites/behemoth/behemoth_reference.png` (matching Velmira's
-exact pipeline, uniform `BODY_H = 170`, `GROUND_Y = 200`, zero black boxes!).
+#!/usr/bin/env python
+"""Generate Behemoth's 10-frame 96x96 Medieval Pit-Champion Brawler sheet.
 
-Outputs:
-  - assets/textures/player_borzo.png     (1792 x 896 RGBA, 8 cols x 4 rows of 224x224)
-  - assets/textures/portrait_borzo.png   (960 x 192 RGBA, 5 x 192x192 circular states)
-  - docs/images/brawler_preview.png      (visual verification sheet)
+Art direction:
+  - Medieval Arena / Guild Pit-Champion: riveted leather brigandine vest,
+    iron-plated left pauldron, brass lion-head belt, crimson medieval sash &
+    headband tails, battle scar, thick braided beard, muscular bare forearms,
+    and heavy spiked medieval Iron Cestus gauntlets!
+  - Clean articulated arm & fist animations: clearly coils back and punches
+    with lead Jab, heavy rear Cross, skyward Uppercut, and lowered Shoulder
+    Charge (`Shift`)!
+
+Writes:
+    assets/textures/player_borzo.png    960 x 96 (10 frames of 96x96)
+    docs/images/brawler_preview.png     review sheet
+
+SHEET LAYOUT (matches scenes/player/Player.tscn):
+    0 : idle            (twin iron-cestus guard)
+    1 : walk A
+    2 : walk B
+    3 : punch windup    (torso twists, rear right arm coils back)
+    4 : punch jab       (lead left arm snaps straight forward + fist smear)
+    5 : punch cross     (heavy right arm drives far forward + golden arc)
+    6 : punch uppercut  (rising iron uppercut + golden shock-gleam)
+    7 : shoulder charge (lowered iron-pauldron shoulder ramming pose)
+    8 : hurt            (recoiling hit stagger + wincing face)
+    9 : blink           (eyes shut)
 """
-from __future__ import annotations
 
 import math
-from pathlib import Path
-import sys
-import numpy as np
 from PIL import Image, ImageDraw
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ref_sheet_kit import (
-    CELL,
-    GROUND_Y,
-    apply_medallion_backdrop,
-    extract_from_black_bg,
-    make_calm_breath_variant,
-    place_grounded,
-)
+FRAME = 96
+FRAMES = 10
 
-ROOT = Path(__file__).resolve().parent.parent
-REF_PATH = ROOT / "assets/sprites/behemoth/behemoth_reference.png"
-OUT_HERO = ROOT / "assets/textures/player_borzo.png"
-OUT_PORTRAIT = ROOT / "assets/textures/portrait_borzo.png"
-OUT_PREVIEW = ROOT / "docs/images/brawler_preview.png"
-
-COLS = 8
-ROWS = 4
-BODY_H = 170  # Broad pit-champion stands ~6px (~1 world px) taller than lithe Velmira/Sylvara
-
-
-def make_brawler_side_blink(cell_im: Image.Image) -> Image.Image:
-    """Close Behemoth's side-facing eye calmly for natural blink frame."""
-    out = cell_im.copy()
-    arr = np.array(out)
-    # Locate bright sclera/iris pixel in head area (`y: 48..88, x: 108..148`)
-    sub = arr[48:88, 108:148]
-    r, g, b, a = sub[:, :, 0].astype(int), sub[:, :, 1].astype(int), sub[:, :, 2].astype(int), sub[:, :, 3]
-    eye = (a > 180) & (r > 185) & (g > 140) & (b > 125)
-    ys, xs = np.where(eye)
-    if len(xs) > 0:
-        for y, x in zip(ys + 48, xs + 108):
-            arr[y, x] = (52, 34, 30, arr[y, x, 3])
-    return Image.fromarray(arr, mode="RGBA")
+OUTLINE = (12, 9, 10, 255)
+SKIN_SHA = (176, 118, 86, 255)
+SKIN_MID = (218, 158, 118, 255)
+SKIN_HI = (244, 192, 152, 255)
+HAIR_DARK = (48, 30, 20, 255)
+HAIR_MID = (82, 52, 32, 255)
+LEATHER_DARK = (64, 38, 24, 255)
+LEATHER_MID = (104, 64, 38, 255)
+LEATHER_HI = (146, 94, 56, 255)
+PANTS_DARK = (38, 34, 42, 255)
+PANTS_MID = (60, 54, 66, 255)
+IRON_DARK = (46, 52, 66, 255)
+IRON_MID = (82, 92, 112, 255)
+IRON_HI = (152, 168, 194, 255)
+BRASS_DARK = (138, 96, 28, 255)
+BRASS_HI = (238, 192, 72, 255)
+SASH_RED = (168, 28, 42, 255)
+SASH_HI = (224, 62, 74, 255)
 
 
-def _frame_portrait_crop(ref: Image.Image, box: tuple[int, int, int, int], P: int = 192) -> Image.Image:
-    """Extract a close-up portrait box from black bg and fill 192x192 circle cleanly."""
-    im = extract_from_black_bg(ref, box, bg_thresh=11, hole_thresh=-1, min_speck=24)
-    # Scale so height/width covers medallion nicely
-    s = max(P / float(max(im.width, 1)), (P * 0.96) / float(max(im.height, 1)))
-    nw, nh = int(round(im.width * s)), int(round(im.height * s))
-    im_s = im.resize((nw, nh), Image.Resampling.LANCZOS)
-    canvas = Image.new("RGBA", (P, P), (0, 0, 0, 0))
-    canvas.alpha_composite(im_s, ((P - nw) // 2, P - nh + 4))
-    return canvas
+def put(img: Image.Image, x: int, y: int, col) -> None:
+    if 0 <= x < FRAME and 0 <= y < FRAME:
+        img.putpixel((x, y), col)
 
 
-def build_behemoth_portrait(ref: Image.Image) -> Image.Image:
-    """Build 5-state 192x192 circular HUD portrait from Behemoth's sharp close-up portrait!"""
-    P = 192
-    # Top-right Box 1 (`(1002, 10, 1242, 141)`) = ultra-crisp fierce front-3/4 close-up!
-    # Using this locked base across all 5 states keeps 0px jump between HUD states!
-    base_idle = _frame_portrait_crop(ref, (1002, 10, 1242, 141), P)
-
-    bg_in = (46, 28, 26)
-    bg_out = (16, 10, 11)
-    strip = Image.new("RGBA", (P * 5, P), (0, 0, 0, 0))
-
-    # 0: idle_a
-    strip.alpha_composite(apply_medallion_backdrop(base_idle, bg_in, bg_out), (0, 0))
-
-    # 1: idle_b (calm subtle breath — zero wild jump!)
-    b1 = base_idle.crop((2, 2, P - 2, P - 1)).resize((P, P), Image.Resampling.LANCZOS)
-    strip.alpha_composite(apply_medallion_backdrop(b1, bg_in, bg_out), (P, 0))
-
-    # 2: blink (close eyeballs at `y: 126..137, x: 82..104 | 132..150` cleanly under furrowed brow!)
-    def _is_behemoth_eye(x: int, y: int, r: int, g: int, b: int) -> bool:
-        if not (126 <= y <= 137 and ((82 <= x <= 104) or (132 <= x <= 150))):
-            return False
-        return (r > 175 and g > 150 and b > 140) or (r > 115 and r > g + 45)
-
-    f2 = base_idle.copy()
-    arr2 = np.array(f2)
-    for y in range(126, 138):
-        for x in range(82, 151):
-            r, g, b, a = int(arr2[y, x, 0]), int(arr2[y, x, 1]), int(arr2[y, x, 2]), int(arr2[y, x, 3])
-            if a > 180 and _is_behemoth_eye(x, y, r, g, b):
-                arr2[y, x] = (92, 58, 50, a)
-    f2 = Image.fromarray(arr2, mode="RGBA")
-    strip.alpha_composite(apply_medallion_backdrop(f2, bg_in, bg_out), (P * 2, 0))
-
-    # 3: low_hp (fierce glowing crimson eyes + battle-blood vignette, 0px jump!)
-    f3 = base_idle.copy()
-    px3 = f3.load()
-    for y in range(P):
-        for x in range(P):
-            r, g, b, a = px3[x, y]
-            if a < 20:
-                continue
-            if _is_behemoth_eye(x, y, r, g, b):
-                px3[x, y] = (255, min(255, int(g * 0.35 + 36)), int(b * 0.25), a)
+def pill_limb(img: Image.Image, x0: float, y0: float, x1: float, y1: float, r: int,
+              dark_c, mid_c, hi_c) -> None:
+    steps = max(int(math.hypot(x1 - x0, y1 - y0) * 2), 4)
+    d = ImageDraw.Draw(img)
+    for pass_id in range(3):
+        for i in range(steps + 1):
+            t = i / steps
+            cx = x0 + (x1 - x0) * t
+            cy = y0 + (y1 - y0) * t
+            if pass_id == 0:
+                rr = r + 1
+                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=OUTLINE)
+            elif pass_id == 1:
+                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=dark_c)
+                rr2 = max(r - 1, 1)
+                d.ellipse([cx - rr2, cy - rr2 - 1, cx + rr2, cy + rr2 - 1], fill=mid_c)
             else:
-                dist = math.hypot((x - P * 0.50) / (P * 0.5), (y - P * 0.52) / (P * 0.5))
-                vign = min(0.46, max(0.0, (dist - 0.28) * 0.68))
-                nr = int(r * (1.0 - vign * 0.18) + 185 * vign * 0.38)
-                ng = int(g * (1.0 - vign * 0.54))
-                nb = int(b * (1.0 - vign * 0.52))
-                px3[x, y] = (min(255, nr), max(0, ng), max(0, nb), a)
-    strip.alpha_composite(apply_medallion_backdrop(f3, (58, 22, 24), (22, 8, 10)), (P * 3, 0))
+                rr3 = max(r - 2, 1)
+                d.ellipse([cx - rr3, cy - rr3 - 1, cx + rr3 - 1, cy - 1], fill=hi_c)
 
-    # 4: hurt (recoil tilt + crimson hit flash on closed-eye wince!)
-    f4 = f2.rotate(-4.0, resample=Image.Resampling.BICUBIC, expand=False)
-    px4 = f4.load()
-    for y in range(P):
-        for x in range(P):
-            r, g, b, a = px4[x, y]
-            if a < 20:
-                continue
-            px4[x, y] = (min(255, int(r * 1.18 + 26)), int(g * 0.82), int(b * 0.82), a)
-    strip.alpha_composite(apply_medallion_backdrop(f4, (64, 22, 24), (24, 8, 10)), (P * 4, 0))
-    return strip
+
+def draw_cestus_fist(img: Image.Image, fx: float, fy: float, dir_ang_deg: float = 0.0,
+                     golden_gleam: bool = False) -> None:
+    """Heavy medieval spiked Iron Cestus gauntlet at the end of Behemoth's arm!"""
+    d = ImageDraw.Draw(img)
+    ix, iy = int(round(fx)), int(round(fy))
+    # Iron wrist bracer + heavy knuckle box
+    d.rounded_rectangle([ix - 6, iy - 5, ix + 6, iy + 5], radius=2, fill=IRON_MID, outline=OUTLINE)
+    d.rectangle([ix - 4, iy - 4, ix + 4, iy - 1], fill=IRON_HI)
+    # Brass rivets + spiked knuckles pointing along dir_ang_deg
+    rad = math.radians(dir_ang_deg)
+    ux, uy = math.cos(rad), math.sin(rad)
+    px, py = -uy, ux
+    for k in (-3, 0, 3):
+        sx = int(round(fx + ux * 7 + px * k))
+        sy = int(round(fy + uy * 7 + py * k))
+        put(img, sx, sy, BRASS_HI if golden_gleam else IRON_HI)
+        put(img, int(round(fx + ux * 6 + px * k)), int(round(fy + uy * 6 + py * k)), OUTLINE)
+    if golden_gleam:
+        d.ellipse([ix - 9, iy - 9, ix + 9, iy + 9], outline=BRASS_HI)
+
+
+def draw_arm_with_cestus(img: Image.Image, sx: float, sy: float, ex: float, ey: float,
+                         fx: float, fy: float, golden: bool = False) -> None:
+    """Articulated muscular upper-arm -> elbow -> forearm -> Iron Cestus fist!"""
+    pill_limb(img, sx, sy, ex, ey, 4, SKIN_SHA, SKIN_MID, SKIN_HI)
+    pill_limb(img, ex, ey, fx, fy, 4, SKIN_SHA, SKIN_MID, SKIN_HI)
+    # Leather forearm wrap just behind the gauntlet
+    wx, wy = ex + (fx - ex) * 0.62, ey + (fy - ey) * 0.62
+    pill_limb(img, wx, wy, fx, fy, 4, LEATHER_DARK, LEATHER_MID, BRASS_DARK)
+    ang = math.degrees(math.atan2(fy - ey, fx - ex))
+    draw_cestus_fist(img, fx, fy, ang, golden_gleam=golden)
+
+
+def draw_brawler_head(img: Image.Image, cx: int, cy: int, blink: bool = False, hurt: bool = False,
+                      tail_sway: int = 0) -> None:
+    d = ImageDraw.Draw(img)
+    # Flowing crimson medieval headband tails behind head
+    d.polygon([
+        (cx - 8, cy - 6),
+        (cx - 21 - tail_sway, cy - 3),
+        (cx - 18 - tail_sway, cy + 3),
+        (cx - 23 - tail_sway, cy + 7),
+        (cx - 9, cy + 1),
+    ], fill=SASH_RED, outline=OUTLINE)
+    d.line([(cx - 9, cy - 4), (cx - 18 - tail_sway, cy - 2)], fill=SASH_HI)
+
+    # Thick brown hair crown & head silhouette
+    d.rounded_rectangle([cx - 9, cy - 11, cx + 9, cy + 9], radius=4, fill=SKIN_MID, outline=OUTLINE)
+    d.rounded_rectangle([cx - 9, cy - 12, cx + 9, cy - 5], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+    d.line([(cx - 6, cy - 10), (cx + 4, cy - 10)], fill=HAIR_MID)
+
+    # Crimson & iron-studded medieval brow headband
+    d.rectangle([cx - 9, cy - 7, cx + 9, cy - 3], fill=SASH_RED, outline=OUTLINE)
+    for rx in (cx - 5, cx + 1, cx + 6):
+        put(img, rx, cy - 5, BRASS_HI)
+
+    # Battle scar over left eye
+    d.line([(cx - 3, cy - 3), (cx - 1, cy + 3)], fill=SASH_RED)
+
+    # Eyes
+    if hurt:
+        d.line([(cx - 4, cy - 1), (cx - 2, cy + 1)], fill=OUTLINE)
+        d.line([(cx + 5, cy - 1), (cx + 3, cy + 1)], fill=OUTLINE)
+    elif blink:
+        d.line([(cx - 4, cy), (cx - 1, cy)], fill=OUTLINE)
+        d.line([(cx + 3, cy), (cx + 6, cy)], fill=OUTLINE)
+    else:
+        for ex in (cx - 3, cx + 4):
+            put(img, ex, cy - 1, OUTLINE)
+            put(img, ex + 1, cy - 1, BRASS_HI)
+            put(img, ex, cy, OUTLINE)
+
+    # Thick medieval braided beard & mustache!
+    d.rounded_rectangle([cx - 7, cy + 3, cx + 8, cy + 10], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+    d.line([(cx - 5, cy + 4), (cx + 6, cy + 4)], fill=HAIR_MID, width=2)
+    if hurt:
+        # Shouting mouth inside beard
+        d.rectangle([cx + 1, cy + 5, cx + 5, cy + 7], fill=SASH_RED)
+        put(img, cx + 2, cy + 5, (255, 255, 255, 255))
+    else:
+        # Brass beard clasp
+        put(img, cx + 2, cy + 9, BRASS_HI)
+
+
+def build_brawler_pose(pose: str) -> Image.Image:
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    cx, cy = 44, 49
+    leg_l, leg_r = (-7, 27), (7, 27)
+    tail_sway = 0
+
+    if pose == "walk_a":
+        cy -= 1
+        leg_l, leg_r = (-10, 25), (9, 28)
+        tail_sway = 2
+    elif pose == "walk_b":
+        cy -= 1
+        leg_l, leg_r = (-3, 28), (4, 24)
+        tail_sway = 1
+    elif pose == "windup":
+        cx -= 4
+        leg_l, leg_r = (-9, 27), (8, 27)
+    elif pose == "jab":
+        cx += 3
+        leg_l, leg_r = (-9, 27), (10, 27)
+        tail_sway = 3
+    elif pose == "cross":
+        cx += 6
+        leg_l, leg_r = (-11, 27), (11, 27)
+        tail_sway = 5
+    elif pose == "uppercut":
+        cx += 4
+        cy -= 3
+        leg_l, leg_r = (-8, 29), (9, 26)
+        tail_sway = 4
+    elif pose == "charge":
+        cx += 7
+        cy += 2
+        leg_l, leg_r = (-14, 26), (10, 26)
+        tail_sway = 7
+    elif pose == "hurt":
+        cx -= 5
+        cy += 1
+        tail_sway = -3
+
+    # 1. Rear Arm (drawn behind torso so torso overlap reads 3D!)
+    if pose in ("idle", "blink", "walk_a", "walk_b"):
+        draw_arm_with_cestus(img, cx + 8, cy - 5, cx + 15, cy + 2, cx + 21, cy - 3)
+    elif pose == "windup":
+        # Rear right arm pulled far back behind hip!
+        draw_arm_with_cestus(img, cx - 8, cy - 4, cx - 18, cy + 2, cx - 22, cy - 4)
+    elif pose == "jab":
+        # Guard hand tucked by chin while lead arm jabs!
+        draw_arm_with_cestus(img, cx - 7, cy - 4, cx - 12, cy + 3, cx - 5, cy + 1)
+    elif pose == "hurt":
+        draw_arm_with_cestus(img, cx + 8, cy - 5, cx + 16, cy - 12, cx + 21, cy - 16)
+
+    # 2. Medieval Trousers & Heavy Studded Boots
+    for lx, ly in ((cx + leg_l[0], cy + leg_l[1]), (cx + leg_r[0], cy + leg_r[1])):
+        pill_limb(img, cx + (leg_l[0] // 2 if lx < cx else leg_r[0] // 2), cy + 12, lx, ly - 5, 4,
+                  PANTS_DARK, PANTS_MID, PANTS_MID)
+        d.rounded_rectangle([lx - 5, ly - 6, lx + 6, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        d.line([(lx - 4, ly - 5), (lx + 4, ly - 5)], fill=LEATHER_HI)
+        put(img, lx + 3, ly - 2, IRON_HI)
+
+    # 3. Broad Medieval Brigandine Vest + Brass Championship Belt + Crimson Sash
+    torso = [
+        (cx - 12, cy - 9),
+        (cx + 12, cy - 9),
+        (cx + 9, cy + 13),
+        (cx - 9, cy + 13),
+    ]
+    d.polygon(torso, fill=LEATHER_MID, outline=OUTLINE)
+    # V-neck bare muscular chest V + stitched leather studs
+    d.polygon([(cx - 3, cy - 8), (cx + 5, cy - 8), (cx + 1, cy + 1)], fill=SKIN_MID)
+    for sy in (cy - 4, cy + 2, cy + 7):
+        put(img, cx - 7, sy, BRASS_HI)
+        put(img, cx + 7, sy, BRASS_HI)
+    # Crimson waist sash + wide brass lion-buckle belt
+    d.polygon([(cx - 9, cy + 11), (cx - 4, cy + 11), (cx - 7, cy + 21), (cx - 12, cy + 19)],
+              fill=SASH_RED, outline=OUTLINE)
+    d.rectangle([cx - 10, cy + 9, cx + 10, cy + 14], fill=LEATHER_DARK, outline=OUTLINE)
+    d.rounded_rectangle([cx - 3, cy + 8, cx + 5, cy + 14], radius=1, fill=BRASS_HI, outline=OUTLINE)
+    put(img, cx + 1, cy + 11, BRASS_DARK)
+
+    # Iron-plated medieval pauldron on lead shoulder
+    px_sh = cx + (11 if pose == "charge" else -11)
+    d.ellipse([px_sh - 6, cy - 11, px_sh + 6, cy - 1], fill=IRON_MID, outline=OUTLINE)
+    d.arc([px_sh - 5, cy - 10, px_sh + 5, cy - 2], 190, 350, fill=IRON_HI)
+
+    # 4. Head
+    draw_brawler_head(img, cx + (5 if pose == "charge" else (-2 if pose == "hurt" else 1)),
+                      cy - 18, blink=(pose == "blink"), hurt=(pose == "hurt"), tail_sway=tail_sway)
+
+    # 5. Foreground Punching / Charging Arm + Clean Motion Smears!
+    if pose in ("idle", "blink"):
+        draw_arm_with_cestus(img, cx - 9, cy - 4, cx - 4, cy + 5, cx + 10, cy + 1)
+    elif pose == "walk_a":
+        draw_arm_with_cestus(img, cx - 9, cy - 4, cx - 5, cy + 5, cx + 8, cy + 3)
+    elif pose == "walk_b":
+        draw_arm_with_cestus(img, cx - 9, cy - 4, cx - 2, cy + 4, cx + 12, cy - 1)
+    elif pose == "windup":
+        draw_arm_with_cestus(img, cx + 8, cy - 4, cx + 13, cy + 2, cx + 17, cy - 3)
+    elif pose == "jab":
+        # Crisp white-gold straight jab speed lines + extended fist!
+        d.line([(cx + 14, cy - 5), (cx + 36, cy - 5)], fill=(255, 244, 196, 190), width=3)
+        d.line([(cx + 18, cy - 1), (cx + 34, cy - 1)], fill=(255, 195, 92, 150), width=2)
+        draw_arm_with_cestus(img, cx + 9, cy - 5, cx + 22, cy - 5, cx + 36, cy - 4)
+    elif pose == "cross":
+        # Heavy cross punch sweeping across body with curved golden motion trail!
+        pts = [(cx - 4 + k * 3, cy + 6 - int(math.sin(k / 13.0 * math.pi) * 9)) for k in range(15)]
+        d.line(pts, fill=(255, 208, 92, 190), width=4)
+        draw_arm_with_cestus(img, cx - 6, cy - 4, cx + 16, cy - 2, cx + 40, cy - 2, golden=True)
+    elif pose == "uppercut":
+        # Skyward rising uppercut arc!
+        pts = [(cx + 12 + int(math.sin(k / 12.0 * math.pi) * 16), cy + 16 - k * 3) for k in range(13)]
+        d.line(pts, fill=(255, 224, 110, 215), width=4)
+        draw_arm_with_cestus(img, cx + 6, cy - 2, cx + 21, cy + 3, cx + 25, cy - 24, golden=True)
+    elif pose == "charge":
+        # Heavy Shoulder-Smash brace: iron pauldron & crossed cestus braced forward!
+        draw_arm_with_cestus(img, cx + 4, cy - 4, cx + 16, cy + 2, cx + 22, cy - 5, golden=True)
+        for ky in (-10, -2, 7):
+            d.line([(cx + 27, cy + ky), (cx + 36, cy + ky)], fill=BRASS_HI, width=2)
+    elif pose == "hurt":
+        draw_arm_with_cestus(img, cx - 9, cy - 3, cx - 17, cy - 9, cx - 21, cy - 14)
+
+    return img
+
+
+def build_brawler_vertical_pose(pose: str) -> Image.Image:
+    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Behemoth!"""
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = 48, 49
+    is_up = pose.startswith("up_")
+    step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
+    l_dy = -3 * step
+    r_dy = 3 * step
+
+    # Legs & heavy studded boots (locked to y=76 baseline when idle!)
+    for side, dy in ((-7, l_dy), (7, r_dy)):
+        lx, ly = cx + side, cy + 27 + min(0, dy)
+        pill_limb(img, cx + side // 2, cy + 12, lx, ly - 5, 4, PANTS_DARK, PANTS_MID, PANTS_MID)
+        d.rounded_rectangle([lx - 5, ly - 6, lx + 5, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        d.line([(lx - 4, ly - 5), (lx + 4, ly - 5)], fill=LEATHER_HI)
+
+    # Symmetrical broad brigandine torso
+    torso = [(cx - 13, cy - 9), (cx + 13, cy - 9), (cx + 10, cy + 13), (cx - 10, cy + 13)]
+    d.polygon(torso, fill=LEATHER_MID, outline=OUTLINE)
+    if not is_up:
+        # Front: bare V-chest + lion buckle + crimson sash
+        d.polygon([(cx - 4, cy - 8), (cx + 4, cy - 8), (cx, cy + 1)], fill=SKIN_MID)
+        d.polygon([(cx - 8, cy + 11), (cx - 3, cy + 11), (cx - 6, cy + 21), (cx - 11, cy + 19)], fill=SASH_RED, outline=OUTLINE)
+        d.rectangle([cx - 10, cy + 9, cx + 10, cy + 14], fill=LEATHER_DARK, outline=OUTLINE)
+        d.rounded_rectangle([cx - 4, cy + 8, cx + 4, cy + 14], radius=1, fill=BRASS_HI, outline=OUTLINE)
+    else:
+        # Back: X-strapped leather harness + knotted headband tails!
+        d.line([(cx - 9, cy - 7), (cx + 8, cy + 9)], fill=LEATHER_DARK, width=3)
+        d.line([(cx + 9, cy - 7), (cx - 8, cy + 9)], fill=LEATHER_DARK, width=3)
+        d.rectangle([cx - 10, cy + 9, cx + 10, cy + 14], fill=LEATHER_DARK, outline=OUTLINE)
+
+    # Iron pauldron on left shoulder (`cx - 12` when front, `cx + 12` when viewed from behind!)
+    psh = cx - 12 if not is_up else cx + 12
+    d.ellipse([psh - 6, cy - 11, psh + 6, cy - 1], fill=IRON_MID, outline=OUTLINE)
+    d.arc([psh - 5, cy - 10, psh + 5, cy - 2], 190, 350, fill=IRON_HI)
+
+    # Both Iron-Cestus arms swinging naturally with stride
+    l_arm_y = cy + 2 + r_dy
+    r_arm_y = cy + 2 + l_dy
+    draw_arm_with_cestus(img, cx - 12, cy - 4, cx - 17, cy + 2, cx - 14, l_arm_y)
+    draw_arm_with_cestus(img, cx + 12, cy - 4, cx + 17, cy + 2, cx + 14, r_arm_y)
+
+    # Head (front beard & eyes vs back hair & tied crimson headband tails!)
+    hy = cy - 18
+    if not is_up:
+        d.rounded_rectangle([cx - 9, hy - 11, cx + 9, hy + 9], radius=4, fill=SKIN_MID, outline=OUTLINE)
+        d.rounded_rectangle([cx - 9, hy - 12, cx + 9, hy - 5], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+        d.rectangle([cx - 9, hy - 7, cx + 9, hy - 3], fill=SASH_RED, outline=OUTLINE)
+        for rx in (cx - 5, cx, cx + 5):
+            put(img, rx, hy - 5, BRASS_HI)
+        for ex in (cx - 4, cx + 3):
+            put(img, ex, hy - 1, OUTLINE)
+            put(img, ex + 1, hy - 1, BRASS_HI)
+        d.rounded_rectangle([cx - 8, hy + 3, cx + 8, hy + 10], radius=3, fill=HAIR_DARK, outline=OUTLINE)
+        put(img, cx, hy + 9, BRASS_HI)
+    else:
+        d.rounded_rectangle([cx - 9, hy - 12, cx + 9, hy + 8], radius=4, fill=HAIR_DARK, outline=OUTLINE)
+        d.line([(cx - 6, hy - 9), (cx + 6, hy - 9)], fill=HAIR_MID, width=2)
+        d.rectangle([cx - 9, hy - 6, cx + 9, hy - 2], fill=SASH_RED, outline=OUTLINE)
+        # Streaming crimson headband knot & twin tails down his back!
+        d.ellipse([cx - 3, hy - 5, cx + 3, hy + 1], fill=SASH_HI, outline=OUTLINE)
+        d.polygon([(cx - 2, hy), (cx - 7 + step, hy + 12), (cx - 3 + step, hy + 13), (cx, hy + 1)], fill=SASH_RED, outline=OUTLINE)
+        d.polygon([(cx + 2, hy), (cx + 7 + step, hy + 12), (cx + 3 + step, hy + 13), (cx, hy + 1)], fill=SASH_RED, outline=OUTLINE)
+    return img
 
 
 def main() -> None:
-    assert REF_PATH.exists(), f"Missing reference sheet: {REF_PATH}"
-    ref = Image.open(REF_PATH).convert("RGBA")
-
-    # --- ROW 1: Ultra-crisp Full-Body 4-Directional Idles ---
-    idle_down_raw  = extract_from_black_bg(ref, (28, 12, 264, 345))
-    idle_right_raw = extract_from_black_bg(ref, (300, 12, 490, 345))  # Faces RIGHT (+X)!
-    idle_up_raw    = extract_from_black_bg(ref, (772, 12, 976, 345))
-
-    # --- ROW 2: 4-Directional Walks ---
-    walk_r0 = extract_from_black_bg(ref, (16, 448, 153, 607))
-    walk_r1 = extract_from_black_bg(ref, (159, 446, 276, 607))
-    # Flip WALK LEFT horizontally to get 2 additional right-facing stride frames for a 4-frame cycle!
-    walk_r2 = extract_from_black_bg(ref, (317, 448, 437, 607)).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    walk_r3 = extract_from_black_bg(ref, (451, 448, 558, 607)).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-
-    walk_u0 = extract_from_black_bg(ref, (634, 446, 736, 607))
-    walk_u1 = extract_from_black_bg(ref, (752, 447, 843, 607))
-
-    walk_d0 = extract_from_black_bg(ref, (896, 443, 1016, 607))
-    walk_d1 = extract_from_black_bg(ref, (1026, 443, 1168, 607))
-
-    # --- ROW 3: 3-Hit Punch Combo (`Attack 1`, `Attack 2`, `Attack 3`) + `Dash` ---
-    atk1_0 = extract_from_black_bg(ref, (15, 665, 148, 814))
-    atk1_1 = extract_from_black_bg(ref, (158, 664, 282, 814))
-    atk2_0 = extract_from_black_bg(ref, (309, 666, 459, 814))
-    atk2_1 = extract_from_black_bg(ref, (464, 660, 606, 814))
-    atk3_0 = extract_from_black_bg(ref, (624, 664, 751, 814))
-    atk3_1 = extract_from_black_bg(ref, (754, 650, 902, 814))
-    dash_raw = extract_from_black_bg(ref, (940, 658, 1202, 814))
-
-    # Fixed combat scale from `atk1_0` so `atk3_1` (pelt flying upward) never shrinks Behemoth!
-    atk_scale = (BODY_H * 0.96) / float(atk1_0.height)
-
-    # --- ROW 4 & 5: Guard, Hurt, Kneeling Fall & Prone Dead ---
-    block_0 = extract_from_black_bg(ref, (33, 854, 147, 987))
-    block_1 = extract_from_black_bg(ref, (173, 853, 284, 987))
-    die_kneel  = extract_from_black_bg(ref, (657, 869, 852, 987))
-    die_fallen = extract_from_black_bg(ref, (765, 1045, 1233, 1197))
-
-    # Build calm grounded idle bases & subtle breathing variants (boots 100% locked!)
-    f_idle0 = place_grounded(idle_right_raw, BODY_H)
-    f_idle1 = make_calm_breath_variant(f_idle0, chest_lift_px=1.5, cape_sway_px=0.9)
-    f_idle2 = make_calm_breath_variant(f_idle0, chest_lift_px=0.8, cape_sway_px=1.3)
-    f_idle3 = make_brawler_side_blink(f_idle0)
-
-    f_down0 = place_grounded(idle_down_raw, BODY_H, center_x_box=True)
-    f_down1 = make_calm_breath_variant(f_down0, chest_lift_px=1.5, cape_sway_px=0.7)
-
-    f_up0 = place_grounded(idle_up_raw, BODY_H, center_x_box=True)
-    f_up1 = make_calm_breath_variant(f_up0, chest_lift_px=1.5, cape_sway_px=0.8)
-
-    f_dash0 = place_grounded(dash_raw, fixed_scale=atk_scale, dx=4)
-    f_dash1 = make_calm_breath_variant(f_dash0, chest_lift_px=1.2, cape_sway_px=1.8)
-
-    frames: list[Image.Image] = [
-        # Row 0 (0..7): Calm 4-frame Side Idle + 4-frame Right-Facing Walk (consistent fur-pelt flow!)
-        f_idle0,
-        f_idle1,
-        f_idle2,
-        f_idle3,
-        place_grounded(walk_r0, BODY_H),
-        f_idle0,
-        place_grounded(walk_r1, BODY_H),
-        f_idle2,
-
-        # Row 1 (8..15): Front Idle (2f) + Front Walk (4f) + Back Idle (2f)
-        f_down0,
-        f_down1,
-        place_grounded(walk_d0, BODY_H, center_x_box=True),
-        f_down0,
-        place_grounded(walk_d1, BODY_H, center_x_box=True),
-        f_down1,
-        f_up0,
-        f_up1,
-
-        # Row 2 (16..23): Back Walk (4f) + Attack 1 Jab (2f) + Attack 2 Cross (2f)
-        place_grounded(walk_u0, BODY_H, center_x_box=True),
-        f_up0,
-        place_grounded(walk_u1, BODY_H, center_x_box=True),
-        f_up1,
-        place_grounded(atk1_0, fixed_scale=atk_scale),
-        place_grounded(atk1_1, fixed_scale=atk_scale, dx=2),
-        place_grounded(atk2_0, fixed_scale=atk_scale),
-        place_grounded(atk2_1, fixed_scale=atk_scale, dx=8),
-
-        # Row 3 (24..31): Attack 3 Uppercut (2f) + Guard + Shoulder Dash (2f) + Hurt + Death (2f)
-        place_grounded(atk3_0, fixed_scale=atk_scale),
-        place_grounded(atk3_1, fixed_scale=atk_scale, dx=6),
-        place_grounded(block_0, BODY_H - 4),
-        f_dash0,
-        f_dash1,
-        place_grounded(block_1, BODY_H - 4, dx=-4),
-        place_grounded(die_kneel, target_h=126, center_x_box=True),
-        place_grounded(die_fallen, target_h=72, center_x_box=True),
+    poses = [
+        "idle", "walk_a", "walk_b", "windup", "jab", "cross", "uppercut", "charge", "hurt", "blink",
+        "down_idle", "down_walk_a", "down_walk_b", "up_idle", "up_walk_a", "up_walk_b",
     ]
-    assert len(frames) == 32
+    sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
+    for i, p in enumerate(poses):
+        fr = build_brawler_vertical_pose(p) if p.startswith(("down_", "up_")) else build_brawler_pose(p)
+        sheet.alpha_composite(fr, (i * FRAME, 0))
+    sheet.save("assets/textures/player_borzo.png")
+    print("wrote assets/textures/player_borzo.png", sheet.size)
 
-    sheet = Image.new("RGBA", (CELL * COLS, CELL * ROWS), (0, 0, 0, 0))
-    for idx, frm in enumerate(frames):
-        sheet.alpha_composite(frm, ((idx % COLS) * CELL, (idx // COLS) * CELL))
-    OUT_HERO.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(OUT_HERO)
-
-    portrait_strip = build_behemoth_portrait(ref)
-    portrait_strip.save(OUT_PORTRAIT)
-
-    prev = Image.new("RGBA", (1320, 860), (26, 22, 24, 255))
-    pd = ImageDraw.Draw(prev)
-    for i in range(5):
-        pf = portrait_strip.crop((i * 192, 0, (i + 1) * 192, 192)).resize((104, 104), Image.Resampling.LANCZOS)
-        px, py = 18 + i * 118, 14
-        prev.alpha_composite(pf, (px, py))
-        pd.ellipse((px - 2, py - 2, px + 106, py + 106), outline=(238, 168, 72, 255), width=2)
-    pd.text((630, 52), "BEHEMOTH (PIT-BRAWLER) - 32x 224x224 + 5x 192x192 HUD Portrait", fill=(245, 224, 206, 255))
-
-    labels = [
-        "0:idle0", "1:idle1", "2:idle2", "3:blink", "4:walk0", "5:walk1", "6:walk2", "7:walk3",
-        "8:down_i0", "9:down_i1", "10:down_w0", "11:down_w1", "12:down_w2", "13:down_w3", "14:up_i0", "15:up_i1",
-        "16:up_w0", "17:up_w1", "18:up_w2", "19:up_w3", "20:jab_0", "21:jab_1", "22:cross_0", "23:cross_1",
-        "24:up_cut0", "25:up_cut1", "26:guard", "27:dash0", "28:dash1", "29:hurt", "30:die_kneel", "31:die_fall",
-    ]
-    for idx, frm in enumerate(frames):
-        c, r = idx % 8, idx // 8
-        x, y = 18 + c * 160, 140 + r * 176
-        pd.rectangle([x, y, x + 148, y + 148], fill=(38, 32, 34, 255), outline=(78, 62, 64, 255))
-        gy = y + int(round(GROUND_Y * (148.0 / CELL)))
-        pd.line([(x + 8, gy), (x + 140, gy)], fill=(235, 165, 75, 130), width=1)
-        prev.alpha_composite(frm.resize((148, 148), Image.Resampling.LANCZOS), (x, y))
-        pd.text((x + 16, y + 152), labels[idx], fill=(232, 212, 198, 255))
-
-    OUT_PREVIEW.parent.mkdir(parents=True, exist_ok=True)
-    prev.save(OUT_PREVIEW)
-    print(f"Wrote {OUT_HERO} ({sheet.size}) and {OUT_PORTRAIT} ({portrait_strip.size})")
+    zoom, pad = 2, 10
+    w = pad + len(poses) * (FRAME * zoom + pad)
+    h = 30 + FRAME * zoom + 24
+    prev = Image.new("RGBA", (w, h), (24, 19, 18, 255))
+    d = ImageDraw.Draw(prev)
+    d.text((pad, 8), "MEDIEVAL BRAWLER (BEHEMOTH) - 10 frames x 96x96", fill=(248, 222, 182, 255))
+    for i, p in enumerate(poses):
+        x = pad + i * (FRAME * zoom + pad)
+        fr = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
+        prev.alpha_composite(fr.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST), (x, 28))
+        d.text((x, 28 + FRAME * zoom + 4), f"{i}:{p}", fill=(224, 192, 148, 255))
+    prev.save("docs/images/brawler_preview.png")
 
 
 if __name__ == "__main__":
