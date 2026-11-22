@@ -183,23 +183,6 @@ def build_velmira_pose(pose: str) -> Image.Image:
     img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    if pose == "die_pool":
-        # Crisp pixel-art crimson vampire blood pool on stone floor (`y ~ 68..80`)!
-        d.ellipse([20, 68, 76, 80], fill=CRIMSON_DEEP, outline=OUTLINE)
-        d.ellipse([26, 70, 70, 78], fill=CRIMSON_MID)
-        d.ellipse([34, 71, 60, 76], fill=CRIMSON_BRIGHT)
-        d.line([(38, 73), (52, 73)], fill=CRIMSON_GLOW, width=1)
-        return img
-
-    if pose == "dash_mist":
-        # Crimson vampire mist silhouette + ruby eyes for Bat-Swarm / death transition!
-        d.ellipse([28, 34, 62, 76], fill=(92, 10, 34, 195), outline=OUTLINE)
-        d.ellipse([33, 40, 57, 70], fill=(168, 20, 52, 215))
-        d.ellipse([38, 46, 52, 62], fill=(228, 36, 74, 230))
-        d.line([(36, 44), (42, 46)], fill=CRIMSON_GLOW, width=2)
-        d.line([(54, 44), (48, 46)], fill=CRIMSON_GLOW, width=2)
-        return img
-
     cx, cy = 44, 50
     sway = 0
     leg_l, leg_r = (-5, 26), (5, 26)
@@ -215,12 +198,23 @@ def build_velmira_pose(pose: str) -> Image.Image:
         leg_l, leg_r = (-2, 27), (3, 23)
         sway = -1
     elif pose == "cast_windup":
-        cx -= 1
+        cx -= 2
+        leg_l, leg_r = (-7, 26), (5, 26)
         sway = -2
     elif pose == "cast_slash":
-        cx += 2
-        leg_l, leg_r = (-7, 26), (7, 26)
-        sway = -4
+        cx += 4
+        leg_l, leg_r = (-8, 26), (9, 26)
+        sway = -5
+    elif pose == "dash_mist":
+        cx += 5
+        cy += 1
+        leg_l, leg_r = (-9, 25), (8, 25)
+        sway = -6
+    elif pose == "die_pool":
+        cx -= 2
+        cy += 6
+        leg_l, leg_r = (-7, 20), (6, 20)
+        sway = 3
     elif pose == "hurt":
         cx -= 4
         cy += 1
@@ -286,30 +280,33 @@ def build_velmira_pose(pose: str) -> Image.Image:
         img,
         cx,
         cy - 18,
-        blink=(pose == "blink"),
+        blink=(pose in ("blink", "die_pool")),
         hurt=(pose == "hurt"),
-        cast_focus=(pose in ("cast_windup", "cast_slash")),
+        cast_focus=(pose in ("cast_windup", "cast_slash", "dash_mist")),
         sway=sway // 2,
     )
 
-    # 5. Gothic flared sleeves & Blood-Magic hands
+    # 5. Gothic flared sleeves & Blood-Magic hands (clean body poses; slash VFX lives in velmira_fx.png)
     if pose in ("idle", "idle_b", "blink", "walk_a", "walk_b"):
         arm_dy = -1 if pose == "idle_b" else (2 if pose == "walk_a" else (-1 if pose == "walk_b" else 0))
         pill_limb(img, cx - 8, cy - 4, cx - 12, cy + 4 - arm_dy, 2, DRESS_DARK, DRESS_MID, SKIN)
         pill_limb(img, cx + 8, cy - 4, cx + 14, cy + 2 + arm_dy, 2, DRESS_DARK, DRESS_MID, SKIN)
     elif pose == "cast_windup":
-        # Gathers a glowing ruby blood orb in front of her palm!
-        pill_limb(img, cx + 8, cy - 5, cx + 18, cy - 4, 2, DRESS_DARK, CRIMSON_MID, SKIN)
-        ox, oy = cx + 23, cy - 5
-        d.ellipse([ox - 4, oy - 4, ox + 4, oy + 4], fill=CRIMSON_MID, outline=OUTLINE)
-        d.ellipse([ox - 2, oy - 2, ox + 2, oy + 2], fill=CRIMSON_BRIGHT)
-        put(img, ox - 1, oy - 1, CRIMSON_GLOW)
+        # Coils lead claw arm back across chest to strike (no floating orb).
+        pill_limb(img, cx - 8, cy - 4, cx - 14, cy + 2, 2, DRESS_DARK, DRESS_MID, SKIN)
+        pill_limb(img, cx + 6, cy - 5, cx - 2, cy - 9, 2, DRESS_DARK, CRIMSON_MID, SKIN)
+        d.line([(cx - 3, cy - 10), (cx + 1, cy - 12)], fill=CRIMSON_BRIGHT, width=2)
     elif pose == "cast_slash":
-        # Sweeps her gothic sleeve forward with a crisp crimson blood-claw arc!
-        pill_limb(img, cx + 8, cy - 5, cx + 22, cy - 3, 2, DRESS_DARK, CRIMSON_MID, SKIN)
-        d.arc([cx + 12, cy - 20, cx + 40, cy + 14], -58, 58, fill=OUTLINE, width=5)
-        d.arc([cx + 12, cy - 20, cx + 40, cy + 14], -54, 54, fill=CRIMSON_BRIGHT, width=3)
-        d.arc([cx + 13, cy - 18, cx + 39, cy + 12], -36, 36, fill=CRIMSON_GLOW, width=1)
+        # Full forward crimson-claw slash follow-through (no floating orb or duplicate baked arc).
+        pill_limb(img, cx - 8, cy - 4, cx - 16, cy + 3, 2, DRESS_DARK, DRESS_MID, SKIN)
+        pill_limb(img, cx + 8, cy - 5, cx + 23, cy - 3, 2, DRESS_DARK, CRIMSON_MID, SKIN)
+        d.polygon([(cx + 22, cy - 5), (cx + 28, cy - 4), (cx + 23, cy - 1)], fill=CRIMSON_BRIGHT, outline=OUTLINE)
+    elif pose == "dash_mist":
+        pill_limb(img, cx - 8, cy - 4, cx - 17, cy + 2, 2, DRESS_DARK, CRIMSON_MID, SKIN)
+        pill_limb(img, cx + 8, cy - 4, cx + 19, cy - 2, 2, DRESS_DARK, CRIMSON_MID, SKIN)
+    elif pose == "die_pool":
+        pill_limb(img, cx - 8, cy - 2, cx - 13, cy + 8, 2, DRESS_DARK, DRESS_MID, SKIN)
+        pill_limb(img, cx + 8, cy - 2, cx + 12, cy + 9, 2, DRESS_DARK, DRESS_MID, SKIN)
     elif pose == "hurt":
         pill_limb(img, cx - 8, cy - 4, cx - 13, cy - 1, 2, DRESS_DARK, DRESS_MID, SKIN)
         pill_limb(img, cx + 8, cy - 4, cx + 14, cy - 2, 2, DRESS_DARK, DRESS_MID, SKIN)

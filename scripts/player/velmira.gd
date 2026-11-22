@@ -37,6 +37,8 @@ var _swarm_time: float = 0.0
 
 
 ## 100% Hand-Crafted Directional Crimson Blood-Splash Slash VFX!
+## Uses `velmira_fx.png` sprite strip + additive glow layer + 6 flying droplets
+## (no duplicate procedural crescent polygons).
 class BloodSplashSlash extends Node2D:
 	var aim_dir: Vector2 = Vector2.RIGHT
 	var reach: float = 92.0
@@ -45,6 +47,7 @@ class BloodSplashSlash extends Node2D:
 	var elapsed: float = 0.0
 	var duration: float = 0.25
 	var _sprite: Sprite2D = null
+	var _glow_sprite: Sprite2D = null
 
 	func setup(dir: Vector2, max_r: float, nova: bool, frames_seq: Array[Texture2D]) -> void:
 		aim_dir = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
@@ -55,18 +58,35 @@ class BloodSplashSlash extends Node2D:
 		z_index = 4
 
 		if not anim_frames.is_empty():
+			var base_pos := Vector2(reach * (0.34 if nova else 0.36), 0.0)
+			var base_s := 0.50 if nova else 0.44
+
 			_sprite = Sprite2D.new()
 			_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			_sprite.texture = anim_frames[0]
-			_sprite.position = Vector2(reach * (0.34 if nova else 0.36), 0.0)
-			var base_s := 0.50 if nova else 0.44
+			_sprite.position = base_pos
 			_sprite.scale = Vector2(base_s * 0.86, base_s * 0.86)
 			add_child(_sprite)
-			var tw := _sprite.create_tween()
+
+			var add_mat := CanvasItemMaterial.new()
+			add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			_glow_sprite = Sprite2D.new()
+			_glow_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			_glow_sprite.material = add_mat
+			_glow_sprite.texture = anim_frames[0]
+			_glow_sprite.position = base_pos
+			_glow_sprite.scale = Vector2(base_s * 0.92, base_s * 0.92)
+			_glow_sprite.modulate = Color(1.0, 0.24, 0.42, 0.48)
+			add_child(_glow_sprite)
+
+			var tw := create_tween()
 			tw.set_parallel(true)
 			tw.tween_property(_sprite, "scale", Vector2(base_s * 1.08, base_s * 1.06), duration * 0.70)\
 				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 			tw.tween_property(_sprite, "modulate:a", 0.0, duration * 0.36).set_delay(duration * 0.64)
+			tw.tween_property(_glow_sprite, "scale", Vector2(base_s * 1.15, base_s * 1.12), duration * 0.70)\
+				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			tw.tween_property(_glow_sprite, "modulate:a", 0.0, duration * 0.45).set_delay(duration * 0.45)
 
 	func _process(delta: float) -> void:
 		elapsed += delta
@@ -74,35 +94,11 @@ class BloodSplashSlash extends Node2D:
 		if _sprite != null and anim_frames.size() >= 3:
 			var idx := 0 if p < 0.26 else (1 if p < 0.68 else 2)
 			_sprite.texture = anim_frames[idx]
+			if _glow_sprite != null:
+				_glow_sprite.texture = anim_frames[idx]
 		queue_redraw()
 		if elapsed >= duration:
 			queue_free()
-
-	func _draw_tapered_crescent(
-		center: Vector2,
-		radius: float,
-		a0: float,
-		a1: float,
-		max_thick: float,
-		col: Color
-	) -> void:
-		var segs := 18
-		var outer := PackedVector2Array()
-		var inner := PackedVector2Array()
-		for i in range(segs + 1):
-			var t := float(i) / float(segs)
-			var ang := lerpf(a0, a1, t)
-			var half_w := max_thick * 0.5 * sin(t * PI)
-			var dir_v := Vector2(cos(ang), sin(ang))
-			outer.append(center + dir_v * (radius + half_w))
-			inner.append(center + dir_v * maxf(2.0, radius - half_w))
-		var poly := PackedVector2Array()
-		for pt in outer:
-			poly.append(pt)
-		for i in range(inner.size() - 1, -1, -1):
-			poly.append(inner[i])
-		if poly.size() >= 6:
-			draw_colored_polygon(poly, col)
 
 	func _draw() -> void:
 		var p := clampf(elapsed / maxf(duration, 0.01), 0.0, 1.0)
@@ -111,15 +107,7 @@ class BloodSplashSlash extends Node2D:
 		var half_ang := 1.12 if is_nova_finisher else 0.96
 		var origin := Vector2(10.0, 0.0)
 
-		# Needle-tapered crimson crescent glow & razor ruby core (never blunt line caps!)
-		_draw_tapered_crescent(origin, sweep_r, -half_ang, half_ang,
-			7.0 * (1.0 - p * 0.45), Color(0.42, 0.03, 0.11, alpha * 0.72))
-		_draw_tapered_crescent(origin, sweep_r + 1.0, -half_ang * 0.88, half_ang * 0.88,
-			3.4 * (1.0 - p * 0.35), Color(0.94, 0.10, 0.28, alpha * 0.85))
-		_draw_tapered_crescent(origin, sweep_r + 1.8, -half_ang * 0.65, half_ang * 0.65,
-			1.5 * (1.0 - p * 0.30), Color(1.0, 0.72, 0.80, alpha * 0.82))
-
-		# Crisp flying blood droplets radiating forward
+		# Six flying blood droplets radiating forward
 		for i in range(6):
 			var frac := -0.78 + 1.56 * (float(i) / 5.0)
 			var ang := frac * half_ang
