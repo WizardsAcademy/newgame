@@ -73,7 +73,7 @@ assets/textures/         pixel art (slime.png is a 12x8 family pose sheet;
 docs/SLIME_REDESIGN.md   the slime art/animation bible
 docs/ARCHER_REDESIGN.md   the archer art/animation bible
 docs/GOLEM_REDESIGN.md    the golem art/animation bible
-docs/VELMIRA_REDESIGN.md  the vampire hero art bible (female redesign)
+docs/CHARACTERS.md       the 4 playable 96x96 heroes & combat kits
 docs/                    these documents
 tests/                   headless test scripts
 ```

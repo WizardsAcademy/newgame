@@ -171,19 +171,6 @@ func _exit_tree() -> void:
 	super._exit_tree()
 
 
-func _process(_delta: float) -> void:
-	if visuals == null or is_dead:
-		return
-	# STRICTLY GROUNDED: visuals.position stays locked at (0, -3) so her boots never float!
-	visuals.position = Vector2(0.0, -3.0)
-
-	var amb := get_node_or_null("Visuals/AmbientBat") as AnimatedSprite2D
-	if amb != null:
-		var t := float(Time.get_ticks_msec()) / 1000.0
-		amb.position.y = -36.0 + 4.0 * sin(t * 2.4 + 1.3)
-		amb.position.x = -18.0 + 2.5 * sin(t * 1.4)
-
-
 func _get_attack_move_multiplier() -> float:
 	return 0.42
 
@@ -293,9 +280,6 @@ func _unleash_blood_splash(dir: Vector2, paid_hp: int, is_nova: bool) -> void:
 
 
 func _die() -> void:
-	var amb := get_node_or_null("Visuals/AmbientBat") as CanvasItem
-	if amb != null:
-		amb.visible = false
 	super._die()
 
 
