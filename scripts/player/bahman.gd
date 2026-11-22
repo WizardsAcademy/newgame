@@ -41,10 +41,10 @@ class ShieldArcVisual extends Node2D:
 	var charging: bool = false
 
 	func _draw() -> void:
-		var base_col := Color(0.46, 0.84, 1.0, 0.72).lerp(Color(1.0, 0.96, 0.68, 0.98), flash_ratio)
+		var base_col := Color(0.98, 0.80, 0.34, 0.72).lerp(Color(1.0, 0.96, 0.74, 0.98), flash_ratio)
 		if energy_ratio < 0.30 and not charging:
-			base_col = Color(1.0, 0.48, 0.28, 0.78).lerp(Color.WHITE, flash_ratio)
-		var rim_col := Color(0.96, 0.80, 0.34, 0.92).lerp(Color.WHITE, flash_ratio)
+			base_col = Color(1.0, 0.38, 0.24, 0.78).lerp(Color.WHITE, flash_ratio)
+		var rim_col := Color(0.92, 0.24, 0.28, 0.88).lerp(Color.WHITE, flash_ratio)
 		var center := Vector2((8.0 if charging else 5.0) * facing_dir, 1.0)
 		var start_a := -0.90 if facing_dir > 0.0 else PI - 0.90
 		var end_a := 0.90 if facing_dir > 0.0 else PI + 0.90
