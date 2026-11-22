@@ -74,6 +74,7 @@ docs/SLIME_REDESIGN.md   the slime art/animation bible
 docs/ARCHER_REDESIGN.md   the archer art/animation bible
 docs/GOLEM_REDESIGN.md    the golem art/animation bible
 docs/CHARACTERS.md       the 4 playable 96x96 heroes & combat kits
+docs/ART_CONTRACT.md     the binding 96x96 hero pixel-art & palette contract
 docs/                    these documents
 tests/                   headless test scripts
 ```

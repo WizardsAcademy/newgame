@@ -1,384 +1,270 @@
 #!/usr/bin/env python3
-"""Generate Velmira's 16-frame 96x96 Silver-White Gothic Vampire sheet.
+"""Generate Velmira's 16-frame 96x96 Silver-Haired Gothic Vampire sheet.
 
-Built in the exact same crisp 96x96 house pixel-art style as Sylvara, Behemoth,
-and Knight (`OUTLINE = (11, 10, 14, 255)`, grounded boots at `cy + 26 = 76`,
-matching `portrait_velmira` in `tools/make_hero_portraits.py` 1:1!):
-  - Flowing moonlit silver-white hair + signature crimson temple rose,
-  - Pointed pale vampire ears + luminous ruby-crimson eyes + cute vampire fang,
-  - High-collared crimson & obsidian gothic dress, black choker with ruby drop,
-    and dark laced vampire boots,
-  - Smooth normal idle (`idle` + `idle_b` gentle breath + `blink`), grounded
-    4-directional walks (`walk_a/b`, `down_walk_a/b`, `up_walk_a/b`), graceful
-    Blood-Splash cast (`cast_windup`, `cast_slash`), `hurt`, and `die_pool`.
-
-Writes:
-    assets/textures/player_velmira.png   1536 x 96 (16 frames of 96x96)
-    docs/images/velmira_preview.png      review sheet
+Hero Art Contract (Phase 4):
+  - 96x96 cells, standing height 72px (top_y=8 .. GROUND_Y=80), ~29% head ratio.
+  - Silhouette: narrow gothic shoulders & slender corset waist contrasted with a
+    voluminous asymmetric silver-white hair mass cascading down her left/back
+    side past her hips, flared high vampire collar, and heeled gothic boots.
+  - Palette: 5 ramps x 4 steps = <=20 colours from the shared 32-colour ramp
+    (`moon`, `obsidian`, `crimson`, `emerald`, `skin`).
+  - Top-left 4-step shading + selective selout (zero `#000000`, zero stray orbs).
 """
 
-import math
+from __future__ import annotations
+
 from PIL import Image, ImageDraw
-
-FRAME = 96
-
-OUTLINE = (11, 10, 14, 255)
-SKIN = (244, 224, 232, 255)
-SKIN_SHA = (196, 162, 178, 255)
-BLUSH = (232, 164, 184, 255)
-
-HAIR_SHA = (154, 144, 182, 255)
-HAIR_MID = (224, 220, 240, 255)
-HAIR_LIT = (242, 240, 252, 255)
-HAIR_HI = (252, 250, 255, 255)
-
-DRESS_DARK = (22, 14, 28, 255)
-DRESS_MID = (38, 24, 46, 255)
-DRESS_LIT = (62, 40, 72, 255)
-
-CRIMSON_DEEP = (92, 10, 34, 255)
-CRIMSON_MID = (168, 20, 52, 255)
-CRIMSON_BRIGHT = (228, 36, 74, 255)
-CRIMSON_GLOW = (255, 142, 168, 255)
-LEAF_DARK = (28, 72, 48, 255)
+from hero_art_lib import CELL, GROUND_Y, RAMPS, HeroCanvas
 
 
-def put(img: Image.Image, x: int, y: int, col) -> None:
-    if 0 <= x < FRAME and 0 <= y < FRAME:
-        img.putpixel((x, y), col)
-
-
-def pill_limb(
-    img: Image.Image,
-    x0: float,
-    y0: float,
-    x1: float,
-    y1: float,
-    r: int,
-    dark_c,
-    mid_c,
-    hi_c,
-) -> None:
-    steps = max(int(math.hypot(x1 - x0, y1 - y0) * 2), 4)
-    d = ImageDraw.Draw(img)
-    for pass_id in range(3):
-        for i in range(steps + 1):
-            t = i / steps
-            cx = x0 + (x1 - x0) * t
-            cy = y0 + (y1 - y0) * t
-            if pass_id == 0:
-                rr = r + 1
-                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=OUTLINE)
-            elif pass_id == 1:
-                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=dark_c)
-                rr2 = max(r - 1, 1)
-                d.ellipse([cx - rr2, cy - rr2 - 1, cx + rr2, cy + rr2 - 1], fill=mid_c)
-            else:
-                rr3 = max(r - 2, 1)
-                d.ellipse([cx - rr3, cy - rr3 - 1, cx + rr3 - 1, cy - 1], fill=hi_c)
-
-
-def draw_silver_hair_back(img: Image.Image, cx: int, cy: int, sway: int = 0) -> None:
-    """Long cascading moonlit silver-white hair locks reaching past her waist."""
-    d = ImageDraw.Draw(img)
+def _draw_asymmetric_hair_back(c: HeroCanvas, cx: int, hy: int, sway: int = 0) -> None:
+    """Heavy moonlit silver-white hair mass sweeping asymmetrically down one side!"""
     pts = [
-        (cx - 13, cy - 22),
-        (cx + 12, cy - 22),
-        (cx + 19 + sway, cy + 5),
-        (cx + 15 + sway, cy + 18),
-        (cx + 8 + sway, cy + 12),
-        (cx + 2 + sway, cy + 20),
-        (cx - 5 + sway, cy + 13),
-        (cx - 13 + sway, cy + 19),
-        (cx - 20 + sway, cy + 6),
+        (cx - 10, hy - 8),
+        (cx + 8, hy - 7),
+        (cx + 6 + sway // 2, hy + 20),
+        (cx - 4 + sway, hy + 36),
+        (cx - 11 + sway, hy + 51),   # long asymmetric cascade reaching knee level!
+        (cx - 19 + sway, hy + 44),
+        (cx - 15 + sway, hy + 34),
+        (cx - 24 + sway, hy + 38),   # secondary outer lock breaking left silhouette!
+        (cx - 22 + sway, hy + 18),
+        (cx - 16, hy + 2),
     ]
-    d.polygon(pts, fill=HAIR_SHA, outline=OUTLINE)
-    inner = [
-        (cx - 11, cy - 19),
-        (cx + 10, cy - 19),
-        (cx + 15 + sway, cy + 8),
-        (cx - 1 + sway, cy + 15),
-        (cx - 15 + sway, cy + 8),
-    ]
-    d.polygon(inner, fill=HAIR_MID)
-    for lx in (-9, -2, 6):
-        d.line([(cx + lx, cy - 12), (cx + lx + sway // 2, cy + 9)], fill=HAIR_HI, width=2)
+    c.poly(pts, "moon", bias=0.14)
+    # Crisp moonlit silver highlight strands along top-left cascade
+    c.stroke(cx - 13, hy - 2, cx - 18 + sway, hy + 32, "moon", 3, width=2)
+    c.stroke(cx - 7, hy + 4, cx - 11 + sway, hy + 44, "moon", 2, width=2)
 
 
-def draw_crimson_rose(img: Image.Image, rx: int, ry: int) -> None:
-    """Velmira's signature crimson temple rose + dark emerald leaf."""
-    d = ImageDraw.Draw(img)
-    d.polygon([(rx - 5, ry + 1), (rx - 2, ry + 4), (rx, ry + 1)], fill=LEAF_DARK, outline=OUTLINE)
-    d.ellipse([rx - 4, ry - 4, rx + 4, ry + 4], fill=CRIMSON_DEEP, outline=OUTLINE)
-    d.ellipse([rx - 2, ry - 2, rx + 3, ry + 3], fill=CRIMSON_BRIGHT)
-    put(img, rx - 1, ry - 1, CRIMSON_GLOW)
-
-
-def draw_vampire_head(
-    img: Image.Image,
-    cx: int,
-    cy: int,
+def _draw_velmira_head(
+    c: HeroCanvas,
+    hx: int,
+    hy: int,
     blink: bool = False,
     hurt: bool = False,
-    cast_focus: bool = False,
-    sway: int = 0,
+    facing_mode: str = "side",
 ) -> None:
-    d = ImageDraw.Draw(img)
-    # Silver-white crown hair dome
-    d.ellipse([cx - 13, cy - 14, cx + 13, cy + 8], fill=HAIR_MID, outline=OUTLINE)
-    d.arc([cx - 10, cy - 12, cx + 10, cy - 2], 195, 345, fill=HAIR_HI, width=2)
+    """Heroic ~20px porcelain vampire head (`hy - 10 .. hy + 9`) + crimson temple rose."""
+    # Silver hair crown
+    c.ellipse(hx, hy - 3, 9, 8, "moon", bias=0.18)
 
-    # Pointed pale Vampire ears
-    d.polygon([(cx - 10, cy - 1), (cx - 18, cy - 5), (cx - 11, cy + 4)], fill=SKIN, outline=OUTLINE)
-    d.polygon([(cx + 10, cy - 1), (cx + 18, cy - 5), (cx + 11, cy + 4)], fill=SKIN, outline=OUTLINE)
-    put(img, cx - 14, cy - 3, SKIN_SHA)
-    put(img, cx + 14, cy - 3, SKIN_SHA)
+    if facing_mode == "up":
+        c.poly(
+            [
+                (hx - 11, hy - 4),
+                (hx + 9, hy - 4),
+                (hx + 10, hy + 28),
+                (hx + 2, hy + 44),
+                (hx - 8, hy + 50),
+                (hx - 16, hy + 36),
+            ],
+            "moon",
+            bias=0.16,
+        )
+        c.ellipse(hx - 8, hy - 6, 4, 4, "crimson", bias=0.20)
+        return
 
-    # Porcelain face + soft rose blush
-    d.rounded_rectangle([cx - 9, cy - 7, cx + 9, cy + 9], radius=5, fill=SKIN, outline=OUTLINE)
-    put(img, cx - 6, cy + 3, BLUSH)
-    put(img, cx + 6, cy + 3, BLUSH)
+    fx = 1 if facing_mode == "side" else 0
+    # Pale porcelain face FIRST (kept completely unsplit so crimson eyes read clearly!)
+    c.rrect(hx - 6 + fx, hy - 5, hx + 7 + fx, hy + 7, 3, "moon", bias=0.34)
+    c.dot(hx + 5 + fx, hy + 3, "skin", 2)
 
-    # Luminous Ruby-Crimson Vampire Eyes
+    # Swept moonlit crown bangs across top forehead & temple lock behind cheek (no vertical split line across face!)
+    c.poly(
+        [(hx - 8 + fx, hy - 8), (hx + 7 + fx, hy - 8), (hx + 6 + fx, hy - 4), (hx - 7 + fx, hy - 3)],
+        "moon",
+        bias=0.28,
+        selout=True,
+    )
+    c.poly(
+        [(hx - 9 + fx, hy - 4), (hx - 5 + fx, hy - 4), (hx - 6 + fx, hy + 7), (hx - 10 + fx, hy + 4)],
+        "moon",
+        bias=0.22,
+    )
+
+    # Pointed pale vampire ear jutting back through silver locks
+    c.poly([(hx - 6 + fx, hy - 1), (hx - 13 + fx, hy - 4), (hx - 7 + fx, hy + 3)], "moon", bias=0.26)
+
+    # Luminous 2x2 crimson vampire eyes + dark upper lash + tiny porcelain fang!
+    ex_list = (hx + 1, hx + 5) if facing_mode == "side" else (hx - 3, hx + 3)
     if hurt:
-        d.line([(cx - 6, cy - 1), (cx - 2, cy + 1)], fill=OUTLINE)
-        d.line([(cx - 2, cy + 1), (cx - 6, cy + 3)], fill=OUTLINE)
-        d.line([(cx + 6, cy - 1), (cx + 2, cy + 1)], fill=OUTLINE)
-        d.line([(cx + 2, cy + 1), (cx + 6, cy + 3)], fill=OUTLINE)
-        d.rectangle([cx - 1, cy + 5, cx + 2, cy + 7], fill=CRIMSON_MID)
+        for ex in ex_list:
+            c.stroke(ex - 1, hy - 1, ex + 1, hy + 1, "crimson", 0)
     elif blink:
-        d.line([(cx - 6, cy + 1), (cx - 2, cy + 1)], fill=OUTLINE)
-        d.line([(cx + 2, cy + 1), (cx + 6, cy + 1)], fill=OUTLINE)
-        put(img, cx, cy + 5, SKIN_SHA)
+        for ex in ex_list:
+            c.stroke(ex - 1, hy + 1, ex + 1, hy + 1, "moon", 0)
     else:
-        for ex in (cx - 5, cx + 2):
-            d.rectangle([ex, cy - 2, ex + 3, cy + 2], fill=CRIMSON_DEEP)
-            d.line([(ex - 1, cy - 2), (ex + 3, cy - 2)], fill=OUTLINE)
-            put(img, ex + 1, cy, CRIMSON_BRIGHT)
-            put(img, ex + 2, cy + 1, CRIMSON_GLOW if cast_focus else CRIMSON_BRIGHT)
-            put(img, ex, cy - 1, (255, 255, 255, 255))
-        # Subtle cute vampire mouth + single white fang
-        d.line([(cx - 1, cy + 5), (cx + 2, cy + 5)], fill=CRIMSON_MID)
-        put(img, cx + 2, cy + 6, (255, 255, 255, 255))
+        for ex in ex_list:
+            c.stroke(ex - 1, hy - 2, ex + 1, hy - 2, "obsidian", 0)
+            c.dot(ex, hy - 1, "crimson", 1)
+            c.dot(ex + 1, hy - 1, "crimson", 2)
+            c.dot(ex, hy, "crimson", 2)
+            c.dot(ex + 1, hy, "crimson", 3)
+            c.dot(ex, hy - 1, "moon", 3)
+        c.dot(hx + 3 + fx, hy + 4, "crimson", 2)
+        c.dot(hx + 4 + fx, hy + 5, "moon", 3)  # single porcelain fang
 
-    # Swept silver-white side curls & gothic bangs
-    d.polygon(
-        [(cx - 11, cy - 8), (cx - 7, cy - 8), (cx - 9 + sway, cy + 10), (cx - 13 + sway, cy + 4)],
-        fill=HAIR_LIT,
-        outline=OUTLINE,
-    )
-    d.polygon(
-        [(cx + 7, cy - 8), (cx + 11, cy - 8), (cx + 13 + sway, cy + 4), (cx + 9 + sway, cy + 10)],
-        fill=HAIR_LIT,
-        outline=OUTLINE,
-    )
-    for bx0, bx1, tx, ty in ((-6, -1, -4, -2), (-1, 4, 1, -2), (3, 7, 5, -3)):
-        d.polygon([(cx + bx0, cy - 10), (cx + bx1, cy - 10), (cx + tx, cy + ty)], fill=HAIR_HI)
-
-    # Signature Crimson Rose on left temple!
-    draw_crimson_rose(img, cx - 9, cy - 9)
+    # Emerald rose leaf + 4-step crimson rose on left temple (`y = hy - 11 .. hy - 4`)
+    c.poly([(hx - 11 + fx, hy - 6), (hx - 7 + fx, hy - 3), (hx - 6 + fx, hy - 7)], "emerald", bias=0.12)
+    c.ellipse(hx - 6 + fx, hy - 7, 4, 4, "crimson", bias=0.24)
+    c.dot(hx - 7 + fx, hy - 8, "crimson", 3)
 
 
-def build_velmira_pose(pose: str) -> Image.Image:
-    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-
-    if pose == "die_pool":
-        # Crisp pixel-art crimson vampire blood pool on stone floor (`y ~ 68..80`)!
-        d.ellipse([20, 68, 76, 80], fill=CRIMSON_DEEP, outline=OUTLINE)
-        d.ellipse([26, 70, 70, 78], fill=CRIMSON_MID)
-        d.ellipse([34, 71, 60, 76], fill=CRIMSON_BRIGHT)
-        d.line([(38, 73), (52, 73)], fill=CRIMSON_GLOW, width=1)
-        return img
-
-    if pose == "dash_mist":
-        # Crimson vampire mist silhouette + ruby eyes for Bat-Swarm / death transition!
-        d.ellipse([28, 34, 62, 76], fill=(92, 10, 34, 195), outline=OUTLINE)
-        d.ellipse([33, 40, 57, 70], fill=(168, 20, 52, 215))
-        d.ellipse([38, 46, 52, 62], fill=(228, 36, 74, 230))
-        d.line([(36, 44), (42, 46)], fill=CRIMSON_GLOW, width=2)
-        d.line([(54, 44), (48, 46)], fill=CRIMSON_GLOW, width=2)
-        return img
-
-    cx, cy = 44, 50
+def build_velmira_side(pose: str) -> Image.Image:
+    c = HeroCanvas()
+    cx = 47
     sway = 0
-    leg_l, leg_r = (-5, 26), (5, 26)
+    leg_l, leg_r = (-4, 79), (5, 79)
+    crouch_y = 0
 
     if pose == "idle_b":
         sway = 1
     elif pose == "walk_a":
-        cy -= 1
-        leg_l, leg_r = (-8, 24), (7, 27)
+        leg_l, leg_r = (-8, 78), (8, 79)
         sway = -2
     elif pose == "walk_b":
-        cy -= 1
-        leg_l, leg_r = (-2, 27), (3, 23)
+        leg_l, leg_r = (-2, 79), (3, 77)
         sway = -1
     elif pose == "cast_windup":
-        cx -= 1
+        cx = 45
+        leg_l, leg_r = (-6, 79), (6, 79)
         sway = -2
     elif pose == "cast_slash":
-        cx += 2
-        leg_l, leg_r = (-7, 26), (7, 26)
-        sway = -4
+        cx = 50
+        leg_l, leg_r = (-8, 79), (9, 79)
+        sway = -5
+    elif pose == "dash_lunge":
+        cx = 51
+        leg_l, leg_r = (-10, 79), (9, 79)
+        sway = -6
+    elif pose == "die_kneel":
+        cx = 45
+        crouch_y = 5
+        leg_l, leg_r = (-7, 79), (6, 79)
+        sway = 2
     elif pose == "hurt":
-        cx -= 4
-        cy += 1
-        sway = 4
+        cx = 43
+        sway = 3
 
-    # 1. Flowing silver-white back hair + crimson-lined gothic cape
-    draw_silver_hair_back(img, cx, cy, sway=sway)
-    cape_outer = [
-        (cx - 10, cy - 8),
-        (cx + 10, cy - 8),
-        (cx + 15 + sway, cy + 19),
-        (cx - 15 + sway, cy + 19),
-    ]
-    d.polygon(cape_outer, fill=CRIMSON_DEEP, outline=OUTLINE)
+    hip_y = 52 + crouch_y
+    chest_y = 36 + crouch_y
+    head_y = 19 + crouch_y
 
-    # 2. Slender legs & dark gothic heeled vampire boots (grounded at cy + 26 = 76!)
-    for lx, ly in ((cx + leg_l[0], cy + leg_l[1]), (cx + leg_r[0], cy + leg_r[1])):
-        pill_limb(
-            img,
-            cx + (leg_l[0] // 2 if lx < cx else leg_r[0] // 2),
-            cy + 12,
-            lx,
-            ly - 6,
-            3,
-            SKIN_SHA,
-            SKIN,
-            SKIN,
-        )
-        d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=DRESS_DARK, outline=OUTLINE)
-        d.line([(lx - 3, ly - 7), (lx + 3, ly - 7)], fill=CRIMSON_BRIGHT)
+    # 1. Heavy asymmetric moonlit hair cascade behind left/back side (silhouette!)
+    _draw_asymmetric_hair_back(c, cx, head_y, sway=sway)
 
-    # 3. Layered Obsidian & Crimson-Trimmed Gothic Vampire Dress + High Collar
-    skirt = [
-        (cx - 9, cy + 4),
-        (cx + 9, cy + 4),
-        (cx + 14 + sway // 2, cy + 17),
-        (cx - 14 + sway // 2, cy + 17),
-    ]
-    d.polygon(skirt, fill=DRESS_MID, outline=OUTLINE)
-    d.line([(cx - 12 + sway // 2, cy + 16), (cx + 12 + sway // 2, cy + 16)], fill=CRIMSON_BRIGHT, width=2)
+    # 2. Slender legs & tall obsidian-crimson heeled vampire boots (`bottom_y = 80`)
+    for side_idx, (lx_off, fy) in enumerate((leg_l, leg_r)):
+        hx0 = cx + (-3 if side_idx == 0 else 3)
+        kx = cx + int(lx_off * 0.75)
+        ky = (hip_y + fy) // 2
+        c.limb(hx0, hip_y, kx, ky, 2.8, "moon", bias=0.14)
+        c.limb(kx, ky, cx + lx_off, fy - 4, 3.0, "obsidian", bias=0.08)
+        bx = cx + lx_off
+        c.rrect(bx - 4, fy - 9, bx + 4, fy, 2, "obsidian", bias=0.10)
+        c.stroke(bx - 3, fy - 8, bx + 3, fy - 8, "crimson", 2)
 
-    # High flared crimson vampire collar behind neck
-    d.polygon(
-        [(cx - 13, cy - 13), (cx + 13, cy - 13), (cx + 10, cy - 5), (cx - 10, cy - 5)],
-        fill=CRIMSON_MID,
-        outline=OUTLINE,
+    # 3. Narrow gothic shoulders, sharp flared crimson collar, & hourglass obsidian dress!
+    # Flared gothic skirt (`y = 50 .. 67`) with crimson ruffled hem kept strictly inside contour
+    c.poly(
+        [
+            (cx - 6, hip_y - 2),
+            (cx + 6, hip_y - 2),
+            (cx + 12 + sway // 2, hip_y + 14),
+            (cx - 10 + sway // 2, hip_y + 14),
+        ],
+        "obsidian",
+        bias=0.08,
+    )
+    c.stroke(cx - 8 + sway // 2, hip_y + 12, cx + 10 + sway // 2, hip_y + 12, "crimson", 2, width=2)
+
+    # Sharp flared high crimson vampire collar behind neck
+    c.poly(
+        [(cx - 10, chest_y - 11), (cx + 9, chest_y - 10), (cx + 6, chest_y - 3), (cx - 6, chest_y - 3)],
+        "crimson",
+        bias=0.16,
     )
 
-    bodice = [
-        (cx - 9, cy - 8),
-        (cx + 9, cy - 8),
-        (cx + 7, cy + 6),
-        (cx - 7, cy + 6),
-    ]
-    d.polygon(bodice, fill=DRESS_DARK, outline=OUTLINE)
-    # Crimson corset lacing + ruby brooch + black choker
-    d.polygon([(cx - 4, cy - 7), (cx + 4, cy - 7), (cx + 2, cy + 5), (cx - 2, cy + 5)], fill=CRIMSON_MID)
-    d.ellipse([cx - 2, cy - 7, cx + 2, cy - 3], fill=CRIMSON_BRIGHT, outline=OUTLINE)
-    put(img, cx, cy - 6, CRIMSON_GLOW)
+    # Narrow-shouldered corset bodice (`width = 13px`)
+    c.poly([(cx - 7, chest_y - 6), (cx + 7, chest_y - 6), (cx + 5, hip_y), (cx - 5, hip_y)], "obsidian", bias=0.10)
+    c.poly([(cx - 3, chest_y - 5), (cx + 3, chest_y - 5), (cx + 2, hip_y - 1), (cx - 2, hip_y - 1)], "crimson", bias=0.14)
+    c.dot(cx + 1, chest_y - 5, "crimson", 3)
 
-    # 4. Silver-White Vampire Head
-    draw_vampire_head(
-        img,
-        cx,
-        cy - 18,
-        blink=(pose == "blink"),
+    # 4. Vampire Head (`head_y = 19` -> crown/rose at `y = 8`, exact `72px` standing height!)
+    _draw_velmira_head(
+        c,
+        cx + 1,
+        head_y,
+        blink=(pose in ("blink", "die_kneel")),
         hurt=(pose == "hurt"),
-        cast_focus=(pose in ("cast_windup", "cast_slash")),
-        sway=sway // 2,
+        facing_mode="side",
     )
 
-    # 5. Gothic flared sleeves & Blood-Magic hands
+    # 5. Flared gothic bell-sleeves & crimson-clawed hands (zero floating orbs or baked arcs!)
     if pose in ("idle", "idle_b", "blink", "walk_a", "walk_b"):
-        arm_dy = -1 if pose == "idle_b" else (2 if pose == "walk_a" else (-1 if pose == "walk_b" else 0))
-        pill_limb(img, cx - 8, cy - 4, cx - 12, cy + 4 - arm_dy, 2, DRESS_DARK, DRESS_MID, SKIN)
-        pill_limb(img, cx + 8, cy - 4, cx + 14, cy + 2 + arm_dy, 2, DRESS_DARK, DRESS_MID, SKIN)
+        ady = -1 if pose == "idle_b" else (2 if pose == "walk_a" else (-1 if pose == "walk_b" else 0))
+        c.poly(
+            [
+                (cx + 3, chest_y - 4),
+                (cx + 14, chest_y + 1 + ady),
+                (cx + 13, chest_y + 7 + ady),
+                (cx + 3, chest_y + 1),
+            ],
+            "obsidian",
+            bias=0.12,
+        )
+        c.rrect(cx + 13, chest_y + 1 + ady, cx + 17, chest_y + 5 + ady, 1, "moon", bias=0.30)
+        c.dot(cx + 18, chest_y + 3 + ady, "crimson", 3)
     elif pose == "cast_windup":
-        # Gathers a glowing ruby blood orb in front of her palm!
-        pill_limb(img, cx + 8, cy - 5, cx + 18, cy - 4, 2, DRESS_DARK, CRIMSON_MID, SKIN)
-        ox, oy = cx + 23, cy - 5
-        d.ellipse([ox - 4, oy - 4, ox + 4, oy + 4], fill=CRIMSON_MID, outline=OUTLINE)
-        d.ellipse([ox - 2, oy - 2, ox + 2, oy + 2], fill=CRIMSON_BRIGHT)
-        put(img, ox - 1, oy - 1, CRIMSON_GLOW)
+        c.limb(cx + 4, chest_y - 3, cx - 3, chest_y - 7, 2.4, "obsidian")
+        c.stroke(cx - 4, chest_y - 8, cx, chest_y - 10, "crimson", 3, width=2)
     elif pose == "cast_slash":
-        # Sweeps her gothic sleeve forward with a crisp crimson blood-claw arc!
-        pill_limb(img, cx + 8, cy - 5, cx + 22, cy - 3, 2, DRESS_DARK, CRIMSON_MID, SKIN)
-        d.arc([cx + 12, cy - 20, cx + 40, cy + 14], -58, 58, fill=OUTLINE, width=5)
-        d.arc([cx + 12, cy - 20, cx + 40, cy + 14], -54, 54, fill=CRIMSON_BRIGHT, width=3)
-        d.arc([cx + 13, cy - 18, cx + 39, cy + 12], -36, 36, fill=CRIMSON_GLOW, width=1)
+        c.limb(cx + 5, chest_y - 3, cx + 21, chest_y - 2, 2.5, "obsidian", bias=0.12)
+        c.poly([(cx + 20, chest_y - 4), (cx + 27, chest_y - 2), (cx + 21, chest_y + 1)], "crimson", bias=0.28)
+    elif pose == "dash_lunge":
+        c.limb(cx + 5, chest_y - 3, cx + 18, chest_y - 1, 2.4, "crimson", bias=0.16)
+    elif pose == "die_kneel":
+        c.limb(cx + 4, chest_y - 1, cx + 10, chest_y + 9, 2.3, "obsidian")
     elif pose == "hurt":
-        pill_limb(img, cx - 8, cy - 4, cx - 13, cy - 1, 2, DRESS_DARK, DRESS_MID, SKIN)
-        pill_limb(img, cx + 8, cy - 4, cx + 14, cy - 2, 2, DRESS_DARK, DRESS_MID, SKIN)
+        c.limb(cx + 4, chest_y - 2, cx + 12, chest_y - 5, 2.3, "obsidian")
 
-    return img
+    exact = 72 if pose == "idle" else None
+    return c.finalize(ground_y=GROUND_Y, exact_height=exact)
 
 
-def build_velmira_vertical_pose(pose: str) -> Image.Image:
-    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Velmira!"""
-    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    cx, cy = 48, 50
+def build_velmira_vertical(pose: str) -> Image.Image:
+    c = HeroCanvas()
+    cx = 49
     is_up = pose.startswith("up_")
     step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
-    l_dy = -3 * step
-    r_dy = 3 * step
+    l_fy = 79 - (2 if step > 0 else 0)
+    r_fy = 79 - (2 if step < 0 else 0)
+    hip_y, chest_y = 52, 36
 
     if not is_up:
-        # Front: silver hair + crimson cape + gothic dress + symmetrical ruby-eyed face
-        d.polygon(
-            [(cx - 11, cy - 8), (cx + 11, cy - 8), (cx + 15, cy + 18), (cx - 15, cy + 18)],
-            fill=CRIMSON_DEEP,
-            outline=OUTLINE,
-        )
-        for side, dy in ((-5, l_dy), (5, r_dy)):
-            lx, ly = cx + side, cy + 26 + min(0, dy)
-            pill_limb(img, cx + side // 2, cy + 12, lx, ly - 6, 3, SKIN_SHA, SKIN, SKIN)
-            d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=DRESS_DARK, outline=OUTLINE)
-            d.line([(lx - 3, ly - 7), (lx + 3, ly - 7)], fill=CRIMSON_BRIGHT)
-        d.polygon([(cx - 9, cy + 4), (cx + 9, cy + 4), (cx + 14, cy + 17), (cx - 14, cy + 17)], fill=DRESS_MID, outline=OUTLINE)
-        d.line([(cx - 12, cy + 16), (cx + 12, cy + 16)], fill=CRIMSON_BRIGHT, width=2)
-        d.polygon([(cx - 13, cy - 13), (cx + 13, cy - 13), (cx + 10, cy - 5), (cx - 10, cy - 5)], fill=CRIMSON_MID, outline=OUTLINE)
-        d.polygon([(cx - 9, cy - 8), (cx + 9, cy - 8), (cx + 7, cy + 6), (cx - 7, cy + 6)], fill=DRESS_DARK, outline=OUTLINE)
-        d.polygon([(cx - 3, cy - 7), (cx + 3, cy - 7), (cx + 2, cy + 5), (cx - 2, cy + 5)], fill=CRIMSON_MID)
-        d.ellipse([cx - 2, cy - 7, cx + 2, cy - 3], fill=CRIMSON_BRIGHT, outline=OUTLINE)
-        pill_limb(img, cx - 10, cy - 4, cx - 14, cy + 3 + l_dy, 2, DRESS_DARK, DRESS_MID, SKIN)
-        pill_limb(img, cx + 10, cy - 4, cx + 14, cy + 3 + r_dy, 2, DRESS_DARK, DRESS_MID, SKIN)
-        draw_vampire_head(img, cx, cy - 18)
-    else:
-        # Back: boots + obsidian-crimson gothic cloak + cascading moonlit silver-white hair!
-        for side, dy in ((-5, l_dy), (5, r_dy)):
-            lx, ly = cx + side, cy + 26 + min(0, dy)
-            pill_limb(img, cx + side // 2, cy + 12, lx, ly - 6, 3, SKIN_SHA, SKIN, SKIN)
-            d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=DRESS_DARK, outline=OUTLINE)
-        d.polygon(
-            [(cx - 11, cy - 9), (cx + 11, cy - 9), (cx + 15 + step, cy + 18), (cx - 15 + step, cy + 18)],
-            fill=DRESS_MID,
-            outline=OUTLINE,
-        )
-        d.line([(cx - 12 + step, cy + 17), (cx + 12 + step, cy + 17)], fill=CRIMSON_BRIGHT, width=2)
-        d.polygon([(cx - 13, cy - 13), (cx + 13, cy - 13), (cx + 10, cy - 5), (cx - 10, cy - 5)], fill=CRIMSON_MID, outline=OUTLINE)
-        hy = cy - 18
-        d.polygon([(cx - 10, hy - 2), (cx - 16, hy - 5), (cx - 10, hy + 2)], fill=SKIN_SHA, outline=OUTLINE)
-        d.polygon([(cx + 10, hy - 2), (cx + 16, hy - 5), (cx + 10, hy + 2)], fill=SKIN_SHA, outline=OUTLINE)
-        hair_pts = [
-            (cx - 11, hy - 10),
-            (cx + 11, hy - 10),
-            (cx + 14 + step, hy + 18),
-            (cx + 6 + step, hy + 24),
-            (cx + step, hy + 19),
-            (cx - 6 + step, hy + 24),
-            (cx - 14 + step, hy + 18),
-        ]
-        d.polygon(hair_pts, fill=HAIR_MID, outline=OUTLINE)
-        d.line([(cx - 6, hy - 7), (cx - 5 + step, hy + 17)], fill=HAIR_LIT, width=2)
-        d.line([(cx + 4, hy - 7), (cx + 5 + step, hy + 17)], fill=HAIR_HI, width=2)
-        draw_crimson_rose(img, cx - 9, hy - 7)
+        _draw_asymmetric_hair_back(c, cx, 19, sway=step)
 
-    return img
+    for side_idx, (lx_off, fy) in enumerate(((-4, l_fy), (4, r_fy))):
+        kx = cx + lx_off
+        ky = (hip_y + fy) // 2
+        c.limb(cx + (-3 if side_idx == 0 else 3), hip_y, kx, ky, 2.8, "moon")
+        c.limb(kx, ky, kx, fy - 4, 3.0, "obsidian")
+        c.rrect(kx - 4, fy - 9, kx + 4, fy, 2, "obsidian")
+        if not is_up:
+            c.stroke(kx - 3, fy - 8, kx + 3, fy - 8, "crimson", 2)
+
+    c.poly([(cx - 7, hip_y - 2), (cx + 7, hip_y - 2), (cx + 12, hip_y + 14), (cx - 12, hip_y + 14)], "obsidian")
+    c.stroke(cx - 9, hip_y + 12, cx + 9, hip_y + 12, "crimson", 2, width=2)
+    c.poly([(cx - 10, chest_y - 11), (cx + 10, chest_y - 11), (cx + 7, chest_y - 3), (cx - 7, chest_y - 3)], "crimson", bias=0.14)
+    c.poly([(cx - 7, chest_y - 6), (cx + 7, chest_y - 6), (cx + 5, hip_y), (cx - 5, hip_y)], "obsidian")
+    if not is_up:
+        c.poly([(cx - 3, chest_y - 5), (cx + 3, chest_y - 5), (cx + 2, hip_y - 1), (cx - 2, hip_y - 1)], "crimson", bias=0.14)
+
+    c.limb(cx - 7, chest_y - 3, cx - 12, chest_y + 5 + step * 2, 2.2, "obsidian")
+    c.limb(cx + 7, chest_y - 3, cx + 12, chest_y + 5 - step * 2, 2.2, "obsidian")
+    _draw_velmira_head(c, cx, 19, facing_mode="up" if is_up else "down")
+    return c.finalize(ground_y=GROUND_Y)
 
 
 def main() -> None:
@@ -388,11 +274,11 @@ def main() -> None:
         "walk_b",       # 2
         "cast_windup",  # 3
         "cast_slash",   # 4
-        "dash_mist",    # 5
+        "dash_lunge",   # 5
         "hurt",         # 6
         "blink",        # 7
         "idle_b",       # 8
-        "die_pool",     # 9
+        "die_kneel",    # 9
         "down_idle",    # 10
         "down_walk_a",  # 11
         "down_walk_b",  # 12
@@ -400,24 +286,24 @@ def main() -> None:
         "up_walk_a",    # 14
         "up_walk_b",    # 15
     ]
-    sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
+    sheet = Image.new("RGBA", (CELL * len(poses), CELL), (0, 0, 0, 0))
     for i, p in enumerate(poses):
-        fr = build_velmira_vertical_pose(p) if p.startswith(("down_", "up_")) else build_velmira_pose(p)
-        sheet.alpha_composite(fr, (i * FRAME, 0))
+        fr = build_velmira_vertical(p) if p.startswith(("down_", "up_")) else build_velmira_side(p)
+        sheet.alpha_composite(fr, (i * CELL, 0))
     sheet.save("assets/textures/player_velmira.png")
     print("wrote assets/textures/player_velmira.png", sheet.size)
 
     zoom, pad = 2, 10
-    w = pad + len(poses) * (FRAME * zoom + pad)
-    h = 30 + FRAME * zoom + 24
+    w = pad + len(poses) * (CELL * zoom + pad)
+    h = 30 + CELL * zoom + 24
     prev = Image.new("RGBA", (w, h), (22, 16, 26, 255))
     d = ImageDraw.Draw(prev)
-    d.text((pad, 8), "VELMIRA (GOTHIC VAMPIRE) - 16 frames x 96x96", fill=(248, 214, 226, 255))
+    d.text((pad, 8), "VELMIRA (HEROIC PASS) - 16 frames x 96x96", fill=RAMPS["crimson"][3])
     for i, p in enumerate(poses):
-        x = pad + i * (FRAME * zoom + pad)
-        fr = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
-        prev.alpha_composite(fr.resize((FRAME * zoom, FRAME * zoom), Image.Resampling.NEAREST), (x, 28))
-        d.text((x, 28 + FRAME * zoom + 4), f"{i}:{p}", fill=(228, 176, 196, 255))
+        x = pad + i * (CELL * zoom + pad)
+        fr = sheet.crop((i * CELL, 0, (i + 1) * CELL, CELL))
+        prev.alpha_composite(fr.resize((CELL * zoom, CELL * zoom), Image.NEAREST), (x, 28))
+        d.text((x, 28 + CELL * zoom + 4), f"{i}:{p}", fill=RAMPS["moon"][2])
     prev.save("docs/images/velmira_preview.png")
 
 

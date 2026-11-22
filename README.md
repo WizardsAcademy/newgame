@@ -1,15 +1,15 @@
 # Roguelike Brawler (Godot 4.7)
 
-A pixel-art top-down 2D action roguelike built in **Godot 4.7** with pure GDScript, high-detail `32×32` hero sprites, and procedural retro audio.
+A pixel-art top-down 2D action roguelike built in **Godot 4.7** with pure GDScript, unified `96×96` pixel-art hero sprites (`0.5×` world scale, `GROUND_Y = 80`), and procedural retro audio.
 
-## Playable Heroes (Choose on Launch!)
+## Playable Heroes (Choose in the Guild Hub!)
 
-Inspect and choose from **4 distinct heroes** on the Showcase Character Select screen (`Hover / A-D` to preview live in the Arena, `Click` or `1–4` / `Enter` to play):
+Inspect and choose from **4 distinct heroes** in the Guild Hub / Character Select screen (`Hover / A-D` to preview live, `Click` or `1–4` / `Enter` to play):
 
-1. **Behemoth — Iron-Fist Brawler (`100 HP`)**: Heavy melee brawler with spiked iron gauntlets, a **3-Hit Escalating Combo** (*Jab → Cross → Shockwave Uppercut*), and a **16-DMG Shoulder-Smash Shift Dash**.
-2. **Knight — Shield & Greatsword (`120 HP`)**: Armored tank wielding a wide steel greatsword (`24 DMG`), a **14-DMG Shield Charge (`Shift`)**, and an active **Kite Shield (`Right-Click` or `E`)** that reduces incoming damage by **60%** (e.g. `10` damage → blocks `6`, takes `4`!).
-3. **Sylvara — Elven Ranger (`75 HP`)**: Fastest hero in the arena! Fires rapid recurve-bow shots (3-arrow fan every 4th quick shot) or **hold Attack** (`≥0.35s`) for a 2× damage **Piercing Great-Arrow**. Her `Shift` **Phantom Windstep** deals `0` damage and **phases cleanly through enemies**!
-4. **Velmira — Crimson Vampire (`85 HP`)**: Unleashes a mid-range **Crimson Blood Splash** cone (`17 DMG`). Every cast sacrifices **`-6 HP`** of her own blood, and hitting an enemy heals **`+8 HP`** (`+2 HP` net gain) — rewarding accuracy and punishing blind spam! (`Shift` is a `0`-damage Crimson Evade.)
+1. **Behemoth — Pit-Champion Brawler (`120 HP`)**: Broad melee pit-champion with spiked iron cestus gauntlets, a **3-Hit Escalating Combo** (*Jab `18` → Cross `21` → Stun Uppercut `29 DMG`*), and an **18-DMG Shoulder-Ram Shift Dash**.
+2. **Knight — Fallen Knight (`150 HP`)**: Plated frontline tank wielding a colossal Zweihander greatsword (`28 DMG`), a **16-DMG Shield-Wall Ram (`Shift`)**, and an active **Tower Shield (`Right-Click` or `E`)** that blocks **100%** of frontal attacks and arrows.
+3. **Sylvara — Elven Ranger (`100 HP`)**: Fastest hero in the arena! Fires rapid recurve-bow shots (`15 DMG`, 3-arrow fan every 4th quick shot) or **hold Attack** (`≥0.35s`) for a `30 DMG` **Piercing Wind-Shot**. Her `Shift` **Wind-Vault** deals `0` damage and **phases cleanly through enemies**!
+4. **Velmira — Crimson Vampire (`75 HP`)**: Unleashes a mid-range **Crimson Blood Splash** slash (`18 DMG` + stacking Vampire Fang marks). Every cast sacrifices **`-5 HP`** of her own blood, and hitting an enemy drains **`+7 HP`** (`+2 HP` net gain) — rewarding accuracy and punishing blind spam! (`Shift` is a `0`-damage Crimson Mist-Step.)
 
 ## Controls
 
@@ -17,15 +17,15 @@ Inspect and choose from **4 distinct heroes** on the Showcase Character Select s
 |--------|--------------|
 | Move (8-directional) | `W A S D` or `Arrow Keys` |
 | Attack / Charge Bow (Sylvara) | `Space` or `Left Mouse Click` |
-| **Raise Kite Shield** (Knight — 60% DMG Reduction) | `Right Mouse Click` or `E` |
-| **Shift Dash** (`1.0s` CD — DMG on Behemoth/Knight; Enemy Phase on Sylvara) | `Shift` |
+| **Raise Tower Shield** (Knight — 100% Frontal Block) | `Right Mouse Click` or `E` |
+| **Shift Dash** (`1.0s` CD — DMG on Behemoth/Knight; Enemy Phase on Sylvara/Velmira) | `Shift` |
 | Confirm Hero / Pick Upgrade | `Click`, `1`–`4`, or `Enter / Space` |
 | Quick Retry (on Game Over, same hero) | `R` |
 | Change Hero (anytime or on Game Over) | `Esc` (or `C` on Game Over) |
 
 ## Core Features
 
-- **Unified `96×96` Pixel-Art Heroes & `64×64` Circular HUD Portraits**: Four distinct medieval heroes (**Behemoth**, **Knight**, **Sylvara**, and **Velmira**) rendered on crisp `96×96` 4-directional pixel-art strips (`tools/make_*_sprites.py`) with 5-state `320×64` close-up face portraits (`tools/make_hero_portraits.py`).
+- **Unified `96×96` Pixel-Art Heroes (`docs/ART_CONTRACT.md`)**: Four distinct medieval heroes (**Behemoth**, **Knight**, **Sylvara**, and **Velmira**) rendered on crisp `96×96` `NEAREST`-filtered strips at `Visuals.scale = Vector2(0.5, 0.5)` (`72 px` standing height, `GROUND_Y = 80`, shared 32-colour 4-step ramp, selective selout outlines) with circular HUD portraits (`tools/make_*_sprites.py`, `tools/measure_hero_sheets.py`).
 - **Hand-Animated Jelly Slimes** (`slime_visuals.gd` + `tools/make_slime_sprites.py`): rounded 32×32 dome with banded pixel shading, glossy specular, blink, a 3-stage hop with squash & stretch, red tremble wind-up, white silhouette hit flash, goo-splat death decal, and an elite variant — regenerated from one command (`docs/SLIME_REDESIGN.md`).
 - **Heavy Stone Golems** (`golem_visuals.gd` + `tools/make_golem_sprites.py`): a 40×40, 12-pose brute — tiny head between boulder shoulders, arms to the knees, a chest cracked open with amber seams — with a stomp cycle that drops the whole body, kicks dust and nudges the camera on every footfall, both fists overhead for the 0.8 s telegraph, fists-in-the-floor slam, a slumped stuck-in-the-ground punish window, an elite flare and a crumble into rubble. Same 90 HP, 30 px/s and 15 damage as before (`docs/GOLEM_REDESIGN.md`).
 - **Rattling Skeleton Archers** (`archer_visuals.gd` + `tools/make_archer_sprites.py`): a 32×32, 12-pose hooded skeleton rig — aged bone under a torn cloak, two ember eyes in a void face, a full bow draw → release → mocking head tilt, idle bone rattles, a white silhouette hit flash and a collapse into a bone heap. The "annoying" is all in the motion: its HP, speed and damage are untouched (`docs/ARCHER_REDESIGN.md`).
@@ -38,6 +38,8 @@ Inspect and choose from **4 distinct heroes** on the Showcase Character Select s
 ## Automated Headless Tests
 
 ```bash
+python3 tools/measure_hero_sheets.py --strict
+godot --headless --path . tests/sprite_contract_test.tscn
 godot --headless --path . tests/heroes_and_dash_test.tscn
 godot --headless --path . tests/archer_test.tscn
 godot --headless --path . tests/boss_test.tscn

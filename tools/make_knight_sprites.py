@@ -1,429 +1,246 @@
-#!/usr/bin/env python
-"""Generate Knight's 10-frame 96x96 Betrayed Fallen Knight sprite sheet.
+#!/usr/bin/env python3
+"""Generate Knight's 16-frame 96x96 Fallen Knight sprite sheet.
 
-Art direction:
-  - Darkened, battle-scarred medieval plate armor with cracked silver trim,
-  - Betrayal wound: jagged ember-glowing rift across the breastplate + broken
-    spear shaft jutting from his back pauldron + tattered dark-crimson cape,
-  - Visored Fallen Greathelm with haunting pale-cyan / ember glowing slit,
-  - Scarred Dark-Iron Tower/Kite Shield + COLOSSAL Zweihander Greatsword!
-
-Writes:
-    assets/textures/player_knight.png    1536 x 96 (16 frames of 96x96)
-    docs/images/knight_preview.png       review sheet
-
-SHEET LAYOUT (matches scenes/player/Knight.tscn):
-    0 : idle
-    1 : walk A
-    2 : walk B
-    3 : cleave windup   (colossal greatsword coiled high behind shoulder)
-    4 : cleave sweep    (giant greatsword sweeping wide right + arc)
-    5 : cleave spin     (full rotational follow-through spin + crescent)
-    6 : guard           (Tower Shield raised firmly in front)
-    7 : shield charge   (Shield locked forward, lunging Shift ram)
-    8 : hurt            (recoiling stagger + sparks from betrayal crack)
-    9 : blink           (visor glow dims)
+Hero Art Contract (Phase 4):
+  - 96x96 cells, standing height 72px (top_y=8 .. GROUND_Y=80), ~29% head ratio.
+  - Silhouette: tall, upright plated warrior; colossal Zweihander Greatsword
+    resting diagonally on the shoulder, scarred Tower Shield, and sweeping
+    tattered crimson cape wedge behind.
+  - Palette: 5 ramps x 4 steps = <=20 colours from the shared 32-colour ramp
+    (`steel`, `obsidian`, `crimson`, `leather`, `gold`).
+  - Top-left 4-step shading + selective selout (zero `#000000`).
 """
+
+from __future__ import annotations
 
 import math
 from PIL import Image, ImageDraw
-
-FRAME = 96
-FRAMES = 10
-
-OUTLINE = (10, 10, 16, 255)
-STEEL_DARK = (34, 38, 50, 255)
-STEEL_MID = (58, 65, 84, 255)
-STEEL_LIT = (92, 104, 130, 255)
-STEEL_HI = (146, 162, 192, 255)
-BLADE_EDGE = (214, 226, 246, 255)
-GOLD_DARK = (112, 82, 34, 255)
-GOLD_LIT = (188, 146, 64, 255)
-CAPE_DEEP = (46, 10, 22, 255)
-CAPE_MID = (86, 18, 36, 255)
-CAPE_HI = (132, 30, 52, 255)
-SCAR_GLOW = (255, 112, 52, 255)
-SCAR_CORE = (255, 214, 128, 255)
-EYE_CYAN = (120, 232, 255, 255)
-EYE_DIM = (52, 112, 142, 255)
-WOOD_DARK = (72, 46, 28, 255)
+from hero_art_lib import CELL, GROUND_Y, RAMPS, HeroCanvas
 
 
-def put(img: Image.Image, x: int, y: int, col) -> None:
-    if 0 <= x < FRAME and 0 <= y < FRAME:
-        img.putpixel((x, y), col)
-
-
-def outlined_poly(img: Image.Image, pts, fill_col, hi_col=None) -> None:
-    d = ImageDraw.Draw(img)
-    ipts = [(int(round(x)), int(round(y))) for x, y in pts]
-    d.polygon(ipts, fill=fill_col, outline=OUTLINE)
-    if hi_col and len(ipts) >= 2:
-        d.line([ipts[0], ipts[1]], fill=hi_col, width=1)
-
-
-def pill_limb(img: Image.Image, x0: float, y0: float, x1: float, y1: float, r: int,
-              dark_c, mid_c, hi_c) -> None:
-    steps = max(int(math.hypot(x1 - x0, y1 - y0) * 2), 4)
-    d = ImageDraw.Draw(img)
-    for pass_id in range(3):
-        for i in range(steps + 1):
-            t = i / steps
-            cx = x0 + (x1 - x0) * t
-            cy = y0 + (y1 - y0) * t
-            if pass_id == 0:
-                rr = r + 1
-                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=OUTLINE)
-            elif pass_id == 1:
-                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=dark_c)
-                rr2 = max(r - 1, 1)
-                d.ellipse([cx - rr2, cy - rr2 - 1, cx + rr2, cy + rr2 - 1], fill=mid_c)
-            else:
-                rr3 = max(r - 2, 1)
-                d.ellipse([cx - rr3, cy - rr3 - 1, cx + rr3 - 1, cy - 1], fill=hi_c)
-
-
-def draw_tattered_cape(img: Image.Image, cx: int, cy: int, sway_x: int = 0, flare: int = 0) -> None:
-    """Ragged, battle-torn crimson Fallen Knight cloak."""
-    pts = [
-        (cx - 11, cy - 8),
-        (cx + 9, cy - 8),
-        (cx + 15 + flare + sway_x, cy + 32),
-        (cx + 9 + sway_x, cy + 27),
-        (cx + 4 + sway_x, cy + 35),
-        (cx - 2 + sway_x, cy + 28),
-        (cx - 8 + sway_x, cy + 36),
-        (cx - 13 + sway_x, cy + 29),
-        (cx - 19 - flare + sway_x, cy + 34),
-    ]
-    outlined_poly(img, pts, CAPE_DEEP)
-    d = ImageDraw.Draw(img)
-    inner = [
-        (cx - 9, cy - 5),
-        (cx + 6, cy - 5),
-        (cx + 10 + sway_x, cy + 26),
-        (cx - 3 + sway_x, cy + 24),
-        (cx - 13 + sway_x, cy + 28),
-    ]
-    d.polygon(inner, fill=CAPE_MID)
-    # Torn holes in the lower cloak
-    for hx, hy in ((cx - 9 + sway_x, cy + 22), (cx + 5 + sway_x, cy + 24), (cx - 2 + sway_x, cy + 19)):
-        for dy in range(-1, 2):
-            for dx in range(-1, 2):
-                put(img, hx + dx, hy + dy, (0, 0, 0, 0) if (dx == 0 and dy == 0) else OUTLINE)
-
-
-def draw_betrayal_spear_stub(img: Image.Image, cx: int, cy: int) -> None:
-    """Broken enemy spear shaft & snapped iron head jutting from behind his shoulder —
-    visual storytelling of the Betrayed / Fallen Knight!"""
-    d = ImageDraw.Draw(img)
-    x0, y0 = cx - 10, cy - 6
-    x1, y1 = cx - 22, cy - 20
-    d.line([(x0, y0), (x1, y1)], fill=OUTLINE, width=4)
-    d.line([(x0, y0), (x1, y1)], fill=WOOD_DARK, width=2)
-    # Splintered wood tip + tattered pennant scrap
-    put(img, x1 - 1, y1 - 1, GOLD_LIT)
-    put(img, x1, y1 - 2, GOLD_DARK)
-    d.polygon([(x1 + 3, y1 + 3), (x1 - 2, y1 + 9), (x1 + 5, y1 + 11)], fill=CAPE_HI, outline=OUTLINE)
-
-
-def draw_greathelm(img: Image.Image, cx: int, cy: int, dim_eyes: bool = False, hurt: bool = False) -> None:
-    """Scarred Fallen Greathelm with jagged dark-iron crown, torn plume & glowing visor."""
-    d = ImageDraw.Draw(img)
-    # Torn crimson plume curving off back of helm
-    plume = [
-        (cx - 2, cy - 13),
-        (cx - 12, cy - 18),
-        (cx - 20, cy - 12),
-        (cx - 15, cy - 7),
-        (cx - 19, cy - 3),
-        (cx - 7, cy - 6),
-    ]
-    outlined_poly(img, plume, CAPE_MID, CAPE_HI)
-
-    # Helm dome & cheekguards
-    d.rounded_rectangle([cx - 10, cy - 12, cx + 10, cy + 9], radius=4, fill=STEEL_MID, outline=OUTLINE)
-    d.rectangle([cx - 8, cy - 10, cx + 8, cy - 5], fill=STEEL_LIT)
-    d.line([(cx - 6, cy - 10), (cx + 4, cy - 10)], fill=STEEL_HI)
-
-    # Jagged fallen crown horns/points on brow
-    for hx in (cx - 8, cx, cx + 8):
-        d.polygon([(hx - 2, cy - 11), (hx, cy - 16), (hx + 2, cy - 11)], fill=STEEL_DARK, outline=OUTLINE)
-        put(img, hx, cy - 14, STEEL_LIT)
-
-    # Dark T-visor slit
-    d.rectangle([cx - 7, cy - 3, cx + 8, cy + 1], fill=OUTLINE)
-    d.rectangle([cx + 1, cy + 1, cx + 3, cy + 7], fill=OUTLINE)
-    # Breathing vent slits
-    for vy in (cy + 3, cy + 6):
-        for vx in (cx - 5, cx - 3, cx + 5, cx + 7):
-            put(img, vx, vy, OUTLINE)
-
-    # Diagonal crack across right brow of helmet
-    d.line([(cx + 3, cy - 10), (cx + 7, cy - 4)], fill=OUTLINE)
-    put(img, cx + 4, cy - 9, STEEL_HI)
-
-    # Haunting glowing eyes inside visor!
-    eye_col = SCAR_GLOW if hurt else (EYE_DIM if dim_eyes else EYE_CYAN)
-    for ex in (cx - 3, cx + 5):
-        put(img, ex, cy - 1, eye_col)
-        put(img, ex + 1, cy - 1, SCAR_CORE if hurt else (EYE_CYAN if not dim_eyes else EYE_DIM))
-
-
-def draw_colossal_greatsword(img: Image.Image, hand_x: float, hand_y: float, angle_deg: float,
-                             draw_trail: int = 0) -> None:
-    """Draw the massive 56px Zweihander Greatsword rotated around hand_x, hand_y!"""
+def _draw_zweihander(c: HeroCanvas, gx: float, gy: float, angle_deg: float, length: float = 38.0) -> None:
+    """Colossal two-handed Zweihander Greatsword with crossguard & fuller."""
     rad = math.radians(angle_deg)
-    ux, uy = math.cos(rad), math.sin(rad)
-    px, py = -uy, ux  # perpendicular
+    dx, dy = math.cos(rad), math.sin(rad)
+    px, py = -dy, dx
 
-    d = ImageDraw.Draw(img)
+    # Leather grip + gold pommel behind hand
+    c.limb(gx - dx * 7, gy - dy * 7, gx, gy, 2.0, "leather")
+    c.ellipse(gx - dx * 8, gy - dy * 8, 2.5, 2.5, "gold", bias=0.25)
 
-    # Optional sweeping motion arc trail for cleave frames!
-    if draw_trail > 0:
-        span = 85 if draw_trail == 1 else 155
-        a0 = angle_deg - span
-        a1 = angle_deg
-        for r_arc, col in ((48, (150, 185, 235, 115)), (44, (220, 238, 255, 185)), (38, (255, 140, 80, 95))):
-            pts = []
-            for k in range(18):
-                aa = math.radians(a0 + (a1 - a0) * (k / 17.0))
-                pts.append((hand_x + math.cos(aa) * r_arc, hand_y + math.sin(aa) * r_arc))
-            d.line(pts, fill=col, width=3 if r_arc == 44 else 2)
+    # Wide steel & gold crossguard
+    c.limb(gx - px * 7, gy - py * 7, gx + px * 7, gy + py * 7, 2.2, "gold", bias=0.20)
 
-    # Pommel & long two-handed leather grip behind hand
-    pom_x, pom_y = hand_x - ux * 9, hand_y - uy * 9
-    d.line([(pom_x, pom_y), (hand_x + ux * 2, hand_y + uy * 2)], fill=OUTLINE, width=5)
-    d.line([(pom_x, pom_y), (hand_x + ux * 2, hand_y + uy * 2)], fill=WOOD_DARK, width=3)
-    d.ellipse([pom_x - 3, pom_y - 3, pom_x + 3, pom_y + 3], fill=GOLD_LIT, outline=OUTLINE)
-
-    # Wide medieval crossguard + ricasso lugs
-    gx, gy = hand_x + ux * 3, hand_y + uy * 3
-    d.line([(gx - px * 9, gy - py * 9), (gx + px * 9, gy + py * 9)], fill=OUTLINE, width=5)
-    d.line([(gx - px * 8, gy - py * 8), (gx + px * 8, gy + py * 8)], fill=GOLD_LIT, width=2)
-
-    # Colossal broad blade (length 44 px from guard to point!)
-    blade_len = 43.0
-    tip_x, tip_y = gx + ux * blade_len, gy + uy * blade_len
-    shoulder_l = (gx + ux * 2 - px * 4.2, gy + uy * 2 - py * 4.2)
-    shoulder_r = (gx + ux * 2 + px * 4.2, gy + uy * 2 + py * 4.2)
-    near_tip_l = (gx + ux * (blade_len - 8) - px * 3.2, gy + uy * (blade_len - 8) - py * 3.2)
-    near_tip_r = (gx + ux * (blade_len - 8) + px * 3.2, gy + uy * (blade_len - 8) + py * 3.2)
-
-    outlined_poly(img, [shoulder_l, near_tip_l, (tip_x, tip_y), near_tip_r, shoulder_r], STEEL_MID)
-    # Bright upper bevel + dark blood-fuller groove down the spine
-    d.line([shoulder_l, near_tip_l, (tip_x, tip_y)], fill=BLADE_EDGE, width=1)
-    d.line([(gx + ux * 5, gy + uy * 5), (gx + ux * (blade_len - 11), gy + uy * (blade_len - 11))],
-           fill=STEEL_DARK, width=2)
-    # Zweihander parrying hooks (flamberge/ricasso spikes)
-    hook_c = (gx + ux * 9, gy + uy * 9)
-    d.line([(hook_c[0] - px * 6, hook_c[1] - py * 6), (hook_c[0] + px * 6, hook_c[1] + py * 6)],
-           fill=STEEL_HI, width=2)
+    # Broad tapered steel blade
+    tip_x = gx + dx * length
+    tip_y = gy + dy * length
+    b_pts = [
+        (gx + dx * 2 - px * 3.5, gy + dy * 2 - py * 3.5),
+        (gx + dx * (length * 0.78) - px * 2.8, gy + dy * (length * 0.78) - py * 2.8),
+        (tip_x, tip_y),
+        (gx + dx * (length * 0.78) + px * 2.8, gy + dy * (length * 0.78) + py * 2.8),
+        (gx + dx * 2 + px * 3.5, gy + dy * 2 + py * 3.5),
+    ]
+    c.poly(b_pts, "steel", bias=0.20)
+    # Bright blade fuller gleam along top-left edge
+    c.stroke(gx + dx * 5, gy + dy * 5, gx + dx * (length * 0.85), gy + dy * (length * 0.85), "steel", 3)
 
 
-def draw_tower_shield(img: Image.Image, sx: int, sy: int, front_facing: bool = False) -> None:
-    """Scarred Fallen Tower/Kite Shield with broken silver cross crest."""
-    d = ImageDraw.Draw(img)
-    w = 11 if front_facing else 8
+def _draw_tower_shield(c: HeroCanvas, sx: float, sy: float, wide: bool = True) -> None:
+    """Scarred Dark-Steel Tower Shield with gold crest."""
+    hw = 9 if wide else 6
     pts = [
-        (sx - w, sy - 14),
-        (sx + w, sy - 14),
-        (sx + w, sy + 3),
-        (sx, sy + 16),
-        (sx - w, sy + 3),
+        (sx - hw, sy - 13),
+        (sx + hw, sy - 13),
+        (sx + hw, sy + 5),
+        (sx, sy + 14),
+        (sx - hw, sy + 5),
     ]
-    outlined_poly(img, pts, STEEL_DARK)
-    inner = [
-        (sx - w + 2, sy - 12),
-        (sx + w - 2, sy - 12),
-        (sx + w - 2, sy + 2),
-        (sx, sy + 13),
-        (sx - w + 2, sy + 2),
-    ]
-    d.polygon(inner, fill=STEEL_MID)
-    # Broken silver/gold cross emblem
-    d.line([(sx, sy - 10), (sx, sy + 10)], fill=GOLD_LIT, width=2)
-    d.line([(sx - w + 3, sy - 3), (sx + w - 3, sy - 3)], fill=GOLD_LIT, width=2)
-    # Deep battle slash scar cutting diagonally across the crest!
-    d.line([(sx - w + 2, sy - 8), (sx + w - 2, sy + 4)], fill=OUTLINE, width=2)
-    put(img, sx, sy - 2, SCAR_GLOW)
-    # Rim highlight
-    d.line([(sx - w + 1, sy - 13), (sx + w - 1, sy - 13)], fill=STEEL_HI)
+    c.poly(pts, "steel", bias=0.10)
+    c.poly(
+        [(sx - hw + 3, sy - 10), (sx + hw - 3, sy - 10), (sx + hw - 3, sy + 3), (sx, sy + 10), (sx - hw + 3, sy + 3)],
+        "obsidian",
+        bias=-0.05,
+    )
+    # Gold cross emblem + battle scar
+    c.stroke(sx, sy - 7, sx, sy + 6, "gold", 2, width=2)
+    c.stroke(sx - 4, sy - 2, sx + 4, sy - 2, "gold", 3, width=1)
 
 
-def build_knight_pose(pose: str) -> Image.Image:
-    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
+def _draw_greathelm(c: HeroCanvas, hx: int, hy: int, blink: bool = False, facing_mode: str = "side") -> None:
+    """Upright horned/crowned Fallen Greathelm (`hy - 11 .. hy + 9`, ~20px = 28% of 72px)."""
+    # Swept side-crest wings on helmet
+    c.poly([(hx - 7, hy - 5), (hx - 11, hy - 11), (hx - 3, hy - 8)], "steel", bias=0.22)
+    if facing_mode != "side":
+        c.poly([(hx + 7, hy - 5), (hx + 11, hy - 11), (hx + 3, hy - 8)], "steel", bias=0.14)
+    else:
+        c.poly([(hx + 3, hy - 8), (hx + 6, hy - 11), (hx + 7, hy - 5)], "steel", bias=0.18)
 
-    cx, cy = 44, 48
-    leg_l_dx, leg_r_dx = -6, 6
-    leg_l_dy, leg_r_dy = 0, 0
-    cape_sway, cape_flare = -2, 0
-    dim_eyes = (pose == "blink")
-    hurt = (pose == "hurt")
+    # Helmet bucket
+    c.rrect(hx - 8, hy - 9, hx + 8, hy + 8, 3, "steel", bias=0.12)
+
+    if facing_mode == "up":
+        c.stroke(hx, hy - 7, hx, hy + 5, "obsidian", 1, width=2)
+        return
+
+    vx = 2 if facing_mode == "side" else 0
+    # T-visor dark slit
+    c.stroke(hx - 4 + vx, hy - 1, hx + 5 + vx, hy - 1, "obsidian", 0, width=2)
+    c.stroke(hx + 1 + vx, hy - 1, hx + 1 + vx, hy + 6, "obsidian", 0, width=2)
+    if not blink:
+        # Glowing golden-ember fallen knight visor slit!
+        c.dot(hx - 2 + vx, hy - 1, "gold", 3)
+        c.dot(hx + 3 + vx, hy - 1, "gold", 3)
+
+
+def build_knight_side(pose: str) -> Image.Image:
+    c = HeroCanvas()
+    cx = 46
+    leg_l, leg_r = (-7, 79), (7, 79)
+    cape_flare = 0
 
     if pose == "walk_a":
-        cy -= 1
-        leg_l_dx, leg_r_dx = -9, 8
-        leg_l_dy, leg_r_dy = -3, 1
-        cape_sway = -4
+        leg_l, leg_r = (-11, 78), (10, 79)
+        cape_flare = 3
     elif pose == "walk_b":
-        cy -= 1
-        leg_l_dx, leg_r_dx = -3, 3
-        leg_l_dy, leg_r_dy = 1, -3
-        cape_sway = -1
+        leg_l, leg_r = (-3, 79), (4, 78)
+        cape_flare = 1
     elif pose == "windup":
-        cx -= 3
-        cape_sway = 3
+        cx = 44
+        cape_flare = 2
     elif pose == "sweep":
-        cx = 35
-        cape_sway, cape_flare = -6, 4
+        cx = 45
+        leg_l, leg_r = (-10, 79), (11, 79)
+        cape_flare = 6
     elif pose == "spin":
-        cx = 36
-        cape_sway, cape_flare = -8, 6
+        cx = 46
+        leg_l, leg_r = (-11, 79), (11, 79)
+        cape_flare = 8
     elif pose == "guard":
-        cx -= 1
-        cy += 1
+        cx = 43
+        leg_l, leg_r = (-9, 79), (9, 79)
     elif pose == "charge":
-        cx += 6
-        cy += 1
-        leg_l_dx, leg_r_dx = -12, 9
-        cape_sway, cape_flare = -10, 5
+        cx = 48
+        leg_l, leg_r = (-13, 79), (11, 79)
+        cape_flare = 9
     elif pose == "hurt":
-        cx -= 5
-        cy += 1
-        cape_sway = 5
+        cx = 40
+        cape_flare = -3
 
-    # 1. Tattered cloak & betrayal spear behind body
-    draw_tattered_cape(img, cx, cy, cape_sway, cape_flare)
-    draw_betrayal_spear_stub(img, cx, cy)
+    hip_y = 52
+    chest_y = 36
 
-    # Sword behind body during windup
-    if pose == "windup":
-        draw_colossal_greatsword(img, cx - 8, cy - 10, -142)
-
-    # 2. Heavy armored greaves & sabatons
-    for lx, ly in ((cx + leg_l_dx, cy + 28 + leg_l_dy), (cx + leg_r_dx, cy + 28 + leg_r_dy)):
-        pill_limb(img, lx, cy + 13, lx, ly, 4, STEEL_DARK, STEEL_MID, STEEL_LIT)
-        d.rounded_rectangle([lx - 5, ly - 2, lx + 6, ly + 4], radius=2, fill=STEEL_MID, outline=OUTLINE)
-        put(img, lx + 3, ly, STEEL_HI)
-
-    # 3. Scarred Gothic Breastplate + Tassets
-    torso_pts = [
-        (cx - 12, cy - 8),
-        (cx + 12, cy - 8),
-        (cx + 9, cy + 14),
-        (cx - 9, cy + 14),
+    # 1. Sweeping tattered crimson betrayal cape wedge behind Knight (silhouette!)
+    cape_pts = [
+        (cx - 6, chest_y - 8),
+        (cx + 4, chest_y - 6),
+        (cx - 4 - cape_flare // 2, 74),
+        (cx - 14 - cape_flare, 71),
+        (cx - 22 - cape_flare, 64),
+        (cx - 16 - cape_flare // 2, 46),
     ]
-    outlined_poly(img, torso_pts, STEEL_MID, STEEL_HI)
-    d.rectangle([cx - 9, cy + 10, cx + 9, cy + 15], fill=STEEL_DARK, outline=OUTLINE)
-    # Betrayal diagonal ember-scar across chest!
-    d.line([(cx - 6, cy - 5), (cx + 6, cy + 8)], fill=OUTLINE, width=3)
-    d.line([(cx - 5, cy - 4), (cx + 5, cy + 7)], fill=SCAR_GLOW, width=1)
-    put(img, cx, cy + 1, SCAR_CORE)
+    c.poly(cape_pts, "crimson", bias=0.04)
 
-    # Layered pauldrons
-    for sx in (cx - 13, cx + 13):
-        d.ellipse([sx - 6, cy - 10, sx + 6, cy + 1], fill=STEEL_MID, outline=OUTLINE)
-        d.arc([sx - 5, cy - 9, sx + 5, cy], 190, 350, fill=STEEL_HI)
-
-    # 4. Fallen Greathelm
-    draw_greathelm(img, cx + (2 if pose == "charge" else (-2 if hurt else 0)), cy - 17,
-                   dim_eyes=dim_eyes, hurt=hurt)
-
-    # 5. Arms, Shield & Colossal Greatsword per pose!
+    # 2. Shoulder-resting Zweihander on idle/walk: hilt held in front gauntlet,
+    #    colossal 44px steel blade jutting diagonally UP-BACK past helmet (silhouette!)
     if pose in ("idle", "blink", "walk_a", "walk_b"):
-        draw_tower_shield(img, cx - 14, cy + 3, front_facing=False)
-        pill_limb(img, cx + 11, cy - 3, cx + 16, cy + 7, 3, STEEL_DARK, STEEL_MID, STEEL_HI)
-        draw_colossal_greatsword(img, cx + 16, cy + 7, -48 if pose != "walk_a" else -42)
+        _draw_zweihander(c, cx + 11, chest_y + 1, angle_deg=-144, length=46.0)
     elif pose == "windup":
-        draw_tower_shield(img, cx - 14, cy + 4, front_facing=False)
-        pill_limb(img, cx + 8, cy - 5, cx - 6, cy - 11, 3, STEEL_DARK, STEEL_MID, STEEL_HI)
-    elif pose == "sweep":
-        draw_tower_shield(img, cx - 14, cy + 3, front_facing=False)
-        pill_limb(img, cx + 9, cy - 2, cx + 15, cy + 1, 3, STEEL_DARK, STEEL_MID, STEEL_HI)
-        draw_colossal_greatsword(img, cx + 15, cy + 1, 6, draw_trail=1)
-    elif pose == "spin":
-        pill_limb(img, cx + 8, cy - 1, cx + 14, cy + 6, 3, STEEL_DARK, STEEL_MID, STEEL_HI)
-        draw_colossal_greatsword(img, cx + 14, cy + 6, 46, draw_trail=2)
-        draw_tower_shield(img, cx - 13, cy + 2, front_facing=False)
-    elif pose == "guard":
-        # Sword braced behind while Tower Shield locks in front!
-        draw_colossal_greatsword(img, cx - 8, cy + 4, -118)
-        draw_tower_shield(img, cx + 14, cy + 1, front_facing=True)
-    elif pose == "charge":
-        draw_colossal_greatsword(img, cx - 10, cy + 5, -135)
-        draw_tower_shield(img, cx + 18, cy + 1, front_facing=True)
-        # Kinetic ram shock-lines in front of shield
-        for ky in (-9, 0, 9):
-            d.line([(cx + 31, cy + ky), (cx + 38, cy + ky)], fill=EYE_CYAN, width=2)
+        _draw_zweihander(c, cx + 4, chest_y - 2, angle_deg=-154, length=44.0)
+    elif pose in ("guard", "charge"):
+        _draw_zweihander(c, cx - 2, chest_y + 2, angle_deg=-148, length=40.0)
     elif pose == "hurt":
-        draw_tower_shield(img, cx - 17, cy + 5, front_facing=False)
-        pill_limb(img, cx + 10, cy - 2, cx + 18, cy - 8, 3, STEEL_DARK, STEEL_MID, STEEL_HI)
-        draw_colossal_greatsword(img, cx + 18, cy - 8, -25)
-        # Sparks bursting from chest scar
-        for sx, sy in ((cx + 8, cy - 4), (cx + 12, cy + 2), (cx + 5, cy + 9)):
-            put(img, sx, sy, SCAR_CORE)
-            put(img, sx + 1, sy, SCAR_GLOW)
+        _draw_zweihander(c, cx + 8, chest_y + 2, angle_deg=22, length=36.0)
 
-    return img
+    # 3. Tall armored greaves & sabatons (`bottom_y = 80`)
+    for side_idx, (lx_off, fy) in enumerate((leg_l, leg_r)):
+        hx0 = cx + (-4 if side_idx == 0 else 4)
+        kx = cx + int(lx_off * 0.8)
+        ky = (hip_y + fy) // 2
+        c.limb(hx0, hip_y, kx, ky, 4.5, "obsidian")
+        c.limb(kx, ky, cx + lx_off, fy - 4, 4.2, "steel", bias=0.08 if side_idx == 1 else -0.06)
+        c.ellipse(kx + 1, ky, 4, 3, "steel", bias=0.22)
+        bx = cx + lx_off
+        c.rrect(bx - 5, fy - 6, bx + 7, fy, 2, "steel", bias=0.14)
+
+    # 4. Upright plated cuirass + tattered dark surcoat + crimson betrayal rift
+    c.poly([(cx - 9, hip_y - 2), (cx + 9, hip_y - 2), (cx + 11, 64), (cx - 10, 64)], "obsidian")
+    c.poly([(cx - 13, chest_y - 8), (cx + 13, chest_y - 8), (cx + 9, hip_y + 1), (cx - 9, hip_y + 1)], "steel", bias=0.12)
+    # Glowing crimson-gold betrayal crack across breastplate
+    c.stroke(cx - 4, chest_y - 3, cx + 5, chest_y + 4, "crimson", 3, width=2)
+    c.dot(cx + 1, chest_y, "gold", 3)
+    c.rrect(cx - 10, hip_y - 2, cx + 10, hip_y + 2, 1, "leather")
+    c.dot(cx + 2, hip_y, "gold", 3)
+
+    # Layered steel pauldrons
+    c.ellipse(cx - 11, chest_y - 5, 6, 5, "steel", bias=0.22)
+    c.ellipse(cx + 10, chest_y - 4, 6, 5, "steel", bias=0.08)
+
+    # 5. Upright Visored Greathelm (`hy = 19` -> horns at `y = 8`, exact `72px` standing height!)
+    _draw_greathelm(c, cx + 1, 19, blink=(pose == "blink"), facing_mode="side")
+
+    # 6. Foreground Sword Cleave OR Raised Tower Shield!
+    if pose in ("idle", "blink", "walk_a", "walk_b"):
+        # Gauntlet gripping Zweihander hilt in front + scarred Tower Shield slung on flank
+        c.limb(cx + 5, chest_y + 1, cx + 12, chest_y + 1, 3.6, "steel", bias=0.16)
+        _draw_tower_shield(c, cx - 5, chest_y + 11, wide=False)
+    elif pose == "windup":
+        c.limb(cx - 4, chest_y - 2, cx - 6, chest_y - 6, 3.5, "steel")
+        _draw_tower_shield(c, cx + 10, chest_y + 8, wide=False)
+    elif pose == "sweep":
+        # Colossal horizontal greatsword cleave + steel-crimson slash arc!
+        c.limb(cx + 6, chest_y - 1, cx + 14, chest_y, 3.8, "steel", bias=0.18)
+        _draw_zweihander(c, cx + 14, chest_y, angle_deg=-8, length=34.0)
+        c.arc_stroke(cx + 12, chest_y + 2, 34, 18, -55, 35, "steel", 3, width=2, selout_wrap=True)
+    elif pose == "spin":
+        # Full rotational follow-through spin cleave!
+        c.limb(cx + 6, chest_y, cx + 15, chest_y + 3, 3.8, "steel", bias=0.18)
+        _draw_zweihander(c, cx + 15, chest_y + 3, angle_deg=18, length=33.0)
+        c.arc_stroke(cx + 10, chest_y + 2, 35, 20, -25, 65, "crimson", 3, width=2, selout_wrap=True)
+    elif pose == "guard":
+        # Scarred Tower Shield locked upright in front (`RMB / E`)!
+        _draw_tower_shield(c, cx + 14, chest_y + 6, wide=True)
+    elif pose == "charge":
+        # Shield-Wall Shift Ram!
+        _draw_tower_shield(c, cx + 17, chest_y + 6, wide=True)
+        c.stroke(cx + 27, chest_y - 4, cx + 31, chest_y + 12, "gold", 3, width=1)
+
+    exact = 72 if pose == "idle" else None
+    return c.finalize(ground_y=GROUND_Y, exact_height=exact)
 
 
-def build_knight_vertical_pose(pose: str) -> Image.Image:
-    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Fallen Knight!"""
-    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    cx, cy = 48, 48
+def build_knight_vertical(pose: str) -> Image.Image:
+    c = HeroCanvas()
+    cx = 48
     is_up = pose.startswith("up_")
     step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
-    l_dy = -3 * step
-    r_dy = 3 * step
+    l_fy = 79 - (2 if step > 0 else 0)
+    r_fy = 79 - (2 if step < 0 else 0)
+    hip_y, chest_y = 52, 36
 
     if not is_up:
-        # Front: tattered cape behind legs + greaves + scarred breastplate + visor eyes + shield & sword!
-        d.polygon([(cx - 13, cy - 8), (cx + 13, cy - 8), (cx + 16, cy + 22), (cx - 16, cy + 22)], fill=CAPE_DEEP, outline=OUTLINE)
-        for side, dy in ((-6, l_dy), (6, r_dy)):
-            lx, ly = cx + side, cy + 28 + min(0, dy)
-            pill_limb(img, lx, cy + 13, lx, ly, 4, STEEL_DARK, STEEL_MID, STEEL_LIT)
-            d.rounded_rectangle([lx - 5, ly - 2, lx + 5, ly + 4], radius=2, fill=STEEL_MID, outline=OUTLINE)
-        outlined_poly(img, [(cx - 12, cy - 8), (cx + 12, cy - 8), (cx + 9, cy + 14), (cx - 9, cy + 14)], STEEL_MID, STEEL_HI)
-        d.line([(cx - 6, cy - 5), (cx + 6, cy + 8)], fill=SCAR_GLOW, width=2)
-        for sx in (cx - 13, cx + 13):
-            d.ellipse([sx - 6, cy - 10, sx + 6, cy + 1], fill=STEEL_MID, outline=OUTLINE)
-        # Symmetrical front Greathelm with glowing cyan visor T-slit!
-        hy = cy - 17
-        d.rounded_rectangle([cx - 9, hy - 11, cx + 9, hy + 8], radius=3, fill=STEEL_MID, outline=OUTLINE)
-        d.rectangle([cx - 6, hy - 2, cx + 6, hy + 1], fill=OUTLINE)
-        d.line([(cx - 4, hy - 1), (cx + 4, hy - 1)], fill=EYE_CYAN, width=1)
-        d.line([(cx, hy - 2), (cx, hy + 6)], fill=OUTLINE, width=2)
-        draw_colossal_greatsword(img, cx - 15, cy + 4 + l_dy, 108)
-        draw_tower_shield(img, cx + 13, cy + 3 + r_dy, front_facing=True)
+        c.poly([(cx - 13, chest_y - 6), (cx + 13, chest_y - 6), (cx + 16, 73), (cx - 16, 73)], "crimson")
+
+    _draw_zweihander(c, cx + (10 if not is_up else -10), chest_y - 2, angle_deg=-120 if not is_up else -60, length=32.0)
+
+    for side_idx, (lx_off, fy) in enumerate(((-7, l_fy), (7, r_fy))):
+        kx = cx + lx_off
+        ky = (hip_y + fy) // 2
+        c.limb(cx + (-4 if side_idx == 0 else 4), hip_y, kx, ky, 4.2, "obsidian")
+        c.limb(kx, ky, kx, fy - 4, 4.0, "steel")
+        c.rrect(kx - 5, fy - 6, kx + 5, fy, 2, "steel")
+
+    if is_up:
+        c.poly([(cx - 13, chest_y - 7), (cx + 13, chest_y - 7), (cx + 17, 73), (cx - 17, 73)], "crimson", bias=0.06)
     else:
-        # Back: greaves + greatsword & shield at sides + full tattered crimson cloak & betrayal spear!
-        for side, dy in ((-6, l_dy), (6, r_dy)):
-            lx, ly = cx + side, cy + 28 + min(0, dy)
-            pill_limb(img, lx, cy + 13, lx, ly, 4, STEEL_DARK, STEEL_MID, STEEL_LIT)
-            d.rounded_rectangle([lx - 5, ly - 2, lx + 5, ly + 4], radius=2, fill=STEEL_DARK, outline=OUTLINE)
-        draw_tower_shield(img, cx - 14, cy + 3 + l_dy, front_facing=False)
-        draw_colossal_greatsword(img, cx + 15, cy + 4 + r_dy, 72)
-        for sx in (cx - 13, cx + 13):
-            d.ellipse([sx - 6, cy - 10, sx + 6, cy + 1], fill=STEEL_MID, outline=OUTLINE)
-        # Full tattered crimson cape draped down his back!
-        cape_pts = [
-            (cx - 13, cy - 9), (cx + 13, cy - 9),
-            (cx + 17 + step, cy + 21), (cx + 9 + step, cy + 17),
-            (cx + step, cy + 23), (cx - 9 + step, cy + 18), (cx - 17 + step, cy + 21),
-        ]
-        d.polygon(cape_pts, fill=CAPE_MID, outline=OUTLINE)
-        d.line([(cx - 6, cy - 6), (cx - 8 + step, cy + 16)], fill=CAPE_DEEP, width=2)
-        d.line([(cx + 5, cy - 6), (cx + 7 + step, cy + 16)], fill=CAPE_HI, width=1)
-        # Broken betrayal spear jutting from back shoulder
-        d.line([(cx + 3, cy - 3), (cx + 13, cy - 17)], fill=WOOD_DARK, width=3)
-        # Back of Greathelm
-        hy = cy - 17
-        d.rounded_rectangle([cx - 9, hy - 11, cx + 9, hy + 8], radius=3, fill=STEEL_DARK, outline=OUTLINE)
-        d.line([(cx, hy - 10), (cx, hy + 6)], fill=STEEL_HI, width=2)
-    return img
+        c.poly([(cx - 13, chest_y - 8), (cx + 13, chest_y - 8), (cx + 9, hip_y + 2), (cx - 9, hip_y + 2)], "steel", bias=0.12)
+        c.stroke(cx - 4, chest_y - 3, cx + 4, chest_y + 4, "crimson", 3, width=2)
+        _draw_tower_shield(c, cx - 12, chest_y + 9, wide=False)
+
+    c.ellipse(cx - 12, chest_y - 5, 5, 5, "steel", bias=0.20)
+    c.ellipse(cx + 12, chest_y - 5, 5, 5, "steel", bias=0.08)
+    _draw_greathelm(c, cx, 19, facing_mode="up" if is_up else "down")
+    return c.finalize(ground_y=GROUND_Y)
 
 
 def main() -> None:
@@ -431,24 +248,24 @@ def main() -> None:
         "idle", "walk_a", "walk_b", "windup", "sweep", "spin", "guard", "charge", "hurt", "blink",
         "down_idle", "down_walk_a", "down_walk_b", "up_idle", "up_walk_a", "up_walk_b",
     ]
-    sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
+    sheet = Image.new("RGBA", (CELL * len(poses), CELL), (0, 0, 0, 0))
     for i, p in enumerate(poses):
-        fr = build_knight_vertical_pose(p) if p.startswith(("down_", "up_")) else build_knight_pose(p)
-        sheet.alpha_composite(fr, (i * FRAME, 0))
+        fr = build_knight_vertical(p) if p.startswith(("down_", "up_")) else build_knight_side(p)
+        sheet.alpha_composite(fr, (i * CELL, 0))
     sheet.save("assets/textures/player_knight.png")
     print("wrote assets/textures/player_knight.png", sheet.size)
 
     zoom, pad = 2, 10
-    w = pad + len(poses) * (FRAME * zoom + pad)
-    h = 30 + FRAME * zoom + 24
+    w = pad + len(poses) * (CELL * zoom + pad)
+    h = 30 + CELL * zoom + 24
     prev = Image.new("RGBA", (w, h), (18, 20, 28, 255))
     d = ImageDraw.Draw(prev)
-    d.text((pad, 8), "FALLEN KNIGHT - 10 frames x 96x96 (Colossal Greatsword + Tower Shield)", fill=(210, 226, 248, 255))
+    d.text((pad, 8), "KNIGHT (HEROIC PASS) - 16 frames x 96x96", fill=RAMPS["steel"][3])
     for i, p in enumerate(poses):
-        x = pad + i * (FRAME * zoom + pad)
-        fr = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
-        prev.alpha_composite(fr.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST), (x, 28))
-        d.text((x, 28 + FRAME * zoom + 4), f"{i}:{p}", fill=(175, 195, 224, 255))
+        x = pad + i * (CELL * zoom + pad)
+        fr = sheet.crop((i * CELL, 0, (i + 1) * CELL, CELL))
+        prev.alpha_composite(fr.resize((CELL * zoom, CELL * zoom), Image.NEAREST), (x, 28))
+        d.text((x, 28 + CELL * zoom + 4), f"{i}:{p}", fill=RAMPS["steel"][2])
     prev.save("docs/images/knight_preview.png")
 
 

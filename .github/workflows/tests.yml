@@ -1,0 +1,96 @@
+name: Headless Godot & Art Contract Tests
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  tests:
+    name: Godot 4.7.2 Headless Suites & Sprite Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GODOT_VERSION: "4.7.2-stable"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run hero sprite sheet measurement & strict art contract
+        run: |
+          python3 -m pip install --upgrade pip pillow
+          python3 tools/measure_hero_sheets.py --strict
+
+      - name: Cache Godot 4.7.2 binary
+        uses: actions/cache@v4
+        with:
+          path: /tmp/godot-bin
+          key: godot-linux-x86_64-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot 4.7.2
+        run: |
+          if [ ! -x /tmp/godot-bin/godot ]; then
+            mkdir -p /tmp/godot-bin
+            curl -fsSL -L \
+              "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip" \
+              -o /tmp/godot.zip
+            unzip -q /tmp/godot.zip -d /tmp/godot-bin
+            mv "/tmp/godot-bin/Godot_v${GODOT_VERSION}_linux.x86_64" /tmp/godot-bin/godot
+            chmod +x /tmp/godot-bin/godot
+          fi
+          sudo ln -sf /tmp/godot-bin/godot /usr/local/bin/godot
+          godot --version
+
+      - name: Import Godot project resources
+        run: |
+          sed -i '/res:\/\/addons\/godot_ai\/plugin.cfg/d' project.godot
+          timeout 120s godot --headless --audio-driver Dummy --path . --import
+          git checkout -- project.godot
+
+      - name: Helper script for headless suite runner
+        run: |
+          cat <<'EOS' > /tmp/run_suite.sh
+          #!/usr/bin/env bash
+          suite="$1"
+          log_file="/tmp/$(basename "$suite" .tscn).log"
+          timeout 45s godot --headless --audio-driver Dummy --path . "$suite" >"$log_file" 2>&1
+          rc=$?
+          cat "$log_file"
+          if [ "$rc" -ne 0 ] || grep -qE "^FAIL  |SCRIPT ERROR:|Parse Error:" "$log_file"; then
+            summary=$(grep -E "^FAIL  |SCRIPT ERROR:|Parse Error:|ERROR:" "$log_file" | head -n 8 | tr '\n' ' ; ')
+            if [ -z "$summary" ]; then
+              summary=$(tail -n 8 "$log_file" | tr '\n' ' ; ')
+            fi
+            echo "::error title=${suite} (rc=${rc})::${summary}"
+            exit 1
+          fi
+          EOS
+          chmod +x /tmp/run_suite.sh
+
+      - name: Suite 1 - sprite_contract_test
+        run: /tmp/run_suite.sh tests/sprite_contract_test.tscn
+
+      - name: Suite 2 - heroes_and_dash_test
+        run: /tmp/run_suite.sh tests/heroes_and_dash_test.tscn
+
+      - name: Suite 3 - combat_test
+        run: /tmp/run_suite.sh tests/combat_test.tscn
+
+      - name: Suite 4 - archer_test
+        run: /tmp/run_suite.sh tests/archer_test.tscn
+
+      - name: Suite 5 - boss_test
+        run: /tmp/run_suite.sh tests/boss_test.tscn
+
+      - name: Suite 6 - slime_variants_test
+        run: /tmp/run_suite.sh tests/slime_variants_test.tscn

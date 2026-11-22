@@ -200,7 +200,7 @@ func _test_variant_stats() -> void:
 	for id in ["grass", "acid", "ember", "basalt"]:
 		var built := _make_world()
 		var world: Node2D = built["world"]
-		var slime := _spawn_slime(world, id, Vector2(0, 120))
+		var slime = _spawn_slime(world, id, Vector2(0, 120))
 		await _tick(2)
 
 		var want: Dictionary = expected[id]
@@ -226,7 +226,7 @@ func _test_variant_stats() -> void:
 	# Basalt is the only contact-damage variant.
 	await _tick(1)
 	var built2 := _make_world()
-	var slime2 := _spawn_slime(built2["world"], "basalt", Vector2(0, 120))
+	var slime2 = _spawn_slime(built2["world"], "basalt", Vector2(0, 120))
 	await _tick(1)
 	_check_eq("[basalt] contact_damage is 4", slime2.contact_damage, 4)
 	await _drop_world(built2["world"])
@@ -241,7 +241,7 @@ func _test_acid_pool() -> void:
 	var built := _make_world()
 	var world: Node2D = built["world"]
 	var fake = built["player"]
-	var slime := _spawn_slime(world, "acid", Vector2(0, 10))
+	var slime = _spawn_slime(world, "acid", Vector2(0, 10))
 	await _tick(2)
 
 	slime.take_damage(9999)
@@ -295,7 +295,7 @@ func _test_ember_fuse() -> void:
 	var built := _make_world()
 	var world: Node2D = built["world"]
 	var fake = built["player"]
-	var slime := _spawn_slime(world, "ember", Vector2(0, 10))
+	var slime = _spawn_slime(world, "ember", Vector2(0, 10))
 	await _tick(2)
 
 	slime.take_damage(9999)
@@ -336,8 +336,8 @@ func _test_ember_fuse() -> void:
 	var built3 := _make_world()
 	var world3: Node2D = built3["world"]
 	var fake3 = built3["player"]
-	var ember_a := _spawn_slime(world3, "ember", Vector2(0, 10))
-	var ember_b := _spawn_slime(world3, "ember", Vector2(30, 10))
+	var ember_a = _spawn_slime(world3, "ember", Vector2(0, 10))
+	var ember_b = _spawn_slime(world3, "ember", Vector2(30, 10))
 	await _tick(2)
 	ember_a.take_damage(9999)
 	await _tick(2)
@@ -352,7 +352,7 @@ func _test_ember_fuse() -> void:
 	var built2 := _make_world()
 	var world2: Node2D = built2["world"]
 	var fake2 = built2["player"]
-	var slime2 := _spawn_slime(world2, "ember", Vector2(0, 10))
+	var slime2 = _spawn_slime(world2, "ember", Vector2(0, 10))
 	await _tick(2)
 	slime2.take_damage(9999)
 	await _tick(2)
@@ -371,7 +371,7 @@ func _test_basalt_contact() -> void:
 	var built := _make_world()
 	var world: Node2D = built["world"]
 	var fake = built["player"]
-	var slime := _spawn_slime(world, "basalt", Vector2(0, 12))
+	var slime = _spawn_slime(world, "basalt", Vector2(0, 12))
 	await _tick(3)
 
 	_check_eq("Basalt hurts on touch immediately", fake.hit_count, 1)
@@ -394,7 +394,7 @@ func _test_basalt_contact() -> void:
 	# Grass must stay passive - the whole family reads off this contrast.
 	var built2 := _make_world()
 	var fake2 = built2["player"]
-	var grass := _spawn_slime(built2["world"], "grass", Vector2(0, 12))
+	var grass = _spawn_slime(built2["world"], "grass", Vector2(0, 12))
 	await _tick(3)
 	_check_eq("Grass slime has no contact damage", grass.contact_damage, 0)
 	await _wait(0.6)

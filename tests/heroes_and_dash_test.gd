@@ -6,7 +6,7 @@ extends Node
 ##   3. SANDBOX full-map enemy aggro (`detection_range = 2500`) vs STAGES normal
 ##      aggro (`detection_range = 200`, `adi`).
 ##   4. Knight Hit-Only Shield Stamina + exhaustion lockout until 100% recovery.
-##   5. Velmira Reference Sheet (`1792x1120` = 40 frames of `224x224`), Sweeping
+##   5. Velmira Unified 96x96 Sheet (`1536x96` = 16 frames of `96x96`), Sweeping
 ##      Crimson Blood-Splash Slash (NO yoyo!), 30% Ground Blood Fountain, Classic
 ##      5-Bat `Shift` Swarm (no shadow ghost, no leak on exit), & 8-frame Blood-Melt `die`.
 ##   6. Dark-Fantasy Game Over (`DEAD AGAIN?` + `NOT YET` in `dark_fantasy.ttf`)
@@ -245,12 +245,12 @@ func _run() -> void:
 	for h in [behemoth, knight, sylvara, velmira]:
 		h.input_enabled = true
 
-	# Verify Velmira's boots stay 100% grounded (`visuals.position == (0, 0)`, zero vertical float)!
+	# Verify Velmira's boots stay 100% grounded on node origin (`visuals.position.y == -16.0`, zero vertical float)!
 	var vy0: float = (velmira.visuals as Node2D).position.y
 	await _wait(0.22)
 	var vy1: float = (velmira.visuals as Node2D).position.y
-	_check("Velmira visuals.position.y is strictly grounded (zero floating bob)",
-		is_equal_approx(vy0, 0.0) and is_equal_approx(vy1, 0.0),
+	_check("Velmira visuals.position.y is strictly grounded at -16.0 (zero floating bob)",
+		is_equal_approx(vy0, -16.0) and is_equal_approx(vy1, -16.0),
 		"vy0=%.2f vy1=%.2f" % [vy0, vy1])
 
 	# --- KNIGHT SHIELD STAMINA: 0 hold drain, hit-only drain, lockout at 0 until full ---
