@@ -362,7 +362,7 @@ func _refresh_selection_visuals(emit_highlight: bool = true) -> void:
 	if _showcase_portrait != null:
 		var f0: AtlasTexture = _atlas_frames[_selected_index][0]
 		_showcase_portrait.texture = f0
-		_showcase_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if f0.region.size.y > 96.0 else CanvasItem.TEXTURE_FILTER_NEAREST
+		_showcase_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if _showcase_role != null:
 		_showcase_role.text = String(entry["role"])
 		_showcase_role.add_theme_color_override("font_color", accent.lightened(0.2))
@@ -477,8 +477,7 @@ func _process(delta: float) -> void:
 			_showcase_portrait.texture = hero_frames[frame_idx]
 		for i in _card_portraits.size():
 			var cf: Array = _atlas_frames[i]
-			if cf[0].region.size.y > 96.0:
-				_card_portraits[i].texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			_card_portraits[i].texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			_card_portraits[i].texture = cf[mini(frame_idx, cf.size() - 1) if i == _selected_index else 0]
 
 

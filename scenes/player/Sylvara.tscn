@@ -312,13 +312,15 @@ dash_damage = 0
 shape = SubResource("RectangleShape2D_body")
 
 [node name="Visuals" type="Sprite2D" parent="."]
-scale = Vector2(0.34, 0.34)
+texture_filter = 1
+position = Vector2(0, -16)
+scale = Vector2(0.5, 0.5)
 texture = SubResource("AtlasTexture_f0")
 
 [node name="Shadow" type="Sprite2D" parent="Visuals"]
 show_behind_parent = true
 modulate = Color(0, 0, 0, 0.26)
-position = Vector2(0, 31)
+position = Vector2(0, 32)
 scale = Vector2(3.4, 0.95)
 texture = ExtResource("3_white")
 

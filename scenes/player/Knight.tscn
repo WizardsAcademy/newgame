@@ -276,13 +276,15 @@ dash_speed = 310.0
 dash_deals_damage = true
 dash_phases_enemies = true
 dash_damage = 16
-attack_point_offset_x = 22.0
+attack_point_offset_x = 24.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_body")
 
 [node name="Visuals" type="Sprite2D" parent="."]
-scale = Vector2(0.36, 0.36)
+texture_filter = 1
+position = Vector2(0, -16)
+scale = Vector2(0.5, 0.5)
 texture = SubResource("AtlasTexture_f0")
 
 [node name="Shadow" type="Sprite2D" parent="Visuals"]
@@ -315,10 +317,10 @@ libraries = {
 autoplay = "idle"
 
 [node name="AttackPoint" type="Marker2D" parent="."]
-position = Vector2(22, 0)
+position = Vector2(24, 0)
 
 [node name="Hitbox" type="Area2D" parent="."]
-position = Vector2(22, 0)
+position = Vector2(24, 0)
 collision_layer = 8
 collision_mask = 16
 monitoring = false

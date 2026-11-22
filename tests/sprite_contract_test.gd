@@ -150,12 +150,13 @@ func _run() -> void:
 		var visuals := hero.get_node_or_null("Visuals") as Sprite2D
 		_check("%s has Visuals Sprite2D" % hero_name, visuals != null)
 		if visuals != null:
-			var is_nearest: bool = (
-				visuals.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
-				or (visuals.texture_filter == CanvasItem.TEXTURE_FILTER_INHERIT and default_filter == 0)
-			)
-			_check("%s Visuals.texture_filter resolves to NEAREST" % hero_name,
+			var is_nearest: bool = visuals.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
+			_check("%s Visuals.texture_filter == NEAREST" % hero_name,
 				is_nearest, "texture_filter=%d" % visuals.texture_filter)
+			_check_eq("%s Visuals.scale is Vector2(0.5, 0.5)" % hero_name,
+				Vector2(absf(visuals.scale.x), visuals.scale.y), Vector2(0.5, 0.5))
+			_check_eq("%s Visuals.position.y lands GROUND_Y=80 on node origin (-16.0)" % hero_name,
+				visuals.position.y, -16.0)
 			var atlas_tex := visuals.texture as AtlasTexture
 			_check("%s Visuals.texture is a 96x96 AtlasTexture" % hero_name,
 				atlas_tex != null and atlas_tex.region.size == Vector2(CELL_SIZE, CELL_SIZE),

@@ -245,12 +245,12 @@ func _run() -> void:
 	for h in [behemoth, knight, sylvara, velmira]:
 		h.input_enabled = true
 
-	# Verify Velmira's boots stay 100% grounded (`visuals.position == (0, 0)`, zero vertical float)!
+	# Verify Velmira's boots stay 100% grounded on node origin (`visuals.position.y == -16.0`, zero vertical float)!
 	var vy0: float = (velmira.visuals as Node2D).position.y
 	await _wait(0.22)
 	var vy1: float = (velmira.visuals as Node2D).position.y
-	_check("Velmira visuals.position.y is strictly grounded (zero floating bob)",
-		is_equal_approx(vy0, 0.0) and is_equal_approx(vy1, 0.0),
+	_check("Velmira visuals.position.y is strictly grounded at -16.0 (zero floating bob)",
+		is_equal_approx(vy0, -16.0) and is_equal_approx(vy1, -16.0),
 		"vy0=%.2f vy1=%.2f" % [vy0, vy1])
 
 	# --- KNIGHT SHIELD STAMINA: 0 hold drain, hit-only drain, lockout at 0 until full ---

@@ -134,7 +134,7 @@ func bind_hero_entry(entry: Dictionary) -> void:
 			var cell := maxi(sheet.get_height(), 1)
 			var count := maxi(int(sheet.get_width() / cell), 1)
 			if _portrait_rect != null:
-				_portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if cell > 64 else CanvasItem.TEXTURE_FILTER_NEAREST
+				_portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			var src_img: Image = sheet.get_image()
 			if src_img != null and not src_img.is_empty():
 				for i in range(count):
