@@ -29,6 +29,7 @@ jobs:
       - name: Run hero skeleton & sprite sheet strict contracts
         run: |
           python3 -m pip install --upgrade pip pillow
+          python3 tools/import_pose_sheet.py --hero velmira
           python3 tools/hero_skeleton_check.py --strict --iou
           python3 tools/measure_hero_sheets.py --strict
 
