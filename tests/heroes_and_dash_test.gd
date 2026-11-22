@@ -78,9 +78,9 @@ func _run() -> void:
 	var tex_bats: Texture2D = load("res://assets/textures/crimson_bat.png")
 	var dark_font: Font = load("res://assets/fonts/dark_fantasy.ttf")
 
-	_check_eq("Behemoth redesigned 8x3 sheet is 1024x384 (24x 128x128)", tex_behemoth.get_size(), Vector2(1024, 384))
-	_check_eq("Knight redesigned 8x3 sheet is 1024x384 (24x 128x128)", tex_knight.get_size(), Vector2(1024, 384))
-	_check_eq("Sylvara redesigned 8x3 sheet is 1024x384 (24x 128x128)", tex_sylvara.get_size(), Vector2(1024, 384))
+	_check_eq("Behemoth reference 8x4 sheet is 1792x896 (32x 224x224)", tex_behemoth.get_size(), Vector2(1792, 896))
+	_check_eq("Knight reference 8x4 sheet is 1792x896 (32x 224x224)", tex_knight.get_size(), Vector2(1792, 896))
+	_check_eq("Sylvara reference 8x4 sheet is 1792x896 (32x 224x224)", tex_sylvara.get_size(), Vector2(1792, 896))
 	_check_eq("Velmira reference 8x5 sheet is 1792x1120 (40x 224x224)", tex_velmira.get_size(), Vector2(1792, 1120))
 	_check_eq("Velmira Hand-Crafted Blood FX strip is 1024x128 (8x 128x128)", tex_vel_fx.get_size(), Vector2(1024, 128))
 	_check_eq("Velmira Classic Crimson Bat strip is 72x24 (3x 24x24)", tex_bats.get_size(), Vector2(72, 24))
@@ -93,8 +93,8 @@ func _run() -> void:
 		"res://assets/textures/portrait_shabnam.png",
 	]:
 		var ptex: Texture2D = load(p_path)
-		_check("Face portrait strip %s has 5 square states (w == 5*h)" % p_path.get_file(),
-			ptex != null and ptex.get_width() == ptex.get_height() * 5)
+		_check_eq("Portrait strip %s is 960x192 (5x 192x192 matching Velmira)" % p_path.get_file(),
+			ptex.get_size() if ptex != null else Vector2.ZERO, Vector2(960, 192))
 
 	# -----------------------------------------------------------------
 	# 2. LOBBY, CIRCULAR-CLIPPED HUD, SANDBOX FULL-MAP CHASE vs STAGES NORMAL, & REVIVAL!
@@ -244,10 +244,13 @@ func _run() -> void:
 		_check("%s has multi-frame calm 'idle' + 'die' collapse animation" % h.character_name,
 			h.anim_player.has_animation("die")
 			and h.anim_player.get_animation("idle").track_get_key_count(0) >= 4)
+		var vis_node := h.get_node_or_null("Visuals") as Sprite2D
 		var sh_node := h.get_node_or_null("Visuals/Shadow") as Sprite2D
-		_check("%s uses soft elliptical slime_shadow.png foot shadow" % h.character_name,
-			sh_node != null and sh_node.texture != null
-			and sh_node.texture.resource_path.ends_with("slime_shadow.png"))
+		_check("%s matches Velmira 224x224 pipeline (scale=0.165, LINEAR_WITH_MIPMAPS, shadow y=89)" % h.character_name,
+			vis_node != null and vis_node.scale.is_equal_approx(Vector2(0.165, 0.165))
+			and vis_node.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			and sh_node != null and sh_node.position.is_equal_approx(Vector2(0.0, 89.0))
+			and sh_node.texture != null and sh_node.texture.resource_path.ends_with("slime_shadow.png"))
 
 	for h in [behemoth, knight, sylvara, velmira]:
 		h.input_enabled = true

@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Update Player.tscn (Behemoth), Bahman.tscn (Knight), and Pari.tscn (Sylvara)
-to use the redesigned 24-frame (8x3 @ 128x128) dark-fantasy sprite sheets,
-calm natural multi-frame 4-directional idles, 4-frame grounded walks,
-collapse `die` animations, and elliptical `slime_shadow.png` foot shadows.
+to match Velmira's exact `Shabnam.tscn` pipeline:
+  - 32-frame (8x4 @ 224x224 = 1792x896) reference-extracted sprite sheets
+  - `Visuals.texture_filter = 4` (`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`)
+  - `Visuals.position = Vector2(0, -3)` and `Visuals.scale = Vector2(0.165, 0.165)`
+  - `Visuals/Shadow` (`slime_shadow.png`) at `position = Vector2(0, 89)`
+  - Calm multi-frame 4-directional idles, full 4-frame walks, multi-frame
+    signature attacks/dashes, and 3-stage hurt -> kneel -> fallen `die`!
 """
 from __future__ import annotations
 
-CELL = 128
+CELL = 224
 COLS = 8
-TOTAL_FRAMES = 24
+TOTAL_FRAMES = 32
 
 
 def atlas_blocks() -> str:
@@ -57,7 +61,7 @@ def anim_block(
 
 
 def common_locomotion_anims(walk_len: float) -> list[tuple[str, str]]:
-    """Calm, natural multi-frame idles (`idle`, `idle_down`, `idle_up`) + 4-beat walks!"""
+    """Calm multi-frame 4-directional idles + full 4-frame directional walks (`0..19`)."""
     q = round(walk_len / 4.0, 3)
     return [
         (
@@ -77,7 +81,7 @@ def common_locomotion_anims(walk_len: float) -> list[tuple[str, str]]:
         ),
         (
             "idle_up",
-            anim_block("Animation_idle_up", "idle_up", 1.6, [0.0, 0.8], [12, 13], loop=True),
+            anim_block("Animation_idle_up", "idle_up", 1.6, [0.0, 0.8], [14, 15], loop=True),
         ),
         (
             "walk",
@@ -97,7 +101,7 @@ def common_locomotion_anims(walk_len: float) -> list[tuple[str, str]]:
                 "walk_down",
                 walk_len,
                 [0.0, q, round(q * 2, 3), round(q * 3, 3)],
-                [10, 8, 11, 9],
+                [10, 11, 12, 13],
                 loop=True,
             ),
         ),
@@ -108,7 +112,7 @@ def common_locomotion_anims(walk_len: float) -> list[tuple[str, str]]:
                 "walk_up",
                 walk_len,
                 [0.0, q, round(q * 2, 3), round(q * 3, 3)],
-                [14, 12, 15, 13],
+                [16, 17, 18, 19],
                 loop=True,
             ),
         ),
@@ -129,8 +133,7 @@ def build_tscn(
     dust_block: str,
     attack_x: int,
 ) -> str:
-    # Count exact load_steps: 4 ext_resources + 1 body shape + 24 atlas + len(anims) + 1 anim_lib + 2 shapes
-    load_steps = 4 + 1 + TOTAL_FRAMES + len(anims) + 1 + 2
+    load_steps = 4 + 1 + TOTAL_FRAMES + len(anims) + 1 + 2 + 1
     header = f"[gd_scene load_steps={load_steps} format=3{uid_attr}]\n\n"
     exts = (
         f'[ext_resource type="Script" path="{script_path}" id="1_script"]\n'
@@ -166,14 +169,14 @@ def build_tscn(
         '[node name="CollisionShape2D" type="CollisionShape2D" parent="."]\n'
         'shape = SubResource("RectangleShape2D_body")\n\n'
         '[node name="Visuals" type="Sprite2D" parent="."]\n'
-        "texture_filter = 1\n"
+        "texture_filter = 4\n"
         "position = Vector2(0, -3)\n"
         f"scale = Vector2({vis_scale:g}, {vis_scale:g})\n"
         'texture = SubResource("AtlasTexture_f0")\n\n'
         '[node name="Shadow" type="Sprite2D" parent="Visuals"]\n'
         "show_behind_parent = true\n"
         "modulate = Color(0, 0, 0, 0.38)\n"
-        "position = Vector2(0, 44)\n"
+        "position = Vector2(0, 89)\n"
         f"scale = Vector2({shadow_scale[0]:g}, {shadow_scale[1]:g})\n"
         'texture = ExtResource("4_shadow")\n\n'
         f"{dust_block}\n"
@@ -218,12 +221,12 @@ def build_tscn(
 def main() -> None:
     # 1. BEHEMOTH (`scenes/player/Player.tscn`)
     behemoth_anims = common_locomotion_anims(0.48) + [
-        ("attack", anim_block("Animation_attack", "attack", 0.34, [0.0, 0.10, 0.27], [16, 17, 0])),
-        ("attack_cross", anim_block("Animation_attack_cross", "attack_cross", 0.34, [0.0, 0.09, 0.27], [16, 18, 0])),
-        ("attack_uppercut", anim_block("Animation_attack_uppercut", "attack_uppercut", 0.38, [0.0, 0.10, 0.30], [16, 19, 0])),
-        ("charge", anim_block("Animation_charge", "charge", 0.20, [0.0], [20], loop=True)),
-        ("hurt", anim_block("Animation_hurt", "hurt", 0.25, [0.0], [21])),
-        ("die", anim_block("Animation_die", "die", 0.72, [0.0, 0.18, 0.42], [21, 22, 23])),
+        ("attack", anim_block("Animation_attack", "attack", 0.36, [0.0, 0.11, 0.28], [20, 21, 0])),
+        ("attack_cross", anim_block("Animation_attack_cross", "attack_cross", 0.36, [0.0, 0.10, 0.28], [22, 23, 0])),
+        ("attack_uppercut", anim_block("Animation_attack_uppercut", "attack_uppercut", 0.40, [0.0, 0.11, 0.31], [24, 25, 0])),
+        ("charge", anim_block("Animation_charge", "charge", 0.22, [0.0, 0.11], [27, 28], loop=True)),
+        ("hurt", anim_block("Animation_hurt", "hurt", 0.25, [0.0], [29])),
+        ("die", anim_block("Animation_die", "die", 0.72, [0.0, 0.18, 0.42], [29, 30, 31])),
     ]
     behemoth_tscn = build_tscn(
         uid_attr="",
@@ -248,8 +251,8 @@ def main() -> None:
             "dash_damage = 18\n"
             "attack_point_offset_x = 16.0\n"
         ),
-        vis_scale=0.335,
-        shadow_scale=(1.95, 1.80),
+        vis_scale=0.165,
+        shadow_scale=(3.8, 3.5),
         dust_block=(
             '[node name="Dust" type="CPUParticles2D" parent="."]\n'
             "position = Vector2(0, 10)\n"
@@ -274,11 +277,11 @@ def main() -> None:
 
     # 2. KNIGHT (`scenes/player/Bahman.tscn`)
     knight_anims = common_locomotion_anims(0.54) + [
-        ("attack", anim_block("Animation_attack", "attack", 0.50, [0.0, 0.15, 0.30, 0.44], [16, 17, 18, 0])),
-        ("guard", anim_block("Animation_guard", "guard", 0.30, [0.0], [19], loop=True)),
-        ("charge", anim_block("Animation_charge", "charge", 0.20, [0.0], [20], loop=True)),
-        ("hurt", anim_block("Animation_hurt", "hurt", 0.25, [0.0], [21])),
-        ("die", anim_block("Animation_die", "die", 0.75, [0.0, 0.18, 0.44], [21, 22, 23])),
+        ("attack", anim_block("Animation_attack", "attack", 0.50, [0.0, 0.14, 0.28, 0.42], [20, 21, 22, 23])),
+        ("guard", anim_block("Animation_guard", "guard", 0.50, [0.0, 0.25], [24, 25], loop=True)),
+        ("charge", anim_block("Animation_charge", "charge", 0.22, [0.0, 0.11], [26, 27], loop=True)),
+        ("hurt", anim_block("Animation_hurt", "hurt", 0.25, [0.0], [29])),
+        ("die", anim_block("Animation_die", "die", 0.75, [0.0, 0.18, 0.44], [29, 30, 31])),
     ]
     knight_tscn = build_tscn(
         uid_attr=' uid="uid://cbahmanscn001"',
@@ -303,8 +306,8 @@ def main() -> None:
             "dash_damage = 16\n"
             "attack_point_offset_x = 22.0\n"
         ),
-        vis_scale=0.33,
-        shadow_scale=(1.90, 1.75),
+        vis_scale=0.165,
+        shadow_scale=(3.7, 3.5),
         dust_block=(
             '[node name="Dust" type="CPUParticles2D" parent="."]\n'
             "position = Vector2(0, 10)\n"
@@ -320,7 +323,7 @@ def main() -> None:
             "initial_velocity_max = 25.0\n"
             "scale_amount_min = 1.0\n"
             "scale_amount_max = 2.0\n"
-            "color = Color(0.82, 0.88, 0.98, 0.35)\n"
+            "color = Color(0.95, 0.84, 0.52, 0.35)\n"
         ),
         attack_x=22,
     )
@@ -329,13 +332,13 @@ def main() -> None:
 
     # 3. SYLVARA (`scenes/player/Pari.tscn`)
     sylvara_anims = common_locomotion_anims(0.40) + [
-        ("attack", anim_block("Animation_attack", "attack", 0.24, [0.0, 0.09, 0.17], [16, 18, 19])),
-        ("bow_draw", anim_block("Animation_bow_draw", "bow_draw", 0.20, [0.0], [16])),
-        ("bow_charge", anim_block("Animation_bow_charge", "bow_charge", 0.20, [0.0], [17], loop=True)),
-        ("bow_release", anim_block("Animation_bow_release", "bow_release", 0.24, [0.0, 0.11, 0.20], [18, 19, 0])),
-        ("charge", anim_block("Animation_charge", "charge", 0.20, [0.0], [20], loop=True)),
-        ("hurt", anim_block("Animation_hurt", "hurt", 0.25, [0.0], [21])),
-        ("die", anim_block("Animation_die", "die", 0.72, [0.0, 0.18, 0.42], [21, 22, 23])),
+        ("attack", anim_block("Animation_attack", "attack", 0.24, [0.0, 0.06, 0.12, 0.18], [20, 21, 22, 23])),
+        ("bow_draw", anim_block("Animation_bow_draw", "bow_draw", 0.22, [0.0, 0.11], [24, 25])),
+        ("bow_charge", anim_block("Animation_bow_charge", "bow_charge", 0.28, [0.0, 0.14], [25, 26], loop=True)),
+        ("bow_release", anim_block("Animation_bow_release", "bow_release", 0.22, [0.0, 0.12], [23, 0])),
+        ("charge", anim_block("Animation_charge", "charge", 0.24, [0.0, 0.12], [27, 28], loop=True)),
+        ("hurt", anim_block("Animation_hurt", "hurt", 0.25, [0.0], [29])),
+        ("die", anim_block("Animation_die", "die", 0.72, [0.0, 0.18, 0.42], [29, 30, 31])),
     ]
     sylvara_tscn = build_tscn(
         uid_attr=' uid="uid://cpariscn00001"',
@@ -359,8 +362,8 @@ def main() -> None:
             "dash_phases_enemies = true\n"
             "dash_damage = 0\n"
         ),
-        vis_scale=0.33,
-        shadow_scale=(1.75, 1.65),
+        vis_scale=0.165,
+        shadow_scale=(3.5, 3.3),
         dust_block=(
             '[node name="Dust" type="CPUParticles2D" parent="."]\n'
             "position = Vector2(0, 10)\n"
@@ -383,7 +386,7 @@ def main() -> None:
     with open("scenes/player/Pari.tscn", "w", encoding="utf-8") as fh:
         fh.write(sylvara_tscn)
 
-    print("Updated Player.tscn, Bahman.tscn, and Pari.tscn cleanly!")
+    print("Updated Player.tscn, Bahman.tscn, and Pari.tscn to 32x 224x224 (matching Velmira)!")
 
 
 if __name__ == "__main__":

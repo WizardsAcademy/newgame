@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3]
+[gd_scene load_steps=53 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/textures/player_borzo.png" id="2_sheet"]
@@ -10,99 +10,131 @@ size = Vector2(16, 16)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f0"]
 atlas = ExtResource("2_sheet")
-region = Rect2(0, 0, 128, 128)
+region = Rect2(0, 0, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f1"]
 atlas = ExtResource("2_sheet")
-region = Rect2(128, 0, 128, 128)
+region = Rect2(224, 0, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f2"]
 atlas = ExtResource("2_sheet")
-region = Rect2(256, 0, 128, 128)
+region = Rect2(448, 0, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f3"]
 atlas = ExtResource("2_sheet")
-region = Rect2(384, 0, 128, 128)
+region = Rect2(672, 0, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f4"]
 atlas = ExtResource("2_sheet")
-region = Rect2(512, 0, 128, 128)
+region = Rect2(896, 0, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f5"]
 atlas = ExtResource("2_sheet")
-region = Rect2(640, 0, 128, 128)
+region = Rect2(1120, 0, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f6"]
 atlas = ExtResource("2_sheet")
-region = Rect2(768, 0, 128, 128)
+region = Rect2(1344, 0, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f7"]
 atlas = ExtResource("2_sheet")
-region = Rect2(896, 0, 128, 128)
+region = Rect2(1568, 0, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f8"]
 atlas = ExtResource("2_sheet")
-region = Rect2(0, 128, 128, 128)
+region = Rect2(0, 224, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f9"]
 atlas = ExtResource("2_sheet")
-region = Rect2(128, 128, 128, 128)
+region = Rect2(224, 224, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f10"]
 atlas = ExtResource("2_sheet")
-region = Rect2(256, 128, 128, 128)
+region = Rect2(448, 224, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f11"]
 atlas = ExtResource("2_sheet")
-region = Rect2(384, 128, 128, 128)
+region = Rect2(672, 224, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f12"]
 atlas = ExtResource("2_sheet")
-region = Rect2(512, 128, 128, 128)
+region = Rect2(896, 224, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f13"]
 atlas = ExtResource("2_sheet")
-region = Rect2(640, 128, 128, 128)
+region = Rect2(1120, 224, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f14"]
 atlas = ExtResource("2_sheet")
-region = Rect2(768, 128, 128, 128)
+region = Rect2(1344, 224, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f15"]
 atlas = ExtResource("2_sheet")
-region = Rect2(896, 128, 128, 128)
+region = Rect2(1568, 224, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f16"]
 atlas = ExtResource("2_sheet")
-region = Rect2(0, 256, 128, 128)
+region = Rect2(0, 448, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f17"]
 atlas = ExtResource("2_sheet")
-region = Rect2(128, 256, 128, 128)
+region = Rect2(224, 448, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f18"]
 atlas = ExtResource("2_sheet")
-region = Rect2(256, 256, 128, 128)
+region = Rect2(448, 448, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f19"]
 atlas = ExtResource("2_sheet")
-region = Rect2(384, 256, 128, 128)
+region = Rect2(672, 448, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f20"]
 atlas = ExtResource("2_sheet")
-region = Rect2(512, 256, 128, 128)
+region = Rect2(896, 448, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f21"]
 atlas = ExtResource("2_sheet")
-region = Rect2(640, 256, 128, 128)
+region = Rect2(1120, 448, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f22"]
 atlas = ExtResource("2_sheet")
-region = Rect2(768, 256, 128, 128)
+region = Rect2(1344, 448, 224, 224)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f23"]
 atlas = ExtResource("2_sheet")
-region = Rect2(896, 256, 128, 128)
+region = Rect2(1568, 448, 224, 224)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f24"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 672, 224, 224)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f25"]
+atlas = ExtResource("2_sheet")
+region = Rect2(224, 672, 224, 224)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f26"]
+atlas = ExtResource("2_sheet")
+region = Rect2(448, 672, 224, 224)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f27"]
+atlas = ExtResource("2_sheet")
+region = Rect2(672, 672, 224, 224)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f28"]
+atlas = ExtResource("2_sheet")
+region = Rect2(896, 672, 224, 224)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f29"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1120, 672, 224, 224)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f30"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1344, 672, 224, 224)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f31"]
+atlas = ExtResource("2_sheet")
+region = Rect2(1568, 672, 224, 224)
 
 [sub_resource type="Animation" id="Animation_idle"]
 resource_name = "idle"
@@ -152,7 +184,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.8),
 "transitions": PackedFloat32Array(1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f12"), SubResource("AtlasTexture_f13")]
+"values": [SubResource("AtlasTexture_f14"), SubResource("AtlasTexture_f15")]
 }
 
 [sub_resource type="Animation" id="Animation_walk"]
@@ -186,7 +218,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.12, 0.24, 0.36),
 "transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f10"), SubResource("AtlasTexture_f8"), SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f9")]
+"values": [SubResource("AtlasTexture_f10"), SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f12"), SubResource("AtlasTexture_f13")]
 }
 
 [sub_resource type="Animation" id="Animation_walk_up"]
@@ -203,12 +235,12 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.12, 0.24, 0.36),
 "transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f14"), SubResource("AtlasTexture_f12"), SubResource("AtlasTexture_f15"), SubResource("AtlasTexture_f13")]
+"values": [SubResource("AtlasTexture_f16"), SubResource("AtlasTexture_f17"), SubResource("AtlasTexture_f18"), SubResource("AtlasTexture_f19")]
 }
 
 [sub_resource type="Animation" id="Animation_attack"]
 resource_name = "attack"
-length = 0.34
+length = 0.36
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -216,15 +248,15 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.1, 0.27),
+"times": PackedFloat32Array(0, 0.11, 0.28),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f16"), SubResource("AtlasTexture_f17"), SubResource("AtlasTexture_f0")]
+"values": [SubResource("AtlasTexture_f20"), SubResource("AtlasTexture_f21"), SubResource("AtlasTexture_f0")]
 }
 
 [sub_resource type="Animation" id="Animation_attack_cross"]
 resource_name = "attack_cross"
-length = 0.34
+length = 0.36
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -232,15 +264,15 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.09, 0.27),
+"times": PackedFloat32Array(0, 0.1, 0.28),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f16"), SubResource("AtlasTexture_f18"), SubResource("AtlasTexture_f0")]
+"values": [SubResource("AtlasTexture_f22"), SubResource("AtlasTexture_f23"), SubResource("AtlasTexture_f0")]
 }
 
 [sub_resource type="Animation" id="Animation_attack_uppercut"]
 resource_name = "attack_uppercut"
-length = 0.38
+length = 0.4
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -248,15 +280,15 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.1, 0.3),
+"times": PackedFloat32Array(0, 0.11, 0.31),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f16"), SubResource("AtlasTexture_f19"), SubResource("AtlasTexture_f0")]
+"values": [SubResource("AtlasTexture_f24"), SubResource("AtlasTexture_f25"), SubResource("AtlasTexture_f0")]
 }
 
 [sub_resource type="Animation" id="Animation_charge"]
 resource_name = "charge"
-length = 0.2
+length = 0.22
 loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
@@ -265,10 +297,10 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
+"times": PackedFloat32Array(0, 0.11),
+"transitions": PackedFloat32Array(1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f20")]
+"values": [SubResource("AtlasTexture_f27"), SubResource("AtlasTexture_f28")]
 }
 
 [sub_resource type="Animation" id="Animation_hurt"]
@@ -284,7 +316,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f21")]
+"values": [SubResource("AtlasTexture_f29")]
 }
 
 [sub_resource type="Animation" id="Animation_die"]
@@ -300,7 +332,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 0.18, 0.42),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
-"values": [SubResource("AtlasTexture_f21"), SubResource("AtlasTexture_f22"), SubResource("AtlasTexture_f23")]
+"values": [SubResource("AtlasTexture_f29"), SubResource("AtlasTexture_f30"), SubResource("AtlasTexture_f31")]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]
@@ -348,16 +380,16 @@ attack_point_offset_x = 16.0
 shape = SubResource("RectangleShape2D_body")
 
 [node name="Visuals" type="Sprite2D" parent="."]
-texture_filter = 1
+texture_filter = 4
 position = Vector2(0, -3)
-scale = Vector2(0.335, 0.335)
+scale = Vector2(0.165, 0.165)
 texture = SubResource("AtlasTexture_f0")
 
 [node name="Shadow" type="Sprite2D" parent="Visuals"]
 show_behind_parent = true
 modulate = Color(0, 0, 0, 0.38)
-position = Vector2(0, 44)
-scale = Vector2(1.95, 1.8)
+position = Vector2(0, 89)
+scale = Vector2(3.8, 3.5)
 texture = ExtResource("4_shadow")
 
 [node name="Dust" type="CPUParticles2D" parent="."]

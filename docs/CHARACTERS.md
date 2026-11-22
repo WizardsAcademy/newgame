@@ -17,27 +17,27 @@
 
 ## 1. Behemoth — Medieval Pit-Champion (`120 HP`)
 
-- **Sprite Sheet (`96×96` × 10 frames)**: `assets/textures/player_borzo.png` (riveted brigandine vest, iron shoulder pauldron, crimson headband, scarred beard, spiked iron cestus gauntlets with dedicated `jab`, `cross`, `uppercut`, `charge`, and `hurt` frames) + circular `64×64` face portrait strip `assets/textures/portrait_borzo.png`.
+- **Reference-Extracted Sprite Sheet (`224×224` × 32 frames = `1792×896`)**: `assets/textures/player_borzo.png` built from `assets/sprites/behemoth/behemoth_reference.png` (`scale = 0.165`, `LINEAR_WITH_MIPMAPS`, `GROUND_Y = 200`, dark fur-pelt mantle, bare scarred torso, spiked leather-iron bracers, 4-directional idles & walks, `jab` / `cross` / `uppercut` combo, `charge`, `hurt`, and `kneel -> fallen` `die`) + `960×192` (`5 × 192×192`) circular HUD portrait `assets/textures/portrait_borzo.png`.
 - **Signature Mechanic**: **Concussive Iron-Cestus Combo** — 3-hit melee combo (`18` → `21` → `29 DMG`); hits 1–2 stun for `0.45s` and the 3rd-hit Shockwave Uppercut stuns for `0.90s`.
-- **`Shift` Skill**: **Shoulder Charge** — drops his spiked pauldron forward and rams enemies for **`18 DMG` + `1.10s` Stun**.
+- **`Shift` Skill**: **Shoulder Charge** — drops his shoulder forward and rams enemies for **`18 DMG` + `1.10s` Stun**.
 
-## 2. Knight — Fallen Knight (`150 HP`, Slowest `68 px/s`)
+## 2. Knight — Golden-Lion Knight (`150 HP`, Slowest `68 px/s`)
 
-- **Sprite Sheet (`96×96` × 10 frames)**: `assets/textures/player_bahman.png` (cracked visor greathelm, tattered crimson betrayal cloak, dark steel plate, oversized **Zweihander Greatsword** with full swing/spin arc, Tower Shield `guard`, `charge`, and `hurt` frames) + `assets/textures/portrait_bahman.png`.
+- **Reference-Extracted Sprite Sheet (`224×224` × 32 frames = `1792×896`)**: `assets/textures/player_bahman.png` built from `assets/sprites/knight/knight_reference.png` (`scale = 0.165`, `LINEAR_WITH_MIPMAPS`, `GROUND_Y = 200`, crested greathelm, gold-trimmed dark-steel plate, crimson-gold heraldic cloak, Golden-Lion Heater Shield `guard`, silver-crescent Greatsword `attack` combo, speed-streak `charge`, `hurt`, and `die`) + `960×192` (`5 × 192×192`) circular HUD portrait `assets/textures/portrait_bahman.png`.
 - **Signature Mechanic**:
-  - **Passive Fallen Plate Armor**: Reduces unshielded hits by `-3` flat damage (minimum `1`).
-  - **Tower Shield (`Right-Click` / `E`)**: Blocks **100% of HP damage** (`0 HP` lost!) by consuming **Green Energy** instead (`14 + 1.5 × DMG`, plus `14/s` hold upkeep). If Green Energy hits `0`, the Shield **breaks (`shield_exhausted`)** and cannot be raised again until Green Energy regenerates back to `100%`.
-- **`Shift` Skill**: **Shield-Wall Charge** — braces his Tower Shield in front (`charge` pose) and rams enemies for **`16 DMG`**.
+  - **Passive Plate Armor**: Reduces unshielded hits by `-3` flat damage (minimum `1`).
+  - **Golden-Lion Shield (`Right-Click` / `E`)**: Blocks **100% of HP damage** (`0 HP` lost!) by consuming **Green Energy** on blocked hits (`20 + 1.2 × DMG`, `0` hold drain). If Green Energy hits `0`, the Shield **breaks (`shield_exhausted`)** and cannot be raised again until Green Energy regenerates back to `100%`.
+- **`Shift` Skill**: **Shield-Wall Charge** — braces his Lion Shield in front (`charge` pose) and rams enemies for **`16 DMG`**.
 
-## 3. Sylvara — Blonde Elven Ranger (`100 HP`, Fastest `124 px/s`)
+## 3. Sylvara — High-Elf Archer (`100 HP`, Fastest `124 px/s`)
 
-- **Sprite Sheet (`96×96` × 9 frames)**: `assets/textures/player_pari.png` (flowing golden hair, emerald elven tiara, forest tunic, feathered quiver, and **golden-yew Recurve Bow held visibly in hand** with `bow_draw`, `bow_charge`, `bow_release`, `charge`, and `hurt` frames) + `assets/textures/portrait_pari.png`.
+- **Reference-Extracted Sprite Sheet (`224×224` × 32 frames = `1792×896`)**: `assets/textures/player_pari.png` built from `assets/sprites/sylvara/sylvara_reference.png` (`scale = 0.165`, `LINEAR_WITH_MIPMAPS`, `GROUND_Y = 200`, blonde braided hair, elven tiara, feathered quiver, emerald-gold ranger armor, 4-directional idles & walks, `bow_draw` / radiant `bow_charge` / `bow_release`, `charge`, `hurt`, and `kneel -> fallen` `die`) + `960×192` (`5 × 192×192`) circular HUD portrait `assets/textures/portrait_pari.png`.
 - **Signature Mechanic**: **Elven Recurve Bow** — swift `15 DMG` arrows (every 4th quick shot looses a 3-arrow fan); holding Attack visibly draws and charges a **`30 DMG` Piercing Great-Arrow**.
 - **`Shift` Skill**: **Sylvan Gale Vault** — leaps in a swirl of emerald leaves (`0 DMG`), phases cleanly through enemies, slows nearby foes (`×0.55` speed for `1.8s`), and grants `+28%` Tailwind movement haste.
 
 ## 4. Velmira — Silver-Haired Hemomancer (`75 HP`)
 
-- **Sprite Sheet (`96×96` × 8 frames)**: `assets/textures/player_shabnam.png` (moonlit **white/silver hair** with crimson temple rose, gothic crimson-collared bodice, `attack`, `charge`, and `hurt` frames) + `assets/textures/portrait_shabnam.png`.
+- **Reference-Extracted Sprite Sheet (`224×224` × 40 frames = `1792×1120`)**: `assets/textures/player_shabnam.png` built from `assets/sprites/vampire/velmira_reference.png` (`scale = 0.165`, `LINEAR_WITH_MIPMAPS`, `GROUND_Y = 200`) + `960×192` (`5 × 192×192`) circular HUD portrait `assets/textures/portrait_shabnam.png`.
 - **Signature Mechanic**:
   - **Returning Liquid Blood Whip**: Lashing out sacrifices `6%` Max HP (`5 HP`), **strictly locked at a `1 HP` floor** (Velmira can NEVER kill herself by attacking; only enemy damage can kill her). A sinuous crimson blood orb (`128 px` reach) whips outward and curves back into Velmira: if it hit `N >= 1` enemies (`13 DMG` each), it heals **`spent_hp + 1 × N`** on return (`+1 HP` net per enemy hit; `0` heal on miss).
   - **2-Fang + Filling Crimson Circle Curse**: Each Blood Whip hit builds `1/4` of a circular crimson gauge topped with two vampire fangs on the target. On the **4th hit (`4/4`)**, the circle explodes for **30% of the enemy's Max HP** (capped at `55` on bosses) and heals Velmira `+4 HP`.
