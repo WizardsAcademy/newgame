@@ -6,7 +6,7 @@ extends Node
 ##   3. SANDBOX full-map enemy aggro (`detection_range = 2500`) vs STAGES normal
 ##      aggro (`detection_range = 200`, `adi`).
 ##   4. Knight Hit-Only Shield Stamina + exhaustion lockout until 100% recovery.
-##   5. Velmira Reference Sheet (`1792x1120` = 40 frames of `224x224`), Sweeping
+##   5. Velmira Unified 96x96 Sheet (`1536x96` = 16 frames of `96x96`), Sweeping
 ##      Crimson Blood-Splash Slash (NO yoyo!), 30% Ground Blood Fountain, Classic
 ##      5-Bat `Shift` Swarm (no shadow ghost, no leak on exit), & 8-frame Blood-Melt `die`.
 ##   6. Dark-Fantasy Game Over (`DEAD AGAIN?` + `NOT YET` in `dark_fantasy.ttf`)

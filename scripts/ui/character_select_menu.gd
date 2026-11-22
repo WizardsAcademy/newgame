@@ -118,7 +118,7 @@ func _ready() -> void:
 	add_child(subtitle)
 
 	# Slice hero spritesheets once for all 4 heroes (supports both 1-row strips
-	# and multi-row grids like Velmira's 8x5 224x224 sheet!).
+	# and horizontal 96x96 pixel-art hero strips!).
 	for i in CharacterRegistry.CHARACTERS.size():
 		var entry: Dictionary = CharacterRegistry.CHARACTERS[i]
 		var sheet: Texture2D = load(entry["sheet_path"])

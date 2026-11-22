@@ -1,0 +1,81 @@
+name: Headless Godot & Art Contract Tests
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  tests:
+    name: Godot 4.7.2 Headless Suites & Sprite Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GODOT_VERSION: "4.7.2-stable"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run hero sprite sheet measurement & strict art contract
+        run: |
+          python3 -m pip install --upgrade pip pillow
+          python3 tools/measure_hero_sheets.py --strict
+
+      - name: Cache Godot 4.7.2 binary
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: /tmp/godot-bin
+          key: godot-linux-x86_64-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot 4.7.2
+        run: |
+          if [ ! -x /tmp/godot-bin/godot ]; then
+            mkdir -p /tmp/godot-bin
+            curl -fsSL -L \
+              "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip" \
+              -o /tmp/godot.zip
+            unzip -q /tmp/godot.zip -d /tmp/godot-bin
+            mv "/tmp/godot-bin/Godot_v${GODOT_VERSION}_linux.x86_64" /tmp/godot-bin/godot
+            chmod +x /tmp/godot-bin/godot
+          fi
+          sudo ln -sf /tmp/godot-bin/godot /usr/local/bin/godot
+          godot --version
+
+      - name: Import Godot project resources
+        run: |
+          # Disable editor-only MCP plugin during headless asset import, then restore project.godot
+          sed -i '/res:\/\/addons\/godot_ai\/plugin.cfg/d' project.godot
+          timeout 120s godot --headless --audio-driver Dummy --path . --import
+          git checkout -- project.godot
+
+      - name: Run all headless Godot test suites
+        run: |
+          set -euo pipefail
+          SUITES=(
+            "tests/sprite_contract_test.tscn"
+            "tests/heroes_and_dash_test.tscn"
+            "tests/archer_test.tscn"
+            "tests/boss_test.tscn"
+            "tests/combat_test.tscn"
+            "tests/slime_variants_test.tscn"
+            "tests/golem_test.tscn"
+          )
+          for suite in "${SUITES[@]}"; do
+            echo "================================================================"
+            echo "Running $suite"
+            echo "================================================================"
+            log_file="/tmp/$(basename "$suite" .tscn).log"
+            timeout 90s godot --headless --audio-driver Dummy --path . "$suite" 2>&1 | tee "$log_file"
+            if grep -qE "^FAIL  |SCRIPT ERROR:" "$log_file"; then
+              echo "Failure detected in $suite"
+              exit 1
+            fi
+          done
