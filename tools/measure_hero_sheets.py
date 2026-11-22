@@ -174,6 +174,10 @@ def main() -> int:
                 all_errors.append(
                     f"{r['name']}: colour_count={r['colour_count']} > {MAX_COLOURS}"
                 )
+            if r["pure_black_px"] > 0:
+                all_errors.append(
+                    f"{r['name']}: contains {r['pure_black_px']} pure #000000 pixels (selout required)"
+                )
 
     if all_errors:
         print("\nMEASUREMENT ERRORS:", file=sys.stderr)

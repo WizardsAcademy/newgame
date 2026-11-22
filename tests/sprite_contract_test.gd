@@ -183,6 +183,8 @@ func _run() -> void:
 				semi_pct <= MAX_SEMI_ALPHA_PCT, "%.2f%%" % semi_pct)
 			_check("%s colour count <= %d" % [hero_name, MAX_COLOURS_PER_HERO],
 				colours.size() <= MAX_COLOURS_PER_HERO, "colours=%d" % colours.size())
+			_check("%s uses selective selout outlines (never #000000)" % hero_name,
+				not colours.has(0), "has_pure_black=%s" % str(colours.has(0)))
 
 			var empty_frames: Array[int] = []
 			var ground_set: Dictionary = {}
