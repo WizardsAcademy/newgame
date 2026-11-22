@@ -305,7 +305,7 @@ func _build_hero_card(index: int, entry: Dictionary) -> void:
 
 	var portrait := TextureRect.new()
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if _atlas_frames[index][0].region.size.y > 180.0 else CanvasItem.TEXTURE_FILTER_NEAREST
+	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.texture = _atlas_frames[index][0]
@@ -362,7 +362,7 @@ func _refresh_selection_visuals(emit_highlight: bool = true) -> void:
 	if _showcase_portrait != null:
 		var f0: AtlasTexture = _atlas_frames[_selected_index][0]
 		_showcase_portrait.texture = f0
-		_showcase_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if f0.region.size.y > 180.0 else CanvasItem.TEXTURE_FILTER_NEAREST
+		_showcase_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if f0.region.size.y > 96.0 else CanvasItem.TEXTURE_FILTER_NEAREST
 	if _showcase_role != null:
 		_showcase_role.text = String(entry["role"])
 		_showcase_role.add_theme_color_override("font_color", accent.lightened(0.2))
@@ -467,18 +467,18 @@ func _process(delta: float) -> void:
 		_pedestal.queue_redraw()
 
 	_anim_timer += delta
-	if _anim_timer >= 0.28:
+	if _anim_timer >= 0.20:
 		_anim_timer = 0.0
-		var sel_entry: Dictionary = CharacterRegistry.CHARACTERS[_selected_index]
 		var hero_frames: Array = _atlas_frames[_selected_index]
-		var seq: Array = sel_entry.get("showcase_seq", [0, 1, 2, 1, 0, 3])
-		_anim_step = (_anim_step + 1) % maxi(seq.size(), 1)
+		var seq := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] if hero_frames.size() >= 15 else [0, 1, 2, 3, 4, 5]
+		_anim_step = (_anim_step + 1) % seq.size()
 		var frame_idx: int = mini(int(seq[_anim_step]), hero_frames.size() - 1)
 		if _showcase_portrait != null:
 			_showcase_portrait.texture = hero_frames[frame_idx]
 		for i in _card_portraits.size():
 			var cf: Array = _atlas_frames[i]
-			_card_portraits[i].texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if cf[0].region.size.y > 180.0 else CanvasItem.TEXTURE_FILTER_NEAREST
+			if cf[0].region.size.y > 96.0:
+				_card_portraits[i].texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 			_card_portraits[i].texture = cf[mini(frame_idx, cf.size() - 1) if i == _selected_index else 0]
 
 

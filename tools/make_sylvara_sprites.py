@@ -1,290 +1,446 @@
-#!/usr/bin/env python3
-"""Build Sylvara's 32-frame (8x4 @ 224x224) sheet & 5-state 192x192 HUD portrait
-directly from `assets/sprites/sylvara/sylvara_reference.png` (matching Velmira's
-exact pipeline, uniform `TARGET_BODY_H = 162`, `GROUND_Y = 200`, zero white halo!).
+#!/usr/bin/env python
+"""Generate Sylvara's 9-frame 96x96 Blonde Medieval Elven Ranger sheet.
 
-Outputs:
-  - assets/textures/player_pari.png      (1792 x 896 RGBA, 8 cols x 4 rows of 224x224)
-  - assets/textures/portrait_pari.png    (960 x 192 RGBA, 5 x 192x192 circular states)
-  - docs/images/sylvara_preview.png      (visual verification sheet)
+Art direction:
+  - Lush golden-blonde wavy locks + long pointed elven ears + silver-emerald
+    circlet tiara + expressive emerald eyes,
+  - Medieval forest-emerald ranger mantle & gold-trimmed leather bodice,
+    feathered quiver on back, tall laced ranger boots,
+  - Ornate Golden-Yew Elven Recurve Bow VISIBLY HELD IN HER HAND in every pose,
+  - Clear Bow-Draw & Glowing Emerald Charge animation + Sylvan Leaf Vault + Hurt!
+
+Writes:
+    assets/textures/player_pari.png     864 x 96 (9 frames of 96x96)
+    docs/images/sylvara_preview.png     review sheet
+
+SHEET LAYOUT (matches scenes/player/Pari.tscn):
+    0 : idle            (Recurve Bow held at ready)
+    1 : walk A
+    2 : walk B
+    3 : bow draw        (raises Recurve Bow forward, nocks emerald arrow)
+    4 : bow charge      (pulls glowing bowstring taut to cheek, blazing arrowhead!)
+    5 : bow release     (bowstring snaps forward, open draw hand)
+    6 : wind vault      (airborne Sylvan Windstep leap + swirling leaves)
+    7 : hurt            (recoiling wince pose)
+    8 : blink           (lashes gently closed)
 """
-from __future__ import annotations
 
 import math
-from pathlib import Path
-import sys
-import numpy as np
 from PIL import Image, ImageDraw
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ref_sheet_kit import (
-    CELL,
-    GROUND_Y,
-    apply_medallion_backdrop,
-    extract_from_white_bg,
-    make_calm_breath_variant,
-    place_grounded,
-)
+FRAME = 96
+FRAMES = 9
 
-ROOT = Path(__file__).resolve().parent.parent
-REF_PATH = ROOT / "assets/sprites/sylvara/sylvara_reference.png"
-OUT_HERO = ROOT / "assets/textures/player_pari.png"
-OUT_PORTRAIT = ROOT / "assets/textures/portrait_pari.png"
-OUT_PREVIEW = ROOT / "docs/images/sylvara_preview.png"
+OUTLINE = (11, 10, 14, 255)
+SKIN = (248, 214, 198, 255)
+SKIN_SHA = (212, 166, 150, 255)
+BLUSH = (244, 152, 162, 255)
 
-COLS = 8
-ROWS = 4
-BODY_H = 162
+BLONDE_SHA = (176, 126, 42, 255)
+BLONDE_MID = (224, 178, 72, 255)
+BLONDE_LIT = (248, 216, 112, 255)
+BLONDE_HI = (255, 242, 176, 255)
 
+CLOAK_DEEP = (20, 62, 44, 255)
+CLOAK_MID = (34, 98, 66, 255)
+CLOAK_LIT = (58, 142, 92, 255)
+LEATHER_DARK = (74, 46, 30, 255)
+LEATHER_MID = (118, 76, 48, 255)
+GOLD_MID = (208, 164, 62, 255)
+GOLD_HI = (252, 224, 118, 255)
 
-def make_side_blink(cell_im: Image.Image) -> Image.Image:
-    """Close Sylvara's side-facing emerald eye gently for a natural blink frame."""
-    out = cell_im.copy()
-    arr = np.array(out)
-    # Locate emerald iris pixels in head region (`y: 55..98, x: 95..148`)
-    sub = arr[55:98, 95:148]
-    r, g, b, a = sub[:, :, 0].astype(int), sub[:, :, 1].astype(int), sub[:, :, 2].astype(int), sub[:, :, 3]
-    iris = (a > 180) & (g > r + 8) & (g > b + 6) & (g > 65)
-    ys, xs = np.where(iris)
-    if len(xs) > 0:
-        x0, x1 = int(xs.min()) + 95, int(xs.max()) + 95
-        y0, y1 = int(ys.min()) + 55, int(ys.max()) + 55
-        for y in range(y0 - 1, y1 + 2):
-            for x in range(x0 - 1, x1 + 2):
-                if arr[y, x, 3] > 160:
-                    arr[y, x] = (236, 204, 188, arr[y, x, 3])
-        out = Image.fromarray(arr, mode="RGBA")
-        d = ImageDraw.Draw(out)
-        ym = (y0 + y1) // 2 + 1
-        d.line([(x0 - 2, ym), ((x0 + x1) // 2, ym + 1), (x1 + 2, ym)], fill=(44, 24, 22, 245), width=2)
-    return out
+EMERALD_DARK = (18, 122, 78, 255)
+EMERALD_BRIGHT = (72, 244, 152, 255)
+EMERALD_GLOW = (196, 255, 218, 255)
+STRING_COL = (226, 236, 232, 225)
 
 
-def build_sylvara_portrait(ref: Image.Image) -> Image.Image:
-    """Build 5-state 192x192 circular HUD portrait from Sylvara's left full-res bust artwork."""
-    P = 192
-    # Extract full-res left artwork cleanly from white background first!
-    art = extract_from_white_bg(ref, (6, 5, 296, 450), clear_enclosed_holes=True, min_speck=48)
-    # Crop close-up face + pointed ears + tiara + quiver + emerald collar (matching Velmira's zoom!)
-    bust = art.crop((24, 2, min(art.width, 214), min(art.height, 192)))
-    canvas = Image.new("RGBA", (P, P), (0, 0, 0, 0))
-    s = (P * 1.02) / float(max(bust.width, bust.height))
-    bw = int(round(bust.width * s))
-    bh = int(round(bust.height * s))
-    bust_s = bust.resize((bw, bh), Image.Resampling.LANCZOS)
-    canvas.alpha_composite(bust_s, ((P - bw) // 2 + 4, P - bh + 8))
-    base_raw = canvas
+def put(img: Image.Image, x: int, y: int, col) -> None:
+    if 0 <= x < FRAME and 0 <= y < FRAME:
+        img.putpixel((x, y), col)
 
-    bg_in = (24, 52, 38)
-    bg_out = (10, 22, 16)
-    strip = Image.new("RGBA", (P * 5, P), (0, 0, 0, 0))
 
-    # Locate emerald iris pixels in 192x192 bust (`y: 66..122, x: 76..162`)
-    def is_emerald_iris(x: int, y: int, r: int, g: int, b: int) -> bool:
-        if not (76 <= x <= 162 and 66 <= y <= 122):
-            return False
-        return (g > r + 6 and g > b + 6 and g > 55) or (r < 55 and g > 42 and 70 <= y <= 116 and 82 <= x <= 156)
-
-    # 0: idle_a
-    strip.alpha_composite(apply_medallion_backdrop(base_raw, bg_in, bg_out), (0, 0))
-
-    # 1: idle_b (subtle calm breath/zoom — matching Velmira!)
-    b1 = base_raw.crop((2, 2, P - 2, P - 1)).resize((P, P), Image.Resampling.LANCZOS)
-    strip.alpha_composite(apply_medallion_backdrop(b1, bg_in, bg_out), (P, 0))
-
-    # 2: blink (eyelids closed with delicate dark-golden lashes)
-    f2 = base_raw.copy()
-    arr2 = np.array(f2)
-    ys_i, xs_i = [], []
-    for y in range(66, 122):
-        for x in range(76, 162):
-            r, g, b, a = int(arr2[y, x, 0]), int(arr2[y, x, 1]), int(arr2[y, x, 2]), int(arr2[y, x, 3])
-            if a > 180 and is_emerald_iris(x, y, r, g, b):
-                arr2[y, x] = (238, 206, 190, a)
-                ys_i.append(y)
-                xs_i.append(x)
-    f2 = Image.fromarray(arr2, mode="RGBA")
-    if xs_i:
-        # Split left & right eye clusters around x_mid
-        xm = (min(xs_i) + max(xs_i)) // 2
-        d2 = ImageDraw.Draw(f2)
-        for cluster_x in ([x for x in xs_i if x < xm], [x for x in xs_i if x >= xm]):
-            if cluster_x:
-                xa, xb = min(cluster_x), max(cluster_x)
-                ym = int(np.median([y for x, y in zip(xs_i, ys_i) if xa <= x <= xb])) + 1
-                d2.line([(xa - 2, ym - 1), ((xa + xb) // 2, ym + 1), (xb + 2, ym - 1)], fill=(44, 24, 22, 245), width=2)
-    strip.alpha_composite(apply_medallion_backdrop(f2, bg_in, bg_out), (P * 2, 0))
-
-    # 3: low_hp (radiant emerald eyes + subtle crimson battle vignette)
-    f3 = base_raw.copy()
-    px3 = f3.load()
-    for y in range(P):
-        for x in range(P):
-            r, g, b, a = px3[x, y]
-            if a < 20:
-                continue
-            if is_emerald_iris(x, y, r, g, b):
-                px3[x, y] = (int(r * 0.7), min(255, int(g * 1.38 + 34)), min(255, int(b * 1.05 + 18)), a)
+def pill_limb(img: Image.Image, x0: float, y0: float, x1: float, y1: float, r: int,
+              dark_c, mid_c, hi_c) -> None:
+    steps = max(int(math.hypot(x1 - x0, y1 - y0) * 2), 4)
+    d = ImageDraw.Draw(img)
+    for pass_id in range(3):
+        for i in range(steps + 1):
+            t = i / steps
+            cx = x0 + (x1 - x0) * t
+            cy = y0 + (y1 - y0) * t
+            if pass_id == 0:
+                rr = r + 1
+                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=OUTLINE)
+            elif pass_id == 1:
+                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=dark_c)
+                rr2 = max(r - 1, 1)
+                d.ellipse([cx - rr2, cy - rr2 - 1, cx + rr2, cy + rr2 - 1], fill=mid_c)
             else:
-                dist = math.hypot((x - P * 0.52) / (P * 0.5), (y - P * 0.50) / (P * 0.5))
-                vign = min(0.42, max(0.0, (dist - 0.32) * 0.62))
-                nr = int(r * (1.0 - vign * 0.22) + 165 * vign * 0.34)
-                ng = int(g * (1.0 - vign * 0.52))
-                nb = int(b * (1.0 - vign * 0.48))
-                px3[x, y] = (min(255, nr), max(0, ng), max(0, nb), a)
-    strip.alpha_composite(apply_medallion_backdrop(f3, (38, 28, 28), (18, 10, 12)), (P * 3, 0))
+                rr3 = max(r - 2, 1)
+                d.ellipse([cx - rr3, cy - rr3 - 1, cx + rr3 - 1, cy - 1], fill=hi_c)
 
-    # 4: hurt (wince recoil tilt + warm hit flash)
-    f4 = f2.rotate(-4.0, resample=Image.Resampling.BICUBIC, expand=False)
-    px4 = f4.load()
-    for y in range(P):
-        for x in range(P):
-            r, g, b, a = px4[x, y]
-            if a < 20:
-                continue
-            px4[x, y] = (min(255, int(r * 1.14 + 24)), int(g * 0.85), int(b * 0.85), a)
-    strip.alpha_composite(apply_medallion_backdrop(f4, (44, 24, 24), (20, 10, 12)), (P * 4, 0))
-    return strip
+
+def draw_blonde_hair_back(img: Image.Image, cx: int, cy: int, sway: int = 0) -> None:
+    """Long cascading golden-blonde back hair locks reaching down past her waist!"""
+    d = ImageDraw.Draw(img)
+    pts = [
+        (cx - 13, cy - 22),
+        (cx + 12, cy - 22),
+        (cx + 18 + sway, cy + 4),
+        (cx + 14 + sway, cy + 16),
+        (cx + 8 + sway, cy + 11),
+        (cx + 2 + sway, cy + 19),
+        (cx - 5 + sway, cy + 12),
+        (cx - 12 + sway, cy + 18),
+        (cx - 19 + sway, cy + 6),
+    ]
+    d.polygon(pts, fill=BLONDE_SHA, outline=OUTLINE)
+    inner = [
+        (cx - 11, cy - 19),
+        (cx + 10, cy - 19),
+        (cx + 14 + sway, cy + 7),
+        (cx - 1 + sway, cy + 13),
+        (cx - 14 + sway, cy + 7),
+    ]
+    d.polygon(inner, fill=BLONDE_MID)
+    # Wavy sunlit golden highlights down the locks
+    for lx in (-9, -2, 6):
+        d.line([(cx + lx, cy - 12), (cx + lx + sway // 2, cy + 8)], fill=BLONDE_LIT, width=2)
+
+
+def draw_quiver(img: Image.Image, cx: int, cy: int) -> None:
+    """Feathered elven leather quiver peeking above her left shoulder!"""
+    d = ImageDraw.Draw(img)
+    d.polygon([(cx - 10, cy - 8), (cx - 17, cy - 22), (cx - 12, cy - 24), (cx - 6, cy - 9)],
+              fill=LEATHER_MID, outline=OUTLINE)
+    # Emerald & white arrow fletchings sticking out
+    for fx, fy in ((cx - 17, cy - 26), (cx - 14, cy - 28), (cx - 11, cy - 26)):
+        d.line([(fx + 2, fy + 4), (fx, fy)], fill=EMERALD_BRIGHT, width=2)
+        put(img, fx, fy - 1, GOLD_HI)
+
+
+def draw_elf_head(img: Image.Image, cx: int, cy: int, blink: bool = False,
+                  hurt: bool = False, charge_focus: bool = False) -> None:
+    d = ImageDraw.Draw(img)
+    # Crown hair dome
+    d.ellipse([cx - 13, cy - 14, cx + 13, cy + 8], fill=BLONDE_MID, outline=OUTLINE)
+    d.arc([cx - 10, cy - 12, cx + 10, cy - 2], 195, 345, fill=BLONDE_HI, width=2)
+
+    # Long delicate pointed Elven ears jutting out both sides!
+    d.polygon([(cx - 10, cy - 1), (cx - 19, cy - 5), (cx - 11, cy + 4)], fill=SKIN, outline=OUTLINE)
+    d.polygon([(cx + 10, cy - 1), (cx + 19, cy - 5), (cx + 11, cy + 4)], fill=SKIN, outline=OUTLINE)
+    put(img, cx - 15, cy - 3, SKIN_SHA)
+    put(img, cx + 15, cy - 3, SKIN_SHA)
+
+    # Soft heart-shaped pixel face
+    d.rounded_rectangle([cx - 9, cy - 7, cx + 9, cy + 9], radius=5, fill=SKIN, outline=OUTLINE)
+    # Rosy cheeks
+    put(img, cx - 6, cy + 3, BLUSH)
+    put(img, cx + 6, cy + 3, BLUSH)
+
+    # Expressive Emerald Anime-Pixel Eyes!
+    if hurt:
+        d.line([(cx - 6, cy - 1), (cx - 2, cy + 1)], fill=OUTLINE)
+        d.line([(cx - 2, cy + 1), (cx - 6, cy + 3)], fill=OUTLINE)
+        d.line([(cx + 6, cy - 1), (cx + 2, cy + 1)], fill=OUTLINE)
+        d.line([(cx + 2, cy + 1), (cx + 6, cy + 3)], fill=OUTLINE)
+        d.rectangle([cx - 1, cy + 5, cx + 2, cy + 7], fill=(185, 65, 78, 255))
+    elif blink:
+        d.line([(cx - 6, cy + 1), (cx - 2, cy + 1)], fill=OUTLINE)
+        d.line([(cx + 2, cy + 1), (cx + 6, cy + 1)], fill=OUTLINE)
+        put(img, cx, cy + 5, SKIN_SHA)
+    else:
+        for ex in (cx - 5, cx + 2):
+            # Dark upper lash + vibrant emerald iris + white starlight catchlight!
+            d.rectangle([ex, cy - 2, ex + 3, cy + 2], fill=EMERALD_DARK)
+            d.line([(ex - 1, cy - 2), (ex + 3, cy - 2)], fill=OUTLINE)
+            put(img, ex + 1, cy, EMERALD_BRIGHT)
+            put(img, ex + 2, cy + 1, EMERALD_GLOW if charge_focus else EMERALD_BRIGHT)
+            put(img, ex, cy - 1, (255, 255, 255, 255))
+        put(img, cx, cy + 5, SKIN_SHA)
+
+    # Side bangs & golden forelocks framing cheeks + Silver-Emerald Tiara!
+    d.polygon([(cx - 11, cy - 8), (cx - 7, cy - 8), (cx - 9, cy + 9), (cx - 12, cy + 4)],
+              fill=BLONDE_LIT, outline=OUTLINE)
+    d.polygon([(cx + 7, cy - 8), (cx + 11, cy - 8), (cx + 12, cy + 4), (cx + 9, cy + 9)],
+              fill=BLONDE_LIT, outline=OUTLINE)
+    d.polygon([(cx - 5, cy - 10), (cx + 5, cy - 10), (cx + 1, cy - 3), (cx - 2, cy - 4)],
+              fill=BLONDE_HI)
+    # Tiara circlet + glowing emerald center gem
+    d.line([(cx - 8, cy - 9), (cx + 8, cy - 9)], fill=GOLD_HI, width=2)
+    d.ellipse([cx - 2, cy - 11, cx + 2, cy - 7], fill=EMERALD_BRIGHT, outline=OUTLINE)
+    put(img, cx - 1, cy - 10, EMERALD_GLOW)
+
+
+def draw_recurve_bow(img: Image.Image, gx: float, gy: float, angle_deg: float,
+                     pull_px: float = 0.0, arrow_state: str = "none") -> None:
+    """Ornate Golden-Yew Elven Recurve Bow held at (gx, gy), with taut string
+    and optional nocked / blazing emerald-charged Great-Arrow!"""
+    rad = math.radians(angle_deg)
+    ux, uy = math.cos(rad), math.sin(rad)
+    px, py = -uy, ux
+    d = ImageDraw.Draw(img)
+
+    # Recurve bow arc: bends deeper as pull_px increases!
+    bend = 5.0 + pull_px * 0.25
+    half_span = 18.0 - pull_px * 0.12
+    bow_pts = []
+    for i in range(17):
+        s = -1.0 + 2.0 * (i / 16.0)
+        # Recurve S-tips flare slightly forward at the very ends!
+        recurve = -bend * (s * s) + (2.2 * (abs(s) - 0.78) * 4.5 if abs(s) > 0.78 else 0.0)
+        bx = gx + ux * recurve + px * (s * half_span)
+        by = gy + uy * recurve + py * (s * half_span)
+        bow_pts.append((bx, by))
+
+    tip_top = bow_pts[0]
+    tip_bot = bow_pts[-1]
+    nock_pt = (gx - ux * (4.5 + pull_px), gy - uy * (4.5 + pull_px))
+
+    # Bowstring (2 taut segments from tips to nock point!)
+    d.line([tip_top, nock_pt, tip_bot], fill=STRING_COL, width=1)
+
+    # Curved Yew & Gold bow stave
+    d.line(bow_pts, fill=OUTLINE, width=5)
+    d.line(bow_pts, fill=GOLD_MID, width=3)
+    d.line(bow_pts[4:13], fill=GOLD_HI, width=1)
+    # Emerald leaf riser gem at bow grip
+    ix, iy = int(round(gx + ux * 1)), int(round(gy + uy * 1))
+    d.ellipse([ix - 2, iy - 2, ix + 2, iy + 2], fill=EMERALD_BRIGHT, outline=OUTLINE)
+
+    # Nocked / Charged Emerald Arrow!
+    if arrow_state in ("nocked", "charged"):
+        shaft_end = (gx + ux * 11.0, gy + uy * 11.0)
+        d.line([nock_pt, shaft_end], fill=OUTLINE, width=3)
+        d.line([nock_pt, shaft_end], fill=GOLD_HI if arrow_state == "charged" else LEATHER_MID, width=1)
+        # Arrowhead
+        tx, ty = int(round(shaft_end[0])), int(round(shaft_end[1]))
+        if arrow_state == "charged":
+            # Radiant emerald starlight aura at arrowhead!
+            d.ellipse([tx - 6, ty - 6, tx + 6, ty + 6], fill=(72, 244, 152, 95))
+            d.ellipse([tx - 3, ty - 3, tx + 3, ty + 3], fill=EMERALD_BRIGHT, outline=OUTLINE)
+            for dx, dy in ((-7, 0), (7, 0), (0, -7), (0, 7)):
+                d.line([(tx, ty), (tx + dx, ty + dy)], fill=EMERALD_GLOW, width=1)
+            put(img, tx, ty, (255, 255, 255, 255))
+        else:
+            d.polygon([
+                (tx + ux * 4, ty + uy * 4),
+                (tx - px * 3, ty - py * 3),
+                (tx + px * 3, ty + py * 3),
+            ], fill=EMERALD_BRIGHT, outline=OUTLINE)
+    elif arrow_state == "released":
+        # Snap vibration lines + emerald streak leaving the bow!
+        d.line([(gx + ux * 6, gy + uy * 6), (gx + ux * 26, gy + uy * 26)],
+               fill=EMERALD_GLOW, width=2)
+
+
+def build_sylvara_pose(pose: str) -> Image.Image:
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    cx, cy = 44, 50
+    sway = 0
+    leg_l, leg_r = (-5, 26), (5, 26)
+
+    if pose == "walk_a":
+        cy -= 1
+        leg_l, leg_r = (-8, 24), (7, 27)
+        sway = -2
+    elif pose == "walk_b":
+        cy -= 1
+        leg_l, leg_r = (-2, 27), (3, 23)
+        sway = -1
+    elif pose == "draw":
+        cx += 1
+        sway = -2
+    elif pose == "charge":
+        cx -= 1
+        leg_l, leg_r = (-8, 26), (8, 26)
+        sway = -4
+    elif pose == "release":
+        cx += 2
+        sway = -3
+    elif pose == "vault":
+        cx += 4
+        cy -= 6
+        leg_l, leg_r = (-11, 21), (8, 18)
+        sway = -8
+    elif pose == "hurt":
+        cx -= 4
+        cy += 1
+        sway = 4
+
+    # 1. Flowing blonde hair back + feathered quiver + forest cloak
+    draw_quiver(img, cx, cy)
+    draw_blonde_hair_back(img, cx, cy, sway=sway)
+
+    cloak = [
+        (cx - 10, cy - 8),
+        (cx + 10, cy - 8),
+        (cx + 14 + sway, cy + 18),
+        (cx - 14 + sway, cy + 18),
+    ]
+    d.polygon(cloak, fill=CLOAK_DEEP, outline=OUTLINE)
+
+    # 2. Slender legs & tall laced ranger boots
+    for lx, ly in ((cx + leg_l[0], cy + leg_l[1]), (cx + leg_r[0], cy + leg_r[1])):
+        pill_limb(img, cx + (leg_l[0] // 2 if lx < cx else leg_r[0] // 2), cy + 12, lx, ly - 6, 3,
+                  SKIN_SHA, SKIN, SKIN)
+        d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        d.line([(lx - 3, ly - 7), (lx + 3, ly - 7)], fill=GOLD_MID)
+        put(img, lx, ly - 4, GOLD_HI)
+
+    # 3. Fitted Emerald & Gold-Laced Medieval Ranger Tunic + Skirt
+    skirt = [
+        (cx - 9, cy + 5),
+        (cx + 9, cy + 5),
+        (cx + 13, cy + 16),
+        (cx - 13, cy + 16),
+    ]
+    d.polygon(skirt, fill=CLOAK_MID, outline=OUTLINE)
+    d.line([(cx - 11, cy + 15), (cx + 11, cy + 15)], fill=GOLD_HI)
+
+    bodice = [
+        (cx - 9, cy - 8),
+        (cx + 9, cy - 8),
+        (cx + 7, cy + 7),
+        (cx - 7, cy + 7),
+    ]
+    d.polygon(bodice, fill=LEATHER_MID, outline=OUTLINE)
+    # Emerald shoulder mantle capelet with gold clasp
+    d.polygon([(cx - 11, cy - 9), (cx + 11, cy - 9), (cx + 9, cy - 1), (cx, cy + 2), (cx - 9, cy - 1)],
+              fill=CLOAK_LIT, outline=OUTLINE)
+    d.ellipse([cx - 2, cy - 6, cx + 2, cy - 2], fill=GOLD_HI, outline=OUTLINE)
+
+    # 4. Blonde Elven Head
+    draw_elf_head(img, cx, cy - 18, blink=(pose == "blink"), hurt=(pose == "hurt"),
+                  charge_focus=(pose == "charge"))
+
+    # 5. Arms + ALWAYS-HELD Golden-Yew Recurve Bow!
+    if pose in ("idle", "blink", "walk_a", "walk_b"):
+        # Left hand holds bow comfortably at her right side, always visible!
+        pill_limb(img, cx + 8, cy - 4, cx + 16, cy + 2, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 19, cy + 2, 22 if pose != "walk_a" else 14, pull_px=0.0)
+    elif pose == "draw":
+        # Raises bow straight ahead & nocks arrow!
+        pill_limb(img, cx + 8, cy - 5, cx + 22, cy - 4, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 25, cy - 4, 0.0, pull_px=4.0, arrow_state="nocked")
+        pill_limb(img, cx - 5, cy - 5, cx + 14, cy - 4, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+    elif pose == "charge":
+        # Full taut bow draw — glowing emerald arrow pulled right back to cheek!
+        pill_limb(img, cx + 8, cy - 5, cx + 24, cy - 5, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 27, cy - 5, 0.0, pull_px=11.0, arrow_state="charged")
+        pill_limb(img, cx - 6, cy - 5, cx + 10, cy - 5, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+    elif pose == "release":
+        pill_limb(img, cx + 8, cy - 5, cx + 24, cy - 5, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 27, cy - 5, 0.0, pull_px=0.0, arrow_state="released")
+        pill_limb(img, cx - 6, cy - 5, cx - 12, cy - 8, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+    elif pose == "vault":
+        # Airborne Sylvan Windstep leap with swirling emerald leaves!
+        pill_limb(img, cx + 8, cy - 5, cx + 19, cy - 9, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 22, cy - 9, -28.0, pull_px=0.0)
+        for lx, ly in ((cx - 22, cy + 2), (cx - 16, cy + 14), (cx - 26, cy - 8), (cx + 12, cy + 18)):
+            d.ellipse([lx - 3, ly - 1, lx + 3, ly + 2], fill=EMERALD_BRIGHT, outline=OUTLINE)
+    elif pose == "hurt":
+        pill_limb(img, cx + 6, cy - 4, cx + 14, cy - 2, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 16, cy - 2, 35.0, pull_px=0.0)
+
+    return img
+
+
+def build_sylvara_vertical_pose(pose: str) -> Image.Image:
+    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Sylvara!"""
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = 48, 50
+    is_up = pose.startswith("up_")
+    step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
+    l_dy = -3 * step
+    r_dy = 3 * step
+
+    if not is_up:
+        # Front: blonde hair + emerald cloak + ranger bodice + front face + Recurve Bow at side!
+        d.polygon([(cx - 11, cy - 8), (cx + 11, cy - 8), (cx + 15, cy + 18), (cx - 15, cy + 18)], fill=CLOAK_DEEP, outline=OUTLINE)
+        for side, dy in ((-5, l_dy), (5, r_dy)):
+            lx, ly = cx + side, cy + 26 + min(0, dy)
+            pill_limb(img, cx + side // 2, cy + 12, lx, ly - 6, 3, SKIN_SHA, SKIN, SKIN)
+            d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+            d.line([(lx - 3, ly - 7), (lx + 3, ly - 7)], fill=GOLD_MID)
+        d.polygon([(cx - 9, cy + 5), (cx + 9, cy + 5), (cx + 13, cy + 16), (cx - 13, cy + 16)], fill=CLOAK_MID, outline=OUTLINE)
+        d.polygon([(cx - 9, cy - 8), (cx + 9, cy - 8), (cx + 7, cy + 7), (cx - 7, cy + 7)], fill=LEATHER_MID, outline=OUTLINE)
+        d.polygon([(cx - 11, cy - 9), (cx + 11, cy - 9), (cx + 9, cy - 1), (cx, cy + 2), (cx - 9, cy - 1)], fill=CLOAK_LIT, outline=OUTLINE)
+        d.ellipse([cx - 2, cy - 6, cx + 2, cy - 2], fill=GOLD_HI, outline=OUTLINE)
+        pill_limb(img, cx - 10, cy - 4, cx - 14, cy + 3 + l_dy, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        pill_limb(img, cx + 10, cy - 4, cx + 16, cy + 2 + r_dy, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 18, cy + 2 + r_dy, 24, pull_px=0.0)
+        # Symmetrical front blonde elven head
+        hy = cy - 18
+        d.ellipse([cx - 11, hy - 11, cx + 11, hy + 10], fill=BLONDE_MID, outline=OUTLINE)
+        d.polygon([(cx - 10, hy - 2), (cx - 16, hy - 5), (cx - 10, hy + 2)], fill=SKIN, outline=OUTLINE)
+        d.polygon([(cx + 10, hy - 2), (cx + 16, hy - 5), (cx + 10, hy + 2)], fill=SKIN, outline=OUTLINE)
+        d.rounded_rectangle([cx - 8, hy - 7, cx + 8, hy + 8], radius=4, fill=SKIN, outline=OUTLINE)
+        d.polygon([(cx - 9, hy - 10), (cx + 9, hy - 10), (cx + 9, hy - 3), (cx, hy - 5), (cx - 9, hy - 3)], fill=BLONDE_LIT, outline=OUTLINE)
+        d.line([(cx - 8, hy - 6), (cx + 8, hy - 6)], fill=GOLD_HI, width=1)
+        put(img, cx, hy - 6, EMERALD_BRIGHT)
+        for ex in (cx - 4, cx + 3):
+            put(img, ex, hy, EMERALD_DARK)
+            put(img, ex + 1, hy, EMERALD_BRIGHT)
+    else:
+        # Back: ranger boots + emerald cloak from behind + flowing golden-blonde hair + feathered quiver!
+        for side, dy in ((-5, l_dy), (5, r_dy)):
+            lx, ly = cx + side, cy + 26 + min(0, dy)
+            pill_limb(img, cx + side // 2, cy + 12, lx, ly - 6, 3, SKIN_SHA, SKIN, SKIN)
+            d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        draw_recurve_bow(img, cx + 16, cy + 1 + r_dy, 28, pull_px=0.0)
+        d.polygon([
+            (cx - 11, cy - 9), (cx + 11, cy - 9),
+            (cx + 15 + step, cy + 18), (cx - 15 + step, cy + 18),
+        ], fill=CLOAK_MID, outline=OUTLINE)
+        d.line([(cx - 12 + step, cy + 17), (cx + 12 + step, cy + 17)], fill=GOLD_HI, width=1)
+        # Feathered leather quiver strapped diagonally across back!
+        d.polygon([(cx + 2, cy - 8), (cx + 8, cy - 6), (cx + 2, cy + 12), (cx - 4, cy + 10)], fill=LEATHER_MID, outline=OUTLINE)
+        for fx in (cx + 4, cx + 7):
+            d.line([(fx, cy - 8), (fx + 2, cy - 14)], fill=EMERALD_BRIGHT, width=2)
+        # Lush golden-blonde wavy hair cascading down her back!
+        hy = cy - 18
+        d.polygon([(cx - 10, hy - 2), (cx - 16, hy - 5), (cx - 10, hy + 2)], fill=SKIN_SHA, outline=OUTLINE)
+        d.polygon([(cx + 10, hy - 2), (cx + 16, hy - 5), (cx + 10, hy + 2)], fill=SKIN_SHA, outline=OUTLINE)
+        hair_pts = [
+            (cx - 10, hy - 10), (cx + 10, hy - 10),
+            (cx + 12 + step, hy + 16), (cx + 5 + step, hy + 21),
+            (cx + step, hy + 18), (cx - 6 + step, hy + 21), (cx - 12 + step, hy + 16),
+        ]
+        d.polygon(hair_pts, fill=BLONDE_MID, outline=OUTLINE)
+        d.line([(cx - 6, hy - 7), (cx - 5 + step, hy + 15)], fill=BLONDE_LIT, width=2)
+        d.line([(cx + 4, hy - 7), (cx + 5 + step, hy + 15)], fill=BLONDE_HI, width=2)
+    return img
 
 
 def main() -> None:
-    assert REF_PATH.exists(), f"Missing reference sheet: {REF_PATH}"
-    ref = Image.open(REF_PATH).convert("RGBA")
-
-    # --- ROW 1 CROPS: Idles & 4-Frame Side Walk ---
-    idle_front_raw = extract_from_white_bg(ref, (342, 49, 488, 239))
-    idle_right_raw = extract_from_white_bg(ref, (546, 54, 680, 239))
-    idle_back_raw  = extract_from_white_bg(ref, (742, 48, 870, 239))
-
-    walk_r0 = extract_from_white_bg(ref, (1118, 54, 1244, 238))
-    walk_r1 = extract_from_white_bg(ref, (1247, 55, 1370, 238))
-    walk_r2 = extract_from_white_bg(ref, (1372, 55, 1495, 238))
-    walk_r3 = extract_from_white_bg(ref, (1503, 53, 1624, 238))
-
-    # --- ROW 2 CROPS: 4-Frame Walk Up & 4-Frame Walk Down ---
-    walk_u0 = extract_from_white_bg(ref, (763, 282, 866, 445))
-    walk_u1 = extract_from_white_bg(ref, (871, 283, 967, 445))
-    walk_u2 = extract_from_white_bg(ref, (971, 283, 1069, 445))
-    walk_u3 = extract_from_white_bg(ref, (1077, 283, 1177, 445))
-
-    walk_d0 = extract_from_white_bg(ref, (1228, 292, 1330, 445))
-    walk_d1 = extract_from_white_bg(ref, (1350, 292, 1446, 445))
-    walk_d2 = extract_from_white_bg(ref, (1465, 293, 1560, 445))
-    walk_d3 = extract_from_white_bg(ref, (1580, 292, 1676, 445))
-
-    # --- ROW 3 CROPS: Bow Attack (Normal 4f) & Charged Bow Shot ---
-    # Note: Attack row on sheet is drawn at ~130px body height vs 180px on Row 1;
-    # compute exact attack-row scale from `atk_n0` (standing archer height -> BODY_H)
-    # so `chg_3`'s vertical golden bow aura NEVER shrinks Sylvara!
-    atk_n0 = extract_from_white_bg(ref, (18, 493, 153, 622))
-    atk_n1 = extract_from_white_bg(ref, (154, 493, 275, 622))
-    atk_n2 = extract_from_white_bg(ref, (276, 482, 394, 621))
-    atk_n3 = extract_from_white_bg(ref, (398, 482, 552, 620))
-
-    atk_scale = BODY_H / float(atk_n0.height)
-    chg_1 = extract_from_white_bg(ref, (1298, 493, 1424, 621))
-    chg_2 = extract_from_white_bg(ref, (1432, 491, 1547, 621))
-    chg_3 = extract_from_white_bg(ref, (1549, 471, 1703, 625))
-
-    # --- ROW 4 & 5 CROPS: Dash Vault, Hurt, & Kneel -> Fallen Death ---
-    dash_1 = extract_from_white_bg(ref, (568, 671, 694, 756), min_speck=140)
-    dash_2 = extract_from_white_bg(ref, (956, 657, 1082, 756), min_speck=140)
-    hurt_0 = extract_from_white_bg(ref, (26, 669, 138, 765), min_speck=100)
-    die_kneel  = extract_from_white_bg(ref, (1140, 672, 1313, 775))
-    die_fallen = extract_from_white_bg(ref, (1316, 720, 1514, 777))
-
-    # Build calm grounded idle bases & subtle breathing variants (boots 100% locked!)
-    f_idle0 = place_grounded(idle_right_raw, BODY_H)
-    f_idle1 = make_calm_breath_variant(f_idle0, chest_lift_px=1.4, cape_sway_px=0.9)
-    f_idle2 = make_calm_breath_variant(f_idle0, chest_lift_px=0.7, cape_sway_px=1.3)
-    f_idle3 = make_side_blink(f_idle0)
-
-    f_down0 = place_grounded(idle_front_raw, BODY_H, center_x_box=True)
-    f_down1 = make_calm_breath_variant(f_down0, chest_lift_px=1.4, cape_sway_px=0.7)
-
-    f_up0 = place_grounded(idle_back_raw, BODY_H, center_x_box=True)
-    f_up1 = make_calm_breath_variant(f_up0, chest_lift_px=1.4, cape_sway_px=0.8)
-
-    frames: list[Image.Image] = [
-        # Row 0 (0..7): Calm 4-frame Side Idle + 4-frame Side Walk
-        f_idle0,
-        f_idle1,
-        f_idle2,
-        f_idle3,
-        place_grounded(walk_r0, BODY_H),
-        place_grounded(walk_r1, BODY_H),
-        place_grounded(walk_r2, BODY_H),
-        place_grounded(walk_r3, BODY_H),
-
-        # Row 1 (8..15): Front Idle (2f) + Front Walk (4f) + Back Idle (2f)
-        f_down0,
-        f_down1,
-        place_grounded(walk_d0, BODY_H, center_x_box=True),
-        place_grounded(walk_d1, BODY_H, center_x_box=True),
-        place_grounded(walk_d2, BODY_H, center_x_box=True),
-        place_grounded(walk_d3, BODY_H, center_x_box=True),
-        f_up0,
-        f_up1,
-
-        # Row 2 (16..23): Back Walk (4f) + Normal Bow Attack (4f)
-        place_grounded(walk_u0, BODY_H, center_x_box=True),
-        place_grounded(walk_u1, BODY_H, center_x_box=True),
-        place_grounded(walk_u2, BODY_H, center_x_box=True),
-        place_grounded(walk_u3, BODY_H, center_x_box=True),
-        place_grounded(atk_n0, fixed_scale=atk_scale),
-        place_grounded(atk_n1, fixed_scale=atk_scale),
-        place_grounded(atk_n2, fixed_scale=atk_scale),
-        place_grounded(atk_n3, fixed_scale=atk_scale, dx=4),
-
-        # Row 3 (24..31): Bow Charge (3f) + Sylvan Vault Dash (2f) + Hurt + Kneel/Fallen Death (2f)
-        place_grounded(chg_1, fixed_scale=atk_scale),
-        place_grounded(chg_2, fixed_scale=atk_scale),
-        place_grounded(chg_3, fixed_scale=atk_scale, dx=6, dy=6),
-        place_grounded(dash_1, target_h=142, dy=-4),
-        place_grounded(dash_2, target_h=148, dy=-6),
-        place_grounded(hurt_0, target_h=148, dx=-3),
-        place_grounded(die_kneel, target_h=124, center_x_box=True),
-        place_grounded(die_fallen, target_h=66, center_x_box=True),
+    poses = [
+        "idle", "walk_a", "walk_b", "draw", "charge", "release", "vault", "hurt", "blink",
+        "down_idle", "down_walk_a", "down_walk_b", "up_idle", "up_walk_a", "up_walk_b",
     ]
-    assert len(frames) == 32
+    sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
+    for i, p in enumerate(poses):
+        fr = build_sylvara_vertical_pose(p) if p.startswith(("down_", "up_")) else build_sylvara_pose(p)
+        sheet.alpha_composite(fr, (i * FRAME, 0))
+    sheet.save("assets/textures/player_pari.png")
+    print("wrote assets/textures/player_pari.png", sheet.size)
 
-    sheet = Image.new("RGBA", (CELL * COLS, CELL * ROWS), (0, 0, 0, 0))
-    for idx, frm in enumerate(frames):
-        sheet.alpha_composite(frm, ((idx % COLS) * CELL, (idx // COLS) * CELL))
-    OUT_HERO.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(OUT_HERO)
-
-    portrait_strip = build_sylvara_portrait(ref)
-    portrait_strip.save(OUT_PORTRAIT)
-
-    # Save visual verification sheet on dark dungeon stone backdrop!
-    prev = Image.new("RGBA", (1320, 860), (24, 28, 36, 255))
-    pd = ImageDraw.Draw(prev)
-    for i in range(5):
-        pf = portrait_strip.crop((i * 192, 0, (i + 1) * 192, 192)).resize((104, 104), Image.Resampling.LANCZOS)
-        px, py = 18 + i * 118, 14
-        prev.alpha_composite(pf, (px, py))
-        pd.ellipse((px - 2, py - 2, px + 106, py + 106), outline=(120, 224, 164, 255), width=2)
-    pd.text((630, 52), "SYLVARA (HIGH-ELF ARCHER) - 32x 224x224 + 5x 192x192 HUD Portrait", fill=(220, 245, 230, 255))
-
-    labels = [
-        "0:idle0", "1:idle1", "2:idle2", "3:blink", "4:walk0", "5:walk1", "6:walk2", "7:walk3",
-        "8:down_i0", "9:down_i1", "10:down_w0", "11:down_w1", "12:down_w2", "13:down_w3", "14:up_i0", "15:up_i1",
-        "16:up_w0", "17:up_w1", "18:up_w2", "19:up_w3", "20:bow_n0", "21:bow_n1", "22:bow_n2", "23:bow_rel",
-        "24:chg_0", "25:chg_1", "26:chg_aura", "27:dash0", "28:dash1", "29:hurt", "30:die_kneel", "31:die_fall",
-    ]
-    for idx, frm in enumerate(frames):
-        c, r = idx % 8, idx // 8
-        x, y = 18 + c * 160, 140 + r * 176
-        pd.rectangle([x, y, x + 148, y + 148], fill=(32, 38, 48, 255), outline=(58, 72, 88, 255))
-        gy = y + int(round(GROUND_Y * (148.0 / CELL)))
-        pd.line([(x + 8, gy), (x + 140, gy)], fill=(90, 215, 140, 130), width=1)
-        prev.alpha_composite(frm.resize((148, 148), Image.Resampling.LANCZOS), (x, y))
-        pd.text((x + 16, y + 152), labels[idx], fill=(210, 232, 220, 255))
-
-    OUT_PREVIEW.parent.mkdir(parents=True, exist_ok=True)
-    prev.save(OUT_PREVIEW)
-    print(f"Wrote {OUT_HERO} ({sheet.size}) and {OUT_PORTRAIT} ({portrait_strip.size})")
+    zoom, pad = 2, 10
+    w = pad + len(poses) * (FRAME * zoom + pad)
+    h = 30 + FRAME * zoom + 24
+    prev = Image.new("RGBA", (w, h), (16, 26, 22, 255))
+    d = ImageDraw.Draw(prev)
+    d.text((pad, 8), "SYLVARA (BLONDE ELVEN RANGER) - 9 frames x 96x96", fill=(214, 248, 222, 255))
+    for i, p in enumerate(poses):
+        x = pad + i * (FRAME * zoom + pad)
+        fr = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
+        prev.alpha_composite(fr.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST), (x, 28))
+        d.text((x, 28 + FRAME * zoom + 4), f"{i}:{p}", fill=(176, 232, 192, 255))
+    prev.save("docs/images/sylvara_preview.png")
 
 
 if __name__ == "__main__":
