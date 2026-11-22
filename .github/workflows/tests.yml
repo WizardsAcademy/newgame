@@ -29,7 +29,7 @@ jobs:
       - name: Run hero skeleton & sprite sheet strict contracts
         run: |
           python3 -m pip install --upgrade pip pillow
-          python3 tools/import_pose_sheet.py --hero velmira
+          python3 tools/import_pose_sheet.py --hero noa
           python3 tools/hero_skeleton_check.py --strict --iou
           python3 tools/measure_hero_sheets.py --strict
 
@@ -53,11 +53,16 @@ jobs:
           sudo ln -sf /tmp/godot-bin/godot /usr/local/bin/godot
           godot --version
 
-      - name: Import Godot project resources
+      - name: Import Godot project resources (also verifies addons/godot_ai loads with zero parse errors)
         run: |
-          sed -i '/res:\/\/addons\/godot_ai\/plugin.cfg/d' project.godot
-          timeout 120s godot --headless --audio-driver Dummy --path . --import
-          git checkout -- project.godot
+          import_log="/tmp/godot_import.log"
+          timeout 120s godot --headless --audio-driver Dummy --path . --import >"$import_log" 2>&1
+          cat "$import_log"
+          if grep -qE "Parse Error:|Failed to load script" "$import_log"; then
+            summary=$(grep -E "Parse Error:|Failed to load script" "$import_log" | head -n 6 | tr '\n' ' ; ')
+            echo "::error title=Godot import parse error::${summary}"
+            exit 1
+          fi
 
       - name: Helper script for headless suite runner
         run: |

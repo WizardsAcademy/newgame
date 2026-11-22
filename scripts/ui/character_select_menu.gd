@@ -9,7 +9,7 @@ extends Control
 ##     4 graphical stat bars (HP / ATK / SPD / DASH), and full Attack, Passive,
 ##     & Shift-Dash descriptions at crisp outlined font sizes.
 ##   - Bottom row of 4 interactive hero cards (`Behemoth`, `Knight`, `Sylvara`,
-##     `Velmira`) + glowing `PLAY AS <HERO>` launch button.
+##     `Noa`) + glowing `PLAY AS <HERO>` launch button.
 
 signal character_highlighted(character_id: String)
 signal character_selected(character_id: String)
@@ -198,8 +198,8 @@ func _build_showcase_panel() -> void:
 	_showcase_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_showcase_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_showcase_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_showcase_portrait.position = Vector2(21, 12)
-	_showcase_portrait.size = Vector2(64, 64)
+	_showcase_portrait.position = Vector2(5, 0)
+	_showcase_portrait.size = Vector2(96, 96)
 	stage_box.add_child(_showcase_portrait)
 
 	_showcase_role = _make_label("BRAWLER", 10, Color.WHITE, 2)
@@ -299,8 +299,8 @@ func _build_hero_card(index: int, entry: Dictionary) -> void:
 	p_bg.add_theme_stylebox_override("panel", _panel_style(
 		Color(0.06, 0.07, 0.11, 0.95), accent.darkened(0.35), 1, 5
 	))
-	p_bg.position = Vector2(8, 23)
-	p_bg.size = Vector2(44, 44)
+	p_bg.position = Vector2(6, 20)
+	p_bg.size = Vector2(50, 50)
 	card.add_child(p_bg)
 
 	var portrait := TextureRect.new()
@@ -309,8 +309,8 @@ func _build_hero_card(index: int, entry: Dictionary) -> void:
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.texture = _atlas_frames[index][0]
-	portrait.position = Vector2(4, 4)
-	portrait.size = Vector2(36, 36)
+	portrait.position = Vector2(1, 1)
+	portrait.size = Vector2(48, 48)
 	p_bg.add_child(portrait)
 	_card_portraits.append(portrait)
 

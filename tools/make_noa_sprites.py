@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Velmira's 16-frame 96x96 Silver-Haired Gothic Vampire sheet (`HERO_SKELETON_SPEC.md`).
+"""Generate Noa's 16-frame 96x96 Silver-Haired Gothic Vampire sheet (`HERO_SKELETON_SPEC.md`).
 
 Bespoke Skeleton #4 — Shortest Hero, Slender Vampire + Massive Asymmetric Hair:
   - `body_h = 64` (`crown_y = 16 .. GROUND_Y = 80`) — shortest hero in the cast!
@@ -19,7 +19,7 @@ from hero_art_lib import CELL, GROUND_Y, RAMPS, HeroCanvas
 
 
 def _draw_asymmetric_hair(c: HeroCanvas, cx: int, crown_y: int, sway: int = 0) -> None:
-    """Continuous moonlit silver-white hair waterfall — widest part of Velmira!
+    """Continuous moonlit silver-white hair waterfall — widest part of Noa!
 
     Connects seamlessly from the back of her head (`y = 30..36`, `11px` neck pinch
     so `chin_y = 37` -> `33%` `head_ratio`) into a billowing `23px` upper sweep
@@ -58,7 +58,7 @@ def _draw_asymmetric_hair(c: HeroCanvas, cx: int, crown_y: int, sway: int = 0) -
     c.stroke(cx - 13 + sway, crown_y + 23, cx - 9 + sway, crown_y + 47, "moon", 3, width=1)
 
 
-def _draw_velmira_head(
+def _draw_noa_head(
     c: HeroCanvas,
     hx: int,
     crown_y: int,
@@ -114,7 +114,7 @@ def _draw_velmira_head(
     c.dot(hx - 5 + fx, crown_y + 3, "crimson", 3)
 
 
-def build_velmira_side(pose: str) -> Image.Image:
+def build_noa_side(pose: str) -> Image.Image:
     c = HeroCanvas()
     # Positioned at `cx = 56` while her voluminous hair sweeps asymmetrically LEFT!
     cx = 56
@@ -151,7 +151,7 @@ def build_velmira_side(pose: str) -> Image.Image:
         c.poly([(35, 60), (54, 58), (50, 76), (32, 75)], "moon", bias=0.16)
         c.poly([(46, 56), (56, 56), (59, 73), (44, 73)], "obsidian", bias=0.10)
         c.poly([(45, 55), (57, 55), (55, 60), (47, 60)], "crimson", bias=0.18)
-        _draw_velmira_head(c, 51, 39, blink=True, facing_mode="side")
+        _draw_noa_head(c, 51, 39, blink=True, facing_mode="side")
         return c.finalize(ground_y=GROUND_Y)
     elif pose == "hurt":
         cx = 52
@@ -163,7 +163,7 @@ def build_velmira_side(pose: str) -> Image.Image:
     waist_y = crown_y + 34  # 50
     hip_y = crown_y + 39    # 55
 
-    # 1. Voluminous asymmetric moonlit silver hair (widest part of Velmira!)
+    # 1. Voluminous asymmetric moonlit silver hair (widest part of Noa!)
     _draw_asymmetric_hair(c, cx, crown_y, sway=sway)
 
     # 2. Dainty slender vampire legs (`y = 60..79`, `leg_mass ~ 235`, `stance_w = 12`)!
@@ -208,7 +208,7 @@ def build_velmira_side(pose: str) -> Image.Image:
     c.poly([(cx - 2, sh_y), (cx + 2, sh_y), (cx + 1, waist_y), (cx - 1, waist_y)], "crimson", bias=0.16)
 
     # 4. Dainty Vampire Head (`crown_y = 16 .. 36`)
-    _draw_velmira_head(
+    _draw_noa_head(
         c,
         cx,
         crown_y,
@@ -237,7 +237,7 @@ def build_velmira_side(pose: str) -> Image.Image:
     return c.finalize(ground_y=GROUND_Y)
 
 
-def build_velmira_vertical(pose: str) -> Image.Image:
+def build_noa_vertical(pose: str) -> Image.Image:
     c = HeroCanvas()
     cx = 50
     crown_y = 16
@@ -274,7 +274,7 @@ def build_velmira_vertical(pose: str) -> Image.Image:
         c.poly([(cx - 2, sh_y), (cx + 2, sh_y), (cx + 1, waist_y), (cx - 1, waist_y)], "crimson", bias=0.16)
 
     c.tapered_limb(cx + 5, sh_y + 1, 1.3, cx + 11, sh_y + 7 - step * 2, 1.4, "obsidian")
-    _draw_velmira_head(c, cx, crown_y, facing_mode="up" if is_up else "down")
+    _draw_noa_head(c, cx, crown_y, facing_mode="up" if is_up else "down")
     return c.finalize(ground_y=GROUND_Y)
 
 
@@ -299,23 +299,23 @@ def main() -> None:
     ]
     sheet = Image.new("RGBA", (CELL * len(poses), CELL), (0, 0, 0, 0))
     for i, p in enumerate(poses):
-        fr = build_velmira_vertical(p) if p.startswith(("down_", "up_")) else build_velmira_side(p)
+        fr = build_noa_vertical(p) if p.startswith(("down_", "up_")) else build_noa_side(p)
         sheet.alpha_composite(fr, (i * CELL, 0))
-    sheet.save("assets/textures/player_velmira.png")
-    print("wrote assets/textures/player_velmira.png", sheet.size)
+    sheet.save("assets/textures/player_noa.png")
+    print("wrote assets/textures/player_noa.png", sheet.size)
 
     zoom, pad = 2, 10
     w = pad + len(poses) * (CELL * zoom + pad)
     h = 30 + CELL * zoom + 24
     prev = Image.new("RGBA", (w, h), (22, 16, 26, 255))
     d = ImageDraw.Draw(prev)
-    d.text((pad, 8), "VELMIRA (SKELETON SPEC: 64px, asymmetric hair, 200 leg_mass)", fill=RAMPS["crimson"][3])
+    d.text((pad, 8), "NOA (SKELETON SPEC: 64px, asymmetric hair, 200 leg_mass)", fill=RAMPS["crimson"][3])
     for i, p in enumerate(poses):
         x = pad + i * (CELL * zoom + pad)
         fr = sheet.crop((i * CELL, 0, (i + 1) * CELL, CELL))
         prev.alpha_composite(fr.resize((CELL * zoom, CELL * zoom), Image.NEAREST), (x, 28))
         d.text((x, 28 + CELL * zoom + 4), f"{i}:{p}", fill=RAMPS["moon"][2])
-    prev.save("docs/images/velmira_preview.png")
+    prev.save("docs/images/noa_preview.png")
 
 
 if __name__ == "__main__":

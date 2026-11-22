@@ -1,5 +1,5 @@
 extends PlayerBase
-## Velmira - the Royal Crimson Vampire (Hero 4 of 4).
+## Noa - the Royal Crimson Vampire (Hero 4 of 4).
 ##
 ## Built faithfully from the canonical 1536x1024 Vampire reference sheet:
 ##   - 75 HP (lowest HP), 104 Move Speed (grounded boots in all 4 directions:
@@ -15,14 +15,14 @@ extends PlayerBase
 ##       * Every 4th Blood-Splash hit on a foe erupts a massive **Crimson Blood
 ##         Fountain** from beneath them for **`30%` of enemy Max HP** + `+4 HP` heal!
 ##   - **Classic Bat-Swarm Vanish (`Shift`)**:
-##       * Velmira vanishes (`visuals.visible = false`) in crimson mist while
+##       * Noa vanishes (`visuals.visible = false`) in crimson mist while
 ##         **5 crisp flapping pixel-art Vampire Bats** fly to the destination!
 ##   - **8-Frame Blood-Pool Dissolution Death (`die`)**:
 ##       * Collapses to her knees and melts into a swirling crimson blood pool!
 
 const EnemyStatusScript := preload("res://scripts/enemies/enemy_status.gd")
 const BAT_SHEET_PATH := "res://assets/textures/crimson_bat.png"
-const FX_SHEET_PATH := "res://assets/textures/velmira_fx.png"
+const FX_SHEET_PATH := "res://assets/textures/noa_fx.png"
 
 @export var splash_range: float = 92.0
 @export var splash_cone_dot: float = 0.22
@@ -37,7 +37,7 @@ var _swarm_time: float = 0.0
 
 
 ## 100% Hand-Crafted Directional Crimson Blood-Splash Slash VFX!
-## Uses `velmira_fx.png` sprite strip + additive glow layer + 6 flying droplets
+## Uses `noa_fx.png` sprite strip + additive glow layer + 6 flying droplets
 ## (no duplicate procedural crescent polygons).
 class BloodSplashSlash extends Node2D:
 	var aim_dir: Vector2 = Vector2.RIGHT
@@ -121,8 +121,8 @@ func _create_attack_sfx() -> AudioStreamWAV:
 
 
 func _character_ready() -> void:
-	character_id = "velmira"
-	character_name = "Velmira"
+	character_id = "noa"
+	character_name = "Noa"
 	dash_speed = 375.0
 	dash_duration = 0.24
 	dash_deals_damage = false
@@ -225,7 +225,7 @@ func _unleash_blood_splash(dir: Vector2, paid_hp: int, is_nova: bool) -> void:
 	var parent := get_parent()
 	if parent != null:
 		var fx := BloodSplashSlash.new()
-		fx.name = "VelmiraBloodSplash"
+		fx.name = "NoaBloodSplash"
 		var seq: Array[Texture2D] = []
 		if _fx_frames.size() >= 5:
 			if is_nova:
@@ -325,7 +325,7 @@ func _create_bat_swarm() -> void:
 		return
 	_cleanup_bat_swarm()
 	_swarm_root = Node2D.new()
-	_swarm_root.name = "VelmiraBatSwarm"
+	_swarm_root.name = "NoaBatSwarm"
 	_swarm_time = 0.0
 	parent.add_child(_swarm_root)
 	_swarm_root.global_position = global_position

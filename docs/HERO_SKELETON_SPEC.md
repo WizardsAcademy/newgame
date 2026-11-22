@@ -16,7 +16,7 @@
 All numbers are pixels inside the **96×96 cell**, `GROUND_Y = 80`.
 "Body height" = crown → ground line.
 
-| | **Behemoth** | **Knight** | **Sylvara** | **Velmira** |
+| | **Behemoth** | **Knight** | **Sylvara** | **Noa** |
 |---|---|---|---|---|
 | role | hulking brawler | ordinary human | tall lithe elf | short, lithe vampire |
 | **body height** | **68** | **76** | **80** | **64** |
@@ -40,8 +40,8 @@ All numbers are pixels inside the **96×96 cell**, `GROUND_Y = 80`.
 - Knight is the **human baseline**: 76 tall, 30 shoulders — nothing extreme.
 - Sylvara is **taller than the Knight but clearly thinner**: 80 tall, 24
   shoulders, 200 leg mass.
-- Velmira is **the shortest of all**: 65 tall (`[62, 68]`), imported from
-  hand-drawn `art_src/velmira/*.png` via `tools/import_pose_sheet.py` with a
+- Noa is **the shortest of all**: 65 tall (`[62, 68]`), imported from
+  hand-drawn `art_src/noa/*.png` via `tools/import_pose_sheet.py` with a
   narrow `12–13 px` boot stance inside her floor-length crimson-lined overcoat
   and sweeping ankle-length silver haircape.
 
@@ -50,14 +50,14 @@ All numbers are pixels inside the **96×96 cell**, `GROUND_Y = 80`.
 ## 2. Silhouette identities (non-negotiable)
 
 Each hero must be identifiable from a **pure black shape at 96×96**.
-Pairwise IoU must be **≤ 0.45** (currently 0.80 for Sylvara/Velmira).
+Pairwise IoU must be **≤ 0.45** (currently 0.80 for Sylvara/Noa).
 
 | Hero | What breaks the outline |
 |---|---|
 | **Behemoth** | Shoulders wider than hips by 20px; head sunk between them and pushed 3px **forward**; both fists hang below the hip line. |
 | **Knight** | Straight vertical spine; sword breaks the right edge from shoulder height upward; cape wedge visible on the left hip. |
 | **Sylvara** | A closed **bow hoop** that extends 10px past the body on one side; quiver breaking the back line at 45°. Nothing else is wide. |
-| **Velmira** | A **hair mass 40px wide** — the widest part of her is hair, not shoulders; one asymmetric fall reaching below the knee on her left only; skirt hem flares to 34px. |
+| **Noa** | A **hair mass 40px wide** — the widest part of her is hair, not shoulders; one asymmetric fall reaching below the knee on her left only; skirt hem flares to 34px. |
 
 **Anti-pattern to avoid:** four bodies at ~30px shoulders with a different
 colour on top. That is what produced the "Roblox" read.

@@ -51,11 +51,11 @@ sides of a single collision.
 ```text
 scenes/
   main.tscn              arena scene + UI + WaveSpawner
-  player/                Behemoth.tscn, Knight.tscn, Sylvara.tscn, Velmira.tscn
+  player/                Behemoth.tscn, Knight.tscn, Sylvara.tscn, Noa.tscn
   enemies/Slime.tscn     one scene per enemy
 scripts/
   main.gd                signal wiring + HUD + game over
-  player/                player_base.gd + behemoth.gd / knight.gd / sylvara.gd / velmira.gd
+  player/                player_base.gd + behemoth.gd / knight.gd / sylvara.gd / noa.gd
   enemies/slime.gd       enemy state machine (AI, health, signals)
   enemies/slime_visuals.gd the slime's look: poses, hop, squash, goo FX
   enemies/archer_visuals.gd the archer's look: shamble, rattle, bow draw,

@@ -13,8 +13,8 @@ from PIL import Image, ImageDraw
 
 from hero_art_lib import CELL, GROUND_Y, RAMPS
 
-HERO_IDS = ["behemoth", "knight", "sylvara", "velmira"]
-HERO_LABELS = ["Behemoth", "Knight", "Sylvara", "Velmira"]
+HERO_IDS = ["behemoth", "knight", "sylvara", "noa"]
+HERO_LABELS = ["Behemoth", "Knight", "Sylvara", "Noa"]
 
 
 def build_silhouettes(repo_root: Path) -> Path:

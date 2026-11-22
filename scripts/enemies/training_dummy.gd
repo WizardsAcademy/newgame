@@ -2,8 +2,8 @@ extends CharacterBody2D
 ## Medieval Straw & Iron Training Dummy (`DummyTarget`) in the Lobby Training Room.
 ##
 ## Joins group `"enemies"` with a standard Layer-5 (`16`) `Hurtbox` so EVERY hero
-## attack, projectile, stun, and Velmira's 2-Fang 30% Curse works natively on it!
-##   - `max_health = 100` (so Velmira's 30% Fang Curse pops for an exact `-30`!).
+## attack, projectile, stun, and Noa's 2-Fang 30% Curse works natively on it!
+##   - `max_health = 100` (so Noa's 30% Fang Curse pops for an exact `-30`!).
 ##   - Clamps at `1 HP` minimum (never permanently dies) and smoothly refills
 ##     back to `100 / 100` after `2.2s` out of combat.
 

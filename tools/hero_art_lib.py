@@ -87,6 +87,48 @@ ALL_32_RGB = {col[:3] for ramp in RAMPS.values() for col in ramp}
 assert len(ALL_32_RGB) == 32, f"Expected 32 unique colours, got {len(ALL_32_RGB)}"
 assert (0, 0, 0) not in ALL_32_RGB, "Pure black #000000 is forbidden!"
 
+# Bespoke 24-colour cel-shaded palette for hand-drawn Noa (`art_src/noa/*.png`).
+# Tuned to smooth porcelain rose-ivory skin, 6-step pearl-lilac hair, gothic
+# plum-obsidian velvet/selout, royal crimson/ruby irises & antique crown gold
+# so faces and hair stay silky-smooth with ZERO checkerboard dithering.
+NOA_PALETTE_24: tuple[tuple[int, int, int], ...] = (
+    # 1. Pearl-Lilac Hair & White Coat (6 smooth steps)
+    (250, 245, 250),  # 0: #faf5fa pure specular pearl
+    (234, 220, 234),  # 1: #eadcea bright lilac-pearl
+    (215, 197, 216),  # 2: #d7c5d8 light lilac-silver
+    (191, 167, 194),  # 3: #bfa7c2 mid mauve-lavender
+    (161, 134, 166),  # 4: #a186a6 shaded mauve
+    (126,  99, 133),  # 5: #7e6385 deep plum hair crease
+    # 2. Porcelain Rose-Ivory Skin & Blush (4 smooth steps)
+    (247, 228, 234),  # 6: #f7e4ea lit porcelain skin
+    (232, 202, 212),  # 7: #e8cad4 soft rose-ivory skin
+    (212, 163, 178),  # 8: #d4a3b2 rosy blush / ear
+    (168, 110, 128),  # 9: #a86e80 deep rose skin shadow
+    # 3. Plum-Obsidian Gothic Dress & Crisp Selout Lineart (5 steps, zero #000000)
+    ( 24,  17,  30),  # 10: #18111e crisp gothic selout outline
+    ( 42,  30,  51),  # 11: #2a1e33 dark velvet dress/boots
+    ( 65,  48,  79),  # 12: #41304f gothic dress mid-fold
+    ( 92,  70, 110),  # 13: #5c466e plum-slate highlight
+    ( 74,  50,  59),  # 14: #4a323b warm dark plum-umber
+    # 4. Royal Crimson Cloak & Glowing Ruby Eyes (5 steps)
+    ( 59,  13,  29),  # 15: #3b0d1d deepest blood-velvet
+    (110,  21,  44),  # 16: #6e152c dark crimson lining
+    (168,  30,  60),  # 17: #a81e3c royal crimson mid
+    (220,  44,  80),  # 18: #dc2c50 vivid ruby iris / slash
+    (255, 107, 136),  # 19: #ff6b88 glowing ruby catchlight
+    # 5. Antique Crown Gold & Filigree (4 steps)
+    ( 92,  59,  36),  # 20: #5c3b24 dark bronze crown
+    (143,  96,  56),  # 21: #8f6038 antique bronze-gold
+    (199, 148,  82),  # 22: #c79452 royal gold trim
+    (242, 204, 133),  # 23: #f2cc85 bright gold glint
+)
+assert len(set(NOA_PALETTE_24)) == 24
+assert (0, 0, 0) not in NOA_PALETTE_24
+
+HERO_PALETTES: dict[str, tuple[tuple[int, int, int], ...]] = {
+    "noa": NOA_PALETTE_24,
+}
+
 
 class HeroCanvas:
     """96x96 pixel-art canvas with automatic top-left 4-step shading & selout."""

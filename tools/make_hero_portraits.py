@@ -3,7 +3,7 @@
 
 Designed specifically for the circular bottom-left Hero HUD Medallion:
   - Shows ONLY the hero's close-up face/head in crisp, expressive 64x64 pixel art!
-  - Sylvara (Blonde Elf Girl) & Velmira (Silver-White Gothic Vampire Girl)
+  - Sylvara (Blonde Elf Girl) & Noa (Silver-White Gothic Vampire Girl)
     feature bespoke, ultra-expressive anime-medieval pixel eyes, lashes, hair
     strands, accessories, and facial expressions.
   - Knight keeps his scarred Fallen Greathelm on (`knight hamon ba kolah khod bashe`).
@@ -20,7 +20,7 @@ Writes:
     assets/textures/portrait_behemoth.png  (320 x 64)
     assets/textures/portrait_knight.png    (320 x 64)
     assets/textures/portrait_sylvara.png   (320 x 64)
-    assets/textures/portrait_velmira.png   (320 x 64)
+    assets/textures/portrait_noa.png   (320 x 64)
     docs/images/portraits_preview.png
 """
 
@@ -221,9 +221,9 @@ def portrait_sylvara(state: str) -> Image.Image:
 
 
 # ---------------------------------------------------------------------------
-# 2. VELMIRA (Silver-White Haired Gothic Vampire Girl Close-Up)
+# 2. NOA (Silver-White Haired Gothic Vampire Girl Close-Up)
 # ---------------------------------------------------------------------------
-def portrait_velmira(state: str) -> Image.Image:
+def portrait_noa(state: str) -> Image.Image:
     img = Image.new("RGBA", (SZ, SZ), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     sway = 1 if state == "idle_b" else (-1 if state == "hurt" else 0)
@@ -456,7 +456,7 @@ def main() -> None:
         ("portrait_behemoth.png", "BEHEMOTH", portrait_brawler),
         ("portrait_knight.png", "FALLEN KNIGHT", portrait_knight),
         ("portrait_sylvara.png", "SYLVARA (ELF)", portrait_sylvara),
-        ("portrait_velmira.png", "VELMIRA (VAMPIRE)", portrait_velmira),
+        ("portrait_noa.png", "NOA (VAMPIRE)", portrait_noa),
     ]
 
     zoom, pad = 2, 12

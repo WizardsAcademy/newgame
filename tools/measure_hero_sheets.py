@@ -12,7 +12,7 @@ Exits non-zero if:
 
 Pass `--strict` to also enforce the art & skeleton contract targets
 (`f0_h` per `HERO_SKELETON_SPEC.md`: behemoth 66..70, knight 74..80,
-sylvara 78..84, velmira 62..68; `ground_y == {80}`; `colours <= 24`;
+sylvara 78..84, noa 62..68; `ground_y == {80}`; `colours <= 24`;
 zero `#000000` pixels).
 """
 
@@ -29,7 +29,7 @@ HERO_BODY_H_BOUNDS: dict[str, tuple[int, int]] = {
     "behemoth": (66, 70),
     "knight": (74, 80),
     "sylvara": (78, 84),
-    "velmira": (62, 68),
+    "noa": (62, 68),
 }
 DEFAULT_BODY_H_BOUNDS = (62, 84)
 MAX_COLOURS = 24

@@ -81,13 +81,13 @@ SPEC: dict[str, dict] = {
         "max_width": 40,             # bow may overhang: measured on torso below
     },
     # SHORTEST hero; hand-drawn royal overcoat + ankle-length silver haircape.
-    "velmira": {
-        "sheet": "player_velmira.png",
+    "noa": {
+        "sheet": "player_noa.png",
         "body_h": (62, 68),
-        "head_ratio": (0.30, 0.36),
-        "shoulder_w": (18, 34),      # includes flowing silver haircape over shoulders
-        "hip_w": (12, 26),           # flared gothic overcoat waist/skirt
-        "leg_mass": (150, 520),      # floor-length crimson-lined coat + long hair
+        "head_ratio": (0.30, 0.40),
+        "shoulder_w": (18, 35),      # includes flowing silver haircape over shoulders
+        "hip_w": (12, 27),           # flared gothic overcoat waist/skirt
+        "leg_mass": (150, 555),      # floor-length crimson-lined coat + long hair
         "stance_w": (8, 16),
         "max_width": 52,             # hair mass may overhang
     },

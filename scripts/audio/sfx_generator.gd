@@ -314,7 +314,7 @@ static func create_shield_block_sfx() -> AudioStreamWAV:
 	return _shield_cache
 
 
-## Pressurized crimson liquid splash + dark pulse (0.13 s) for Velmira.
+## Pressurized crimson liquid splash + dark pulse (0.13 s) for Noa.
 static func create_blood_splash_sfx() -> AudioStreamWAV:
 	if _blood_splash_cache != null:
 		return _blood_splash_cache
@@ -341,7 +341,7 @@ static func create_blood_splash_sfx() -> AudioStreamWAV:
 	return _blood_splash_cache
 
 
-## Crimson Fang-Mark 30% HP burst snap (0.16 s) for Velmira's debuff pop.
+## Crimson Fang-Mark 30% HP burst snap (0.16 s) for Noa's debuff pop.
 static func create_fang_burst_sfx() -> AudioStreamWAV:
 	if _fang_burst_cache != null:
 		return _fang_burst_cache
