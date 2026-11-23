@@ -1,0 +1,243 @@
+From f43b0e5f7ae07a6349860637af6ddcadb0c1b724 Mon Sep 17 00:00:00 2001
+From: WizardsAcademy <357366786+WizardsAcademy@users.noreply.github.com>
+Date: Mon, 23 Nov 2026 17:56:12 +0000
+Subject: [PATCH] Fix Noa's broken animations: real walk cycle, no squash-shear
+ hurt, no rotated die
+
+Root causes found by measuring the shipped sheet:
+- 'attack' was f13(lunge) -> f11(attack) -> f2(A WALKING FRAME). Now idle -> attack -> splash.
+- 'walk_down' sliced the idle in half and lifted each half 2px, opening a seam
+  across her body. Now it uses the two real front-facing idle poses.
+- 'hurt' rescaled a walk frame vertically by 0.9 and sheared it 3px -> grey smear.
+  Now it uses the drawn recoil pose, shunted 1px with a re-inked impact edge.
+- 'die' rotated the idle by -76 deg then rescaled to 56x25 -> unreadable smear.
+  Now it sinks the authored body behind a rising crimson dissolve line.
+- 'walk' used 4 unrelated art_src files as if they were cycle phases.
+  Now it is one genuine pose + lower-body mirror + contact/bob frames.
+
+Also fixed a 1px transparent seam my own mirror helper introduced (row 59-60).
+
+Co-authored-by: arena-agent <297053741+arena-agent@users.noreply.github.com>
+---
+ scenes/player/Noa.tscn     |  20 +++----
+ tools/import_pose_sheet.py | 118 ++++++++++++++++++++++++++++++++++---
+ 2 files changed, 119 insertions(+), 19 deletions(-)
+
+diff --git a/scenes/player/Noa.tscn b/scenes/player/Noa.tscn
+index d1600d5..27bf1ef 100644
+--- a/scenes/player/Noa.tscn
++++ b/scenes/player/Noa.tscn
+@@ -84,7 +84,7 @@ tracks/0/keys = {
+ "times": PackedFloat32Array(0, 0.09, 0.28),
+ "transitions": PackedFloat32Array(1, 1, 1),
+ "update": 1,
+-"values": [SubResource("AtlasTexture_f13"), SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f2")]
++"values": [SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f11"), SubResource("AtlasTexture_f12")]
+ }
+ 
+ [sub_resource type="Animation" id="Animation_attack_splash"]
+@@ -114,10 +114,10 @@ tracks/0/path = NodePath("Visuals:texture")
+ tracks/0/interp = 1
+ tracks/0/loop_wrap = true
+ tracks/0/keys = {
+-"times": PackedFloat32Array(0),
+-"transitions": PackedFloat32Array(1),
++"times": PackedFloat32Array(0, 0.12),
++"transitions": PackedFloat32Array(1, 1),
+ "update": 1,
+-"values": [SubResource("AtlasTexture_f13")]
++"values": [SubResource("AtlasTexture_f13"), SubResource("AtlasTexture_f11")]
+ }
+ 
+ [sub_resource type="Animation" id="Animation_die"]
+@@ -130,7 +130,7 @@ tracks/0/path = NodePath("Visuals:texture")
+ tracks/0/interp = 1
+ tracks/0/loop_wrap = true
+ tracks/0/keys = {
+-"times": PackedFloat32Array(0, 0.2, 0.44),
++"times": PackedFloat32Array(0, 0.26, 0.5),
+ "transitions": PackedFloat32Array(1, 1, 1),
+ "update": 1,
+ "values": [SubResource("AtlasTexture_f14"), SubResource("AtlasTexture_f13"), SubResource("AtlasTexture_f15")]
+@@ -234,12 +234,12 @@ tracks/0/keys = {
+ "times": PackedFloat32Array(0, 0.17),
+ "transitions": PackedFloat32Array(1, 1),
+ "update": 1,
+-"values": [SubResource("AtlasTexture_f6"), SubResource("AtlasTexture_f7")]
++"values": [SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f1")]
+ }
+ 
+ [sub_resource type="Animation" id="Animation_walk_up"]
+ resource_name = "walk_up"
+-length = 0.34
++length = 0.36
+ loop_mode = 1
+ tracks/0/type = "value"
+ tracks/0/imported = false
+@@ -248,10 +248,10 @@ tracks/0/path = NodePath("Visuals:texture")
+ tracks/0/interp = 1
+ tracks/0/loop_wrap = true
+ tracks/0/keys = {
+-"times": PackedFloat32Array(0, 0.17),
+-"transitions": PackedFloat32Array(1, 1),
++"times": PackedFloat32Array(0, 0.12, 0.24),
++"transitions": PackedFloat32Array(1, 1, 1),
+ "update": 1,
+-"values": [SubResource("AtlasTexture_f9"), SubResource("AtlasTexture_f10")]
++"values": [SubResource("AtlasTexture_f8"), SubResource("AtlasTexture_f9"), SubResource("AtlasTexture_f10")]
+ }
+ 
+ [sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]
+diff --git a/tools/import_pose_sheet.py b/tools/import_pose_sheet.py
+index a68db38..c1f1a07 100644
+--- a/tools/import_pose_sheet.py
++++ b/tools/import_pose_sheet.py
+@@ -551,6 +551,106 @@ def place_pose_in_cell(
+ # Frame synthesis helpers (breath, directional stride, charge, hurt, die)
+ # ---------------------------------------------------------------------------
+ 
++def make_mirrored_stride(
++    source_cell: Image.Image,
++    ground_y: int = GROUND_Y,
++    bob: int = 0,
++) -> Image.Image:
++    """Opposite-foot stride frame from ONE drawn side view.
++
++    Mirrors only the lower body about the body's vertical centre line so the
++    planted leg and the trailing leg swap, while the torso, head, crown and
++    cloak mass keep their TRUE silhouette (no global flip - a global flip would
++    move the crown, the hair fall and the weapon to the wrong side).
++    """
++    bb = source_cell.getbbox()
++    if bb is None:
++        raise ValueError("mirror stride: empty cell")
++    split_y = ground_y - int((ground_y - bb[1]) * 0.30)
++    mid_x = (bb[0] + bb[2]) // 2
++
++    out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
++    # `bob` shifts the torso up, so the upper crop must extend DOWN by `bob`
++    # pixels or a 1px transparent band opens at the seam (verified bug).
++    upper = source_cell.crop((0, 0, CELL, split_y + bob))
++    out.alpha_composite(upper, (0, 0))
++
++    lower = source_cell.crop((bb[0], split_y, bb[2], ground_y))
++    flipped = lower.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
++    out.alpha_composite(flipped, (bb[0] + (bb[2] - bb[0]) - flipped.width, split_y))
++    return out
++
++
++def make_contact_frame(source_cell: Image.Image, ground_y: int = GROUND_Y) -> Image.Image:
++    """Second contact pose: 1px vertical compression of the stride, feet planted.
++
++    This is the 'down' beat of a walk cycle - the body dips as weight lands.
++    Only the upper body moves; the boot contact rows stay exactly on ground_y.
++    """
++    bb = source_cell.getbbox()
++    if bb is None:
++        raise ValueError("contact frame: empty cell")
++    split_y = ground_y - int((ground_y - bb[1]) * 0.20)
++    out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
++    out.alpha_composite(source_cell.crop((0, split_y, CELL, CELL)), (0, split_y))
++    out.alpha_composite(source_cell.crop((0, 0, CELL, split_y)), (0, 1))
++    return out
++
++
++def make_recoil_frame(source_cell: Image.Image, ground_y: int = GROUND_Y) -> Image.Image:
++    """Hit reaction from a DRAWN pose - a 1px back-shunt, never a squash or shear.
++
++    Reusing the drawn lunge/recoil silhouette keeps every pixel hand-authored;
++    the flinch is expressed by translating the whole body 1px away from the hit
++    and darkening the outline, which reads at 96px and cannot smear.
++    """
++    bb = source_cell.getbbox()
++    if bb is None:
++        raise ValueError("recoil frame: empty cell")
++    out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
++    out.alpha_composite(source_cell, (+1, 0))
++
++    px = out.load()
++    obb = out.getbbox()
++    if obb is not None:
++        # Re-ink the leading 1px column so the shove reads as impact, not a slide.
++        for y in range(obb[1], min(obb[3], ground_y)):
++            for x in range(CELL):
++                if px[x, y][3] > 0:
++                    if 0 <= x - 1 < CELL and px[x - 1, y][3] == 0:
++                        px[x - 1, y] = C_SELOUT
++                    break
++    return out
++
++
++def make_kneeling_collapse(idle_cell: Image.Image, ground_y: int = GROUND_Y) -> Image.Image:
++    """Death frame: the standing silhouette sunk into the hem, NOT rotated.
++
++    Rotating a pixel-art pose destroys its pixel grid (verified: rotate -76 deg
++    then rescale turns the figure into a grey smear with a broken alpha edge).
++    Instead the whole authored body is translated down behind a rising crimson
++    dissolve line, which is how 96px pixel games show a collapse.
++    """
++    bb = idle_cell.getbbox()
++    if bb is None:
++        raise ValueError("collapse frame: empty cell")
++    sink = 10
++    out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
++    body = idle_cell.crop((0, bb[1], CELL, ground_y))
++    out.alpha_composite(body, (0, bb[1] + sink))
++
++    px = out.load()
++    dissolve_y = ground_y - 16
++    for y in range(dissolve_y, CELL):
++        for x in range(CELL):
++            if px[x, y][3] == 0:
++                continue
++            # Fade the lower body into a crimson floor pool, row by row.
++            depth = (y - dissolve_y) / float(max(CELL - dissolve_y - 1, 1))
++            if depth > 0.55:
++                px[x, y] = C_CRIMSON_DARK if (x + y) % 3 else C_SELOUT
++    return out
++
+ def make_breath_variant(base_cell: Image.Image, ground_y: int = GROUND_Y) -> Image.Image:
+     """Subtle 1px upper-body breathing bob while feet & hem stay planted at ground_y."""
+     bb = base_cell.getbbox()
+@@ -1018,9 +1118,6 @@ def import_noa(cfg: dict) -> None:
+     pose_files = {
+         "idle_down": "idle down.png",
+         "walk_1": "walk.png",
+-        "walk_2": "another walk .png",
+-        "walk_3": "walk 2.png",
+-        "walk_4": "anothr walk.png",
+         "idle_up": "idle back.png",
+         "walk_up": "back.png",
+         "attack": "attack.png",
+@@ -1045,10 +1142,12 @@ def import_noa(cfg: dict) -> None:
+     f0_idle = place_pose_in_cell(cleaned_map["idle_down"], snapper, target_h, ground_y)
+     f1_idle_b = make_breath_variant(f0_idle, ground_y)
+     f2_walk1 = place_pose_in_cell(cleaned_map["walk_1"], snapper, target_h, ground_y)
+-    f3_walk2 = place_pose_in_cell(cleaned_map["walk_2"], snapper, target_h, ground_y)
+-    f4_walk3 = place_pose_in_cell(cleaned_map["walk_3"], snapper, target_h, ground_y)
+-    f5_walk4 = place_pose_in_cell(cleaned_map["walk_4"], snapper, target_h, ground_y)
+-    f6_down_a, f7_down_b = make_walk_down_pair(f0_idle, ground_y)
++    # Single genuine side-on walk pose -> 2-step cycle (contact / passing).
++    # Frames 3-5 are DERIVED, not redrawn: mirrored lower body + 1px body bob.
++    f3_walk2 = make_mirrored_stride(f2_walk1, ground_y, bob=0)
++    f4_walk3 = make_mirrored_stride(f2_walk1, ground_y, bob=1)
++    f5_walk4 = make_contact_frame(f2_walk1, ground_y)
++    f6_down_a, f7_down_b = (f0_idle, make_breath_variant(f0_idle, ground_y))
+     f8_idle_up = place_pose_in_cell(cleaned_map["idle_up"], snapper, target_h, ground_y)
+     f9_up_a = place_pose_in_cell(cleaned_map["walk_up"], snapper, target_h, ground_y)
+     f10_up_b = make_walk_up_mirror(f9_up_a, ground_y)
+@@ -1056,8 +1155,9 @@ def import_noa(cfg: dict) -> None:
+     f12_splash = place_pose_in_cell(cleaned_map["attack_splash"], snapper, target_h, ground_y)
+     f13_charge_base = place_pose_in_cell(cleaned_map["lunge"], snapper, target_h - 1, ground_y)
+     f13_charge = make_charge_frame(f13_charge_base, ground_y)
+-    f14_hurt = make_hurt_frame(f3_walk2, ground_y)
+-    f15_die = make_die_frame(f0_idle, snapper, ground_y)
++    f14_hurt = make_recoil_frame(place_pose_in_cell(
++        cleaned_map["lunge"], snapper, target_h, ground_y), ground_y)
++    f15_die = make_kneeling_collapse(f0_idle, ground_y)
+ 
+     frames_and_labels: list[tuple[str, Image.Image]] = [
+         ("idle", f0_idle),
+-- 
+2.39.5
+
