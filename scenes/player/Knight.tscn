@@ -141,7 +141,7 @@ tracks/0/keys = {
 
 [sub_resource type="Animation" id="Animation_idle"]
 resource_name = "idle"
-length = 2.5
+length = 3.2
 loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
@@ -150,7 +150,7 @@ tracks/0/path = NodePath("Visuals:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 2.2, 2.4),
+"times": PackedFloat32Array(0, 2.9, 3.08),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 1,
 "values": [SubResource("AtlasTexture_f0"), SubResource("AtlasTexture_f9"), SubResource("AtlasTexture_f0")]

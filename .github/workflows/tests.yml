@@ -29,7 +29,8 @@ jobs:
       - name: Run 96x96 hero sprite sheet checks
         run: |
           python3 -m pip install --upgrade pip pillow
-          python3 tools/import_pose_sheet.py --hero noa
+          python3 tools/make_noa_sprites.py
+          python3 tools/make_witch_cottage_assets.py
           python3 tools/measure_hero_sheets.py --strict
 
       - name: Cache Godot 4.7.2 binary
