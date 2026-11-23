@@ -16,3 +16,4 @@ desktop.ini
 # Editor backup files
 *.tmp
 *.bak
+tools/__pycache__/
