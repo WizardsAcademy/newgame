@@ -35,7 +35,9 @@ const RevivalRitualFXScript := preload("res://scripts/fx/revival_ritual_fx.gd")
 @onready var game_over_screen: Control = $UI/GameOver
 @onready var upgrade_menu: Control = $UI/UpgradeMenu
 @onready var character_select_menu: Control = $UI/CharacterSelectMenu
+@onready var witch_skill_tree_menu: WitchSkillTreeMenu = $UI/WitchSkillTreeMenu
 @onready var minimap: MiniMap = $UI/MiniMap
+@onready var pause_menu: PauseMenu = $UI/PauseMenu
 
 var world_mode: int = WorldMode.LOBBY
 var total_damage_dealt: int = 0
@@ -57,6 +59,9 @@ var _is_reviving: bool = false
 
 
 func _ready() -> void:
+	# Load persistent profile (last chosen Hero, per-hero Cauldron Skill Tree, & Settings)!
+	WitchCauldronProgression.load_from_disk()
+
 	_arena_gates_root = Node2D.new()
 	_arena_gates_root.name = "ArenaGates"
 	add_child(_arena_gates_root)
@@ -78,8 +83,17 @@ func _ready() -> void:
 	character_select_menu.character_highlighted.connect(_on_character_highlighted)
 	character_select_menu.character_selected.connect(_on_character_selected)
 
+	if witch_skill_tree_menu != null:
+		witch_skill_tree_menu.skill_leveled_up.connect(_on_cauldron_skill_leveled_up)
+		witch_skill_tree_menu.menu_closed.connect(_on_cauldron_menu_closed)
+
+	if pause_menu != null:
+		pause_menu.lobby_requested.connect(_on_pause_lobby_requested)
+
 	if lobby_hub != null:
 		lobby_hub.wardrobe_opened.connect(open_wardrobe)
+		if lobby_hub.has_signal("cauldron_opened"):
+			lobby_hub.cauldron_opened.connect(open_cauldron_skill_tree)
 		lobby_hub.enter_stages_requested.connect(enter_stages)
 		lobby_hub.enter_sandbox_requested.connect(enter_sandbox)
 
@@ -102,6 +116,12 @@ func _ready() -> void:
 # WORLD TRANSITIONS: LOBBY / STAGES / SANDBOX
 # =====================================================================
 
+func _get_lobby_bounds() -> Rect2:
+	if lobby_hub != null and "LOBBY_BOUNDS" in lobby_hub:
+		return lobby_hub.LOBBY_BOUNDS
+	return Rect2(0.0, 0.0, 480.0, 280.0)
+
+
 func enter_lobby(char_id: String = "") -> void:
 	var target_id := char_id if char_id != "" else CharacterRegistry.selected_id
 	world_mode = WorldMode.LOBBY
@@ -110,16 +130,22 @@ func enter_lobby(char_id: String = "") -> void:
 	upgrade_menu.hide_menu()
 	if character_select_menu.is_open():
 		character_select_menu.hide_menu()
+	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
+		witch_skill_tree_menu.hide_menu()
+	if pause_menu != null and pause_menu.is_open():
+		pause_menu.close_menu()
 
 	wave_spawner.stop_spawning()
 	_clear_combat_enemies()
 	_clear_arena_gates()
 	_set_arena_level_active(false)
 
-	var spawn_at := Vector2(280.0, 265.0)
+	var spawn_at := Vector2(214.0, 204.0)
+	if lobby_hub != null and "SPAWN_POINT" in lobby_hub:
+		spawn_at = lobby_hub.SPAWN_POINT
 	var entry := _replace_player_instance(target_id, true, spawn_at)
 	CharacterRegistry.selected_id = String(entry["id"])
-	_apply_camera_bounds(Rect2(0.0, 0.0, 960.0, 500.0))
+	_apply_camera_bounds(_get_lobby_bounds())
 
 	if lobby_hub != null:
 		lobby_hub.activate_lobby(player)
@@ -141,6 +167,10 @@ func enter_stages() -> void:
 	upgrade_menu.hide_menu()
 	if character_select_menu.is_open():
 		character_select_menu.hide_menu()
+	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
+		witch_skill_tree_menu.hide_menu()
+	if pause_menu != null and pause_menu.is_open():
+		pause_menu.close_menu()
 
 	if lobby_hub != null:
 		lobby_hub.deactivate_lobby()
@@ -173,6 +203,10 @@ func enter_sandbox() -> void:
 	upgrade_menu.hide_menu()
 	if character_select_menu.is_open():
 		character_select_menu.hide_menu()
+	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
+		witch_skill_tree_menu.hide_menu()
+	if pause_menu != null and pause_menu.is_open():
+		pause_menu.close_menu()
 
 	if lobby_hub != null:
 		lobby_hub.deactivate_lobby()
@@ -206,6 +240,8 @@ func enter_sandbox() -> void:
 func open_wardrobe() -> void:
 	if game_is_over or character_select_menu.is_open():
 		return
+	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
+		witch_skill_tree_menu.hide_menu()
 	if player != null and "input_enabled" in player:
 		player.input_enabled = false
 	if lobby_hub != null:
@@ -213,25 +249,67 @@ func open_wardrobe() -> void:
 	character_select_menu.show_menu(CharacterRegistry.selected_id)
 
 
+func open_cauldron_skill_tree() -> void:
+	if game_is_over or witch_skill_tree_menu == null or witch_skill_tree_menu.is_open():
+		return
+	if character_select_menu.is_open():
+		character_select_menu.hide_menu()
+	if player != null and "input_enabled" in player:
+		player.input_enabled = false
+	if lobby_hub != null:
+		lobby_hub.interactions_enabled = false
+	witch_skill_tree_menu.show_for_hero(CharacterRegistry.selected_id)
+
+
+func _on_cauldron_menu_closed() -> void:
+	if player != null and is_instance_valid(player) and "input_enabled" in player and not game_is_over:
+		player.input_enabled = true
+	if lobby_hub != null and world_mode == WorldMode.LOBBY:
+		lobby_hub.interactions_enabled = true
+		if lobby_hub.has_method("set_cauldron_cooldown"):
+			lobby_hub.set_cauldron_cooldown(0.45)
+
+
+func _on_cauldron_skill_leveled_up(hero_id: String, node_id: String, _new_level: int) -> void:
+	if player != null and is_instance_valid(player):
+		var cur_pos := player.position
+		var keep_open := (witch_skill_tree_menu != null and witch_skill_tree_menu.is_open())
+		var entry := _replace_player_instance(hero_id, not keep_open, cur_pos)
+		if world_mode == WorldMode.LOBBY:
+			_apply_camera_bounds(_get_lobby_bounds())
+			if lobby_hub != null:
+				lobby_hub.player_ref = player
+				if lobby_hub.has_method("play_world_potion_handoff"):
+					lobby_hub.play_world_potion_handoff(player, node_id in ["wrath", "essence"])
+		else:
+			_apply_camera_bounds(Rect2(0.0, 0.0, 1280.0, 720.0))
+		_sync_hero_hud(entry)
+		_spawn_status_popup(player.global_position + Vector2(-10.0, -14.0), "POTION GULP!", Color(0.76, 1.0, 0.84))
+
+
+func _on_pause_lobby_requested() -> void:
+	enter_lobby()
+
+
 ## Backwards-compatible helper (used by tests & direct character swap):
-## equips `char_id`; if called while already in Arena (`STAGES`/`SANDBOX`) keeps
-## fighting there, or if called from `CharacterSelectMenu` inside `LOBBY` equips
-## the hero right inside the Lobby!
+## equips `char_id` AND persists `selected_hero` so reopening the game launches
+## straight into the Witch's Cottage as this exact hero!
 func select_character(char_id: String, start_arena_immediately: bool = false) -> void:
 	if character_select_menu != null and character_select_menu.is_open():
 		character_select_menu.hide_menu()
 
-	var norm := CharacterRegistry.normalize_id(char_id)
-	CharacterRegistry.selected_id = norm
+	var norm := WitchCauldronProgression.save_selected_hero(char_id)
 
 	if start_arena_immediately:
 		enter_sandbox()
 		return
 
 	if world_mode == WorldMode.LOBBY:
-		var wardrobe_exit := Vector2(146.0, 265.0)
+		var wardrobe_exit := Vector2(114.0, 156.0)
+		if lobby_hub != null and "WARDROBE_EXIT_POS" in lobby_hub:
+			wardrobe_exit = lobby_hub.WARDROBE_EXIT_POS
 		var entry := _replace_player_instance(norm, true, wardrobe_exit)
-		_apply_camera_bounds(Rect2(0.0, 0.0, 960.0, 500.0))
+		_apply_camera_bounds(_get_lobby_bounds())
 		if lobby_hub != null:
 			lobby_hub.player_ref = player
 			lobby_hub.interactions_enabled = true
@@ -250,10 +328,10 @@ func _on_character_highlighted(char_id: String) -> void:
 	if not character_select_menu.is_open():
 		return
 	var entry := CharacterRegistry.get_entry(char_id)
-	var preview_pos := player.position if player != null and is_instance_valid(player) else Vector2(146.0, 265.0)
+	var preview_pos := player.position if player != null and is_instance_valid(player) else Vector2(114.0, 156.0)
 	_replace_player_instance(String(entry["id"]), false, preview_pos)
 	if world_mode == WorldMode.LOBBY:
-		_apply_camera_bounds(Rect2(0.0, 0.0, 960.0, 500.0))
+		_apply_camera_bounds(_get_lobby_bounds())
 		if lobby_hub != null:
 			lobby_hub.player_ref = player
 	else:
@@ -305,11 +383,12 @@ func _spawn_arena_gate(at: Vector2, label_txt: String, frame_idx: int, sign_col:
 		var dtex: Texture2D = load(DOOR_TEX_PATH)
 		if dtex != null:
 			var sp := Sprite2D.new()
+			sp.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			var at_tex := AtlasTexture.new()
 			at_tex.atlas = dtex
-			at_tex.region = Rect2(float(frame_idx * 80), 0.0, 80.0, 80.0)
+			at_tex.region = Rect2(float(frame_idx * 64), 0.0, 64.0, 64.0)
 			sp.texture = at_tex
-			sp.scale = Vector2(0.84, 0.84)
+			sp.scale = Vector2(0.75, 0.75)
 			holder.add_child(sp)
 
 	var lbl := Label.new()
@@ -348,6 +427,7 @@ func _replace_player_instance(char_id: String, enable_combat: bool, spawn_pos: V
 	new_player.position = spawn_pos
 	add_child(new_player)
 	move_child(new_player, enemies_root.get_index())
+	WitchCauldronProgression.apply_to_hero_instance(new_player)
 	player = new_player
 
 	if "input_enabled" in player:
@@ -443,12 +523,13 @@ func _on_wave_started(number: int, _enemy_count: int) -> void:
 func _on_wave_cleared(number: int) -> void:
 	if game_is_over:
 		return
+	# Award +1 Witch Brew Point for the active hero's Cauldron Skill Tree (NO 3-card popup!)
+	WitchCauldronProgression.add_brew_points(CharacterRegistry.selected_id, 1)
 	if world_mode == WorldMode.SANDBOX:
-		_pop_wave_label("Wave %d Cleared!" % number, Color(0.65, 1.0, 0.82))
-		_show_upgrade_menu()
+		_pop_wave_label("Wave %d Cleared!  +1 Brew Point" % number, Color(0.65, 1.0, 0.82))
 	else:
-		_pop_wave_label("Stage %d Cleared!" % number, Color(0.72, 1.0, 0.76))
-		_show_upgrade_menu()
+		_pop_wave_label("Stage %d Cleared!  +1 Brew Point" % number, Color(0.72, 1.0, 0.76))
+		_after_stage_reward()
 
 
 func _show_upgrade_menu() -> void:
@@ -603,6 +684,10 @@ func _on_not_yet_pressed() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if character_select_menu != null and character_select_menu.is_open():
 		return
+	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
+		return
+	if pause_menu != null and pause_menu.is_open():
+		return
 
 	if game_is_over:
 		if _is_reviving:
@@ -616,13 +701,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventKey and event.pressed and not event.echo:
 		var kc := (event as InputEventKey).keycode
-		if kc == KEY_ESCAPE:
-			if world_mode != WorldMode.LOBBY:
-				enter_lobby()
-				get_viewport().set_input_as_handled()
-			else:
-				open_wardrobe()
-				get_viewport().set_input_as_handled()
+		if kc == KEY_ESCAPE and pause_menu != null:
+			pause_menu.open_menu()
+			get_viewport().set_input_as_handled()
 
 
 # =====================================================================

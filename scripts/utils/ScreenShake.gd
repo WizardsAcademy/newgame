@@ -38,6 +38,7 @@ extends Node
 ##    `Engine.time_scale` is near zero!
 
 ## Hard ceiling on combined shake offset (in pixels) when multiple shakes stack.
+@export var enabled: bool = true
 @export var max_intensity: float = 8.0
 
 ## Controls how quickly each shake damps out over its lifetime.
@@ -62,7 +63,7 @@ func _ready() -> void:
 ## Trigger a camera shake of `intensity` pixels lasting `duration` seconds.
 ## Multiple overlapping calls stack additively up to `max_intensity`.
 func shake(intensity: float, duration: float) -> void:
-	if intensity <= 0.0 or duration <= 0.0:
+	if not enabled or intensity <= 0.0 or duration <= 0.0:
 		return
 
 	_active_shakes.append({

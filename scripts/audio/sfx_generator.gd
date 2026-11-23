@@ -390,6 +390,49 @@ static func create_stun_sfx() -> AudioStreamWAV:
 	return _stun_cache
 
 
+static var _potion_gulp_cache: AudioStreamWAV = null
+
+
+## Bubbly cork-pop + double gulp + arcane chime (0.34 s) when drinking the Witch's potion!
+static func create_potion_gulp_sfx() -> AudioStreamWAV:
+	if _potion_gulp_cache != null:
+		return _potion_gulp_cache
+
+	var duration := 0.34
+	var count := int(MIX_RATE * duration)
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var p1 := 0.0
+	var p2 := 0.0
+	for i in count:
+		var t := float(i) / float(count)
+		var sample := 0.0
+		if t < 0.32:
+			# Gulp 1
+			var gt := t / 0.32
+			var f := lerpf(240.0, 520.0, gt)
+			p1 += TAU * f / float(MIX_RATE)
+			sample = sin(p1) * sin(gt * PI) * 0.55
+		elif t < 0.62:
+			# Gulp 2
+			var gt2 := (t - 0.32) / 0.30
+			var f2 := lerpf(280.0, 620.0, gt2)
+			p1 += TAU * f2 / float(MIX_RATE)
+			sample = sin(p1) * sin(gt2 * PI) * 0.58
+		else:
+			# Magical emerald-violet sparkle chime!
+			var ct := (t - 0.62) / 0.38
+			p1 += TAU * 880.0 / float(MIX_RATE)
+			p2 += TAU * 1320.0 / float(MIX_RATE)
+			var env := pow(1.0 - ct, 1.8)
+			sample = (sin(p1) * 0.42 + sin(p2) * 0.38) * env
+		samples[i] = sample * 0.72
+
+	_potion_gulp_cache = _build_wav(samples)
+	return _potion_gulp_cache
+
+
 ## Pack normalized `-1.0 .. 1.0` float samples into a 16-bit mono AudioStreamWAV.
 static func _build_wav(samples: PackedFloat32Array) -> AudioStreamWAV:
 	var pcm := PackedByteArray()

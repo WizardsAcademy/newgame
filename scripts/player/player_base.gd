@@ -93,6 +93,7 @@ var _base_visual_scale: Vector2 = Vector2.ONE
 var _hurt_anim_left: float = 0.0
 var _invulnerable: bool = false
 var _knockback: Vector2 = Vector2.ZERO
+var _move_vel: Vector2 = Vector2.ZERO
 var _is_flashing: bool = false
 var _enemies_hit_this_swing: Dictionary = {}
 var _footstep_timer: float = 0.0
@@ -344,10 +345,12 @@ func _get_bonus_speed_multiplier() -> float:
 
 func _handle_movement() -> void:
 	if is_dead or not input_enabled:
+		_move_vel = Vector2.ZERO
 		velocity = Vector2.ZERO
 		move_and_slide()
 		return
 
+	var dt := get_physics_process_delta_time()
 	var input_state := _read_input()
 	var raw_move: Vector2 = input_state["move"]
 	var input_dir: Vector2 = raw_move
@@ -356,11 +359,16 @@ func _handle_movement() -> void:
 	else:
 		input_dir *= _get_stance_move_multiplier()
 
-	_knockback = _knockback.move_toward(
-		Vector2.ZERO, 800.0 * get_physics_process_delta_time()
-	)
+	_knockback = _knockback.move_toward(Vector2.ZERO, 800.0 * dt)
 
-	velocity = input_dir * (move_speed * _get_bonus_speed_multiplier()) + _knockback
+	var target_vel := input_dir * (move_speed * _get_bonus_speed_multiplier())
+	if is_attacking and _get_attack_move_multiplier() <= 0.001:
+		_move_vel = Vector2.ZERO
+	else:
+		var accel := 960.0 if target_vel.length() > 0.1 else 1120.0
+		_move_vel = _move_vel.move_toward(target_vel, accel * dt)
+
+	velocity = _move_vel + _knockback
 	move_and_slide()
 
 	if not is_attacking and raw_move.length() > 0.05:

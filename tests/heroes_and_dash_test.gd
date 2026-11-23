@@ -78,10 +78,10 @@ func _run() -> void:
 	var tex_bats: Texture2D = load("res://assets/textures/crimson_bat.png")
 	var dark_font: Font = load("res://assets/fonts/dark_fantasy.ttf")
 
-	_check_eq("Behemoth 4-dir sheet is 1536x96 (16 frames)", tex_behemoth.get_size(), Vector2(1536, 96))
-	_check_eq("Knight 4-dir sheet is 1536x96 (16 frames)", tex_knight.get_size(), Vector2(1536, 96))
-	_check_eq("Sylvara 4-dir sheet is 1440x96 (15 frames)", tex_sylvara.get_size(), Vector2(1440, 96))
-	_check_eq("Noa 4-dir sheet is 1536x96 (16 frames)", tex_noa.get_size(), Vector2(1536, 96))
+	_check_eq("Behemoth 4-dir sheet is 1024x64 (16 frames)", tex_behemoth.get_size(), Vector2(1024, 64))
+	_check_eq("Knight 4-dir sheet is 1024x64 (16 frames)", tex_knight.get_size(), Vector2(1024, 64))
+	_check_eq("Sylvara 4-dir sheet is 960x64 (15 frames)", tex_sylvara.get_size(), Vector2(960, 64))
+	_check_eq("Noa 4-dir sheet is 1024x64 (16 frames)", tex_noa.get_size(), Vector2(1024, 64))
 	_check_eq("Noa Hand-Crafted Blood FX strip is 1024x128 (8x 128x128)", tex_vel_fx.get_size(), Vector2(1024, 128))
 	_check_eq("Noa Classic Crimson Bat strip is 72x24 (3x 24x24)", tex_bats.get_size(), Vector2(72, 24))
 	_check("Dark-Fantasy Gothic font loaded cleanly", dark_font != null)
@@ -99,6 +99,12 @@ func _run() -> void:
 	# -----------------------------------------------------------------
 	# 2. LOBBY, CIRCULAR-CLIPPED HUD, SANDBOX FULL-MAP CHASE vs STAGES NORMAL, & REVIVAL!
 	# -----------------------------------------------------------------
+	var test_save_path := "user://test_witch_cottage_save.cfg"
+	if FileAccess.file_exists(test_save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(test_save_path))
+	WitchCauldronProgression.save_path = test_save_path
+	WitchCauldronProgression._loaded = false
+
 	CharacterRegistry.selected_id = "noa"
 	CharacterRegistry.quick_retry_same_hero = false
 	var main := MAIN_SCENE.instantiate()
@@ -193,9 +199,83 @@ func _run() -> void:
 	_check("Revived hero in Lobby is alive at 100% HP",
 		not main.player.is_dead and main.player.current_health == main.player.max_health)
 
+	# --- WITCH'S COTTAGE (TWO-ROOM REFERENCE MAP), CAULDRON SKILL TREE, NO WAVE POPUP, ESC PAUSE, & HERO PERSISTENCE ---
+	_check_eq("Witch's Cottage Lobby matches compact 2-room reference map (368x360)",
+		lobby.LOBBY_BOUNDS.size, Vector2(368, 360))
+	_check("Witch's Cottage has main & south oak floors, Fireplace + Sofa, Corner Wardrobe, Wooden Doors, 64x64 Witch, & 48x48 Cauldron",
+		lobby.get_node_or_null("CottageFloor") != null
+		and lobby.get_node_or_null("CottageFloorSouth") != null
+		and lobby.get_node_or_null("LobbyFireplace") != null
+		and lobby.get_node_or_null("LobbySofa") != null
+		and lobby.get_node_or_null("WardrobeSprite") != null
+		and lobby.get_node_or_null("DoorStages") != null
+		and lobby.get_node_or_null("DoorSandbox") != null
+		and lobby.get_node_or_null("WitchSprite") != null
+		and lobby.get_node_or_null("CauldronSprite") != null)
+	_check("Cauldron has 6 frames (green bubbling -> sudden purple flash!)",
+		lobby._cauldron_frames.size() == 6)
+
+	# Open Cauldron Skill Tree for Noa -> upgrade Vitality -> Witch hands potion & Noa gains +12 Max HP!
+	main.open_cauldron_skill_tree()
+	await _tick(2)
+	var skill_ui: WitchSkillTreeMenu = main.get_node("UI/WitchSkillTreeMenu")
+	_check_eq("Cauldron Skill Tree opens for active hero ('noa')", skill_ui._hero_id, "noa")
+	var vit_btn: Button = skill_ui.get_node("CauldronPanel/SkillNode_vitality")
+	vit_btn.pressed.emit()
+	await _tick(3)
+	_check("Leveling up in Cauldron triggers Witch potion handoff & upgrades Noa Max HP (75 -> 87)",
+		skill_ui._witch_offer_timer > 0.0 and main.player.max_health == 87 and main.player.current_health == 87,
+		"max_hp=%d" % int(main.player.max_health))
+	_check_eq("Knight's Cauldron Skill Tree stays independent at Lv 0",
+		WitchCauldronProgression.get_node_level("knight", "vitality"), 0)
+	skill_ui.hide_menu()
+	await _tick(2)
+
+	# Wave clear does NOT open 3-card UpgradeMenu popup (`remove_wave_menu`), grants +1 Brew Point instead!
+	var pts_before := WitchCauldronProgression.get_brew_points("noa")
+	main._on_wave_cleared(1)
+	await _tick(2)
+	_check_eq("Wave clear does NOT show 3-card UpgradeMenu popup", main.upgrade_menu.visible, false)
+	_check_eq("Wave clear awards +1 Witch Brew Point to active hero",
+		WitchCauldronProgression.get_brew_points("noa"), pts_before + 1)
+
+	# ESC Pause Menu (`Continue`, `Settings`, `Lobby`, `Quit`)
+	var pause_ui: PauseMenu = main.get_node("UI/PauseMenu")
+	pause_ui.open_menu()
+	_check_eq("Opening PauseMenu pauses SceneTree", get_tree().paused, true)
+	_check("PauseMenu exposes Continue, Settings, Lobby, & Quit buttons",
+		pause_ui.get_node_or_null("MainPausePanel/ContinueButton") != null
+		and pause_ui.get_node_or_null("MainPausePanel/SettingsButton") != null
+		and pause_ui.get_node_or_null("MainPausePanel/LobbyButton") != null
+		and pause_ui.get_node_or_null("MainPausePanel/QuitButton") != null)
+	(pause_ui.get_node("MainPausePanel/SettingsButton") as Button).pressed.emit()
+	_check_eq("Clicking Settings opens SettingsPanel", pause_ui._settings_page.visible, true)
+	(pause_ui.get_node("SettingsPanel/BackButton") as Button).pressed.emit()
+	(pause_ui.get_node("MainPausePanel/ContinueButton") as Button).pressed.emit()
+	_check_eq("Clicking Continue unpauses SceneTree", get_tree().paused, false)
+
+	# Selected Hero Persistence across game sessions (`select_character("sylvara")` -> reopen Main -> spawns Sylvara!)
+	main.select_character("sylvara", false)
+	await _tick(2)
 	main.wave_spawner.stop_spawning()
 	main.queue_free()
 	await _tick(4)
+
+	# Simulate fresh game launch where memory defaulted back to "behemoth"
+	CharacterRegistry.selected_id = "behemoth"
+	WitchCauldronProgression._loaded = false
+	var main_relaunch := MAIN_SCENE.instantiate()
+	add_child(main_relaunch)
+	await get_tree().process_frame
+	await _tick(3)
+	_check_eq("Reopening the game spawns the last selected hero ('sylvara', NOT default 'behemoth'!)",
+		String(main_relaunch.player.get("character_id")), "sylvara")
+	main_relaunch.queue_free()
+	await _tick(3)
+
+	if FileAccess.file_exists(test_save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(test_save_path))
+	WitchCauldronProgression.load_from_disk(test_save_path)
 
 	# -----------------------------------------------------------------
 	# 3. 4-DIRECTIONAL MOVEMENT ON ALL 4 HEROES + KNIGHT STAMINA + NOA BLOOD SPLASH & CLASSIC BATS
@@ -245,12 +325,12 @@ func _run() -> void:
 	for h in [behemoth, knight, sylvara, noa]:
 		h.input_enabled = true
 
-	# Verify Noa's boots stay 100% grounded on node origin (`visuals.position.y == -16.0`, zero vertical float)!
+	# Verify Noa's boots stay 100% grounded on node origin (`visuals.position.y == -11.0`, zero vertical float)!
 	var vy0: float = (noa.visuals as Node2D).position.y
 	await _wait(0.22)
 	var vy1: float = (noa.visuals as Node2D).position.y
-	_check("Noa visuals.position.y is strictly grounded at -16.0 (zero floating bob)",
-		is_equal_approx(vy0, -16.0) and is_equal_approx(vy1, -16.0),
+	_check("Noa visuals.position.y is strictly grounded at -11.0 (zero floating bob)",
+		is_equal_approx(vy0, -11.0) and is_equal_approx(vy1, -11.0),
 		"vy0=%.2f vy1=%.2f" % [vy0, vy1])
 
 	# --- KNIGHT SHIELD STAMINA: 0 hold drain, hit-only drain, lockout at 0 until full ---
