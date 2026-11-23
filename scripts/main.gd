@@ -85,6 +85,8 @@ func _ready() -> void:
 
 	if witch_skill_tree_menu != null:
 		witch_skill_tree_menu.skill_leveled_up.connect(_on_cauldron_skill_leveled_up)
+		if witch_skill_tree_menu.has_signal("tree_reset"):
+			witch_skill_tree_menu.tree_reset.connect(_on_cauldron_tree_reset)
 		witch_skill_tree_menu.menu_closed.connect(_on_cauldron_menu_closed)
 
 	if pause_menu != null:
@@ -280,11 +282,25 @@ func _on_cauldron_skill_leveled_up(hero_id: String, node_id: String, _new_level:
 			if lobby_hub != null:
 				lobby_hub.player_ref = player
 				if lobby_hub.has_method("play_world_potion_handoff"):
-					lobby_hub.play_world_potion_handoff(player, node_id in ["wrath", "essence"])
+					lobby_hub.play_world_potion_handoff(player, node_id in ["wrath", "essence", "blade", "burst"])
 		else:
 			_apply_camera_bounds(Rect2(0.0, 0.0, 1280.0, 720.0))
 		_sync_hero_hud(entry)
-		_spawn_status_popup(player.global_position + Vector2(-10.0, -14.0), "POTION GULP!", Color(0.76, 1.0, 0.84))
+		_spawn_status_popup(player.global_position + Vector2(-10.0, -14.0), "SKILL UP!", Color(0.76, 1.0, 0.84))
+
+
+func _on_cauldron_tree_reset(hero_id: String) -> void:
+	if player != null and is_instance_valid(player):
+		var cur_pos := player.position
+		var keep_open := (witch_skill_tree_menu != null and witch_skill_tree_menu.is_open())
+		var entry := _replace_player_instance(hero_id, not keep_open, cur_pos)
+		if world_mode == WorldMode.LOBBY:
+			_apply_camera_bounds(_get_lobby_bounds())
+			if lobby_hub != null:
+				lobby_hub.player_ref = player
+		else:
+			_apply_camera_bounds(Rect2(0.0, 0.0, 1280.0, 720.0))
+		_sync_hero_hud(entry)
 
 
 func _on_pause_lobby_requested() -> void:
