@@ -99,6 +99,12 @@ func _run() -> void:
 	# -----------------------------------------------------------------
 	# 2. LOBBY, CIRCULAR-CLIPPED HUD, SANDBOX FULL-MAP CHASE vs STAGES NORMAL, & REVIVAL!
 	# -----------------------------------------------------------------
+	var test_save_path := "user://test_witch_cottage_save.cfg"
+	if FileAccess.file_exists(test_save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(test_save_path))
+	WitchCauldronProgression.save_path = test_save_path
+	WitchCauldronProgression._loaded = false
+
 	CharacterRegistry.selected_id = "noa"
 	CharacterRegistry.quick_retry_same_hero = false
 	var main := MAIN_SCENE.instantiate()
@@ -193,9 +199,76 @@ func _run() -> void:
 	_check("Revived hero in Lobby is alive at 100% HP",
 		not main.player.is_dead and main.player.current_health == main.player.max_health)
 
+	# --- WITCH'S COTTAGE, CAULDRON SKILL TREE + POTION HANDOFF, NO WAVE POPUP, ESC PAUSE, & HERO PERSISTENCE ---
+	_check_eq("Witch's Cottage Lobby is compact (480x280)", lobby.LOBBY_BOUNDS.size, Vector2(480, 280))
+	_check("Witch's Cottage has tiled oak floor, Pretty Witch, & Bubbling Cauldron",
+		lobby.get_node_or_null("CottageFloor") != null
+		and lobby.get_node_or_null("WitchSprite") != null
+		and lobby.get_node_or_null("CauldronSprite") != null)
+	_check("Cauldron has 6 frames (green bubbling -> sudden purple flash!)",
+		lobby._cauldron_frames.size() == 6)
+
+	# Open Cauldron Skill Tree for Noa -> upgrade Vitality -> Witch hands potion & Noa gains +12 Max HP!
+	main.open_cauldron_skill_tree()
+	await _tick(2)
+	var skill_ui: WitchSkillTreeMenu = main.get_node("UI/WitchSkillTreeMenu")
+	_check_eq("Cauldron Skill Tree opens for active hero ('noa')", skill_ui._hero_id, "noa")
+	var vit_btn: Button = skill_ui.get_node("CauldronPanel/SkillNode_vitality")
+	vit_btn.pressed.emit()
+	await _tick(3)
+	_check("Leveling up in Cauldron triggers Witch potion handoff & upgrades Noa Max HP (75 -> 87)",
+		skill_ui._witch_offer_timer > 0.0 and main.player.max_health == 87 and main.player.current_health == 87,
+		"max_hp=%d" % int(main.player.max_health))
+	_check_eq("Knight's Cauldron Skill Tree stays independent at Lv 0",
+		WitchCauldronProgression.get_node_level("knight", "vitality"), 0)
+	skill_ui.hide_menu()
+	await _tick(2)
+
+	# Wave clear does NOT open 3-card UpgradeMenu popup (`remove_wave_menu`), grants +1 Brew Point instead!
+	var pts_before := WitchCauldronProgression.get_brew_points("noa")
+	main._on_wave_cleared(1)
+	await _tick(2)
+	_check_eq("Wave clear does NOT show 3-card UpgradeMenu popup", main.upgrade_menu.visible, false)
+	_check_eq("Wave clear awards +1 Witch Brew Point to active hero",
+		WitchCauldronProgression.get_brew_points("noa"), pts_before + 1)
+
+	# ESC Pause Menu (`Continue`, `Settings`, `Lobby`, `Quit`)
+	var pause_ui: PauseMenu = main.get_node("UI/PauseMenu")
+	pause_ui.open_menu()
+	_check_eq("Opening PauseMenu pauses SceneTree", get_tree().paused, true)
+	_check("PauseMenu exposes Continue, Settings, Lobby, & Quit buttons",
+		pause_ui.get_node_or_null("MainPausePanel/ContinueButton") != null
+		and pause_ui.get_node_or_null("MainPausePanel/SettingsButton") != null
+		and pause_ui.get_node_or_null("MainPausePanel/LobbyButton") != null
+		and pause_ui.get_node_or_null("MainPausePanel/QuitButton") != null)
+	(pause_ui.get_node("MainPausePanel/SettingsButton") as Button).pressed.emit()
+	_check_eq("Clicking Settings opens SettingsPanel", pause_ui._settings_page.visible, true)
+	(pause_ui.get_node("SettingsPanel/BackButton") as Button).pressed.emit()
+	(pause_ui.get_node("MainPausePanel/ContinueButton") as Button).pressed.emit()
+	_check_eq("Clicking Continue unpauses SceneTree", get_tree().paused, false)
+
+	# Selected Hero Persistence across game sessions (`select_character("sylvara")` -> reopen Main -> spawns Sylvara!)
+	main.select_character("sylvara", false)
+	await _tick(2)
 	main.wave_spawner.stop_spawning()
 	main.queue_free()
 	await _tick(4)
+
+	# Simulate fresh game launch where memory defaulted back to "behemoth"
+	CharacterRegistry.selected_id = "behemoth"
+	WitchCauldronProgression._loaded = false
+	var main_relaunch := MAIN_SCENE.instantiate()
+	add_child(main_relaunch)
+	await get_tree().process_frame
+	await _tick(3)
+	_check_eq("Reopening the game spawns the last selected hero ('sylvara', NOT default 'behemoth'!)",
+		String(main_relaunch.player.get("character_id")), "sylvara")
+	main_relaunch.queue_free()
+	await _tick(3)
+
+	if FileAccess.file_exists(test_save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(test_save_path))
+	WitchCauldronProgression.load_from_disk(test_save_path)
 
 	# -----------------------------------------------------------------
 	# 3. 4-DIRECTIONAL MOVEMENT ON ALL 4 HEROES + KNIGHT STAMINA + NOA BLOOD SPLASH & CLASSIC BATS
