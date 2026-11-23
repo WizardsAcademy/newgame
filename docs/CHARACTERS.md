@@ -41,7 +41,7 @@
 ## 4. Noa — Silver-Haired Hemomancer (`75 HP`)
 
 - **Scene & Script**: `scenes/player/Noa.tscn`, `scripts/player/noa.gd`
-- **Sprite Sheet (`96×96` × 16 frames = `1536×96`)**: `assets/textures/player_noa.png` (`tools/make_noa_sprites.py` — moonlit **white/silver hair** with crimson temple rose, gothic crimson-collared bodice, smooth normal `idle`, 4-directional `walk`, `attack`, `charge`, `hurt`, and `die` blood-pool frames) + `320×64` portrait `assets/textures/portrait_noa.png`.
+- **Sprite Sheet (`96×96` × 16 frames = `1536×96`)**: `assets/textures/player_noa.png` (`python3 tools/import_pose_sheet.py --hero noa` — hand-drawn poses in `art_src/noa/` with smooth 24-colour cel-shaded pearl/crimson/obsidian palette, grounded 4-directional `walk`, `attack`, `attack_splash`, `charge`, `hurt`, and `die` frames) + `320×64` close-up portrait `assets/textures/portrait_noa.png`.
 - **Signature Mechanic**:
   - **Returning Liquid Blood Whip**: Lashing out sacrifices `6%` Max HP (`5 HP`), **strictly locked at a `1 HP` floor** (Noa can NEVER kill herself by attacking; only enemy damage can kill her). A sinuous crimson blood orb (`128 px` reach) whips outward and curves back into Noa: if it hit `N >= 1` enemies (`13 DMG` each), it heals **`spent_hp + 1 × N`** on return (`+1 HP` net per enemy hit; `0` heal on miss).
   - **2-Fang + Filling Crimson Circle Curse**: Each Blood Whip hit builds `1/4` of a circular crimson gauge topped with two vampire fangs on the target. On the **4th hit (`4/4`)**, the circle explodes for **30% of the enemy's Max HP** (capped at `55` on bosses) and heals Noa `+4 HP`.

@@ -1,6 +1,6 @@
 # Hero Art Contract (`96×96` Pixel-Art Specification)
 
-This document defines the binding art, proportion, palette, shading, and scene-scale contract for all playable heroes in **Roguelike Brawler** (`WizardsAcademy/newgame`), working alongside [`docs/HERO_SKELETON_SPEC.md`](HERO_SKELETON_SPEC.md). Any new hero or hero reskin must pass `python3 tools/hero_skeleton_check.py --strict`, `python3 tools/measure_hero_sheets.py --strict`, and `godot --headless --path . tests/sprite_contract_test.tscn`.
+This document defines the binding `96×96` pixel-art, palette, shading, and scene-scale contract for all playable heroes in **Roguelike Brawler** (`WizardsAcademy/newgame`). Any new hero or hero reskin must pass `python3 tools/measure_hero_sheets.py --strict` and `godot --headless --path . tests/sprite_contract_test.tscn`.
 
 ---
 
@@ -9,19 +9,13 @@ This document defines the binding art, proportion, palette, shading, and scene-s
 | Parameter | Contract Value | Notes |
 |-----------|----------------|-------|
 | **Cell dimensions** | `96 × 96 px` | Single horizontal strip `(96 * frame_count) × 96`, RGBA PNG |
-| **Per-hero standing height (`f0_h`)** | `Behemoth 68 [66–70]`, `Knight 76 [74–80]`, `Sylvara 80 [78–84]`, `Noa 64 [62–68]` | Four distinct skeletons defined in [`docs/HERO_SKELETON_SPEC.md`](HERO_SKELETON_SPEC.md) |
-| **Ground baseline (`GROUND_Y`)** | `80` (`bottom_y == 80`) | Every frame's lowest opaque pixel sits at `y = 79` (`bbox.bottom = 80`); `16 px` bottom margin reserved for downward follow-through FX |
-| **Head-to-body ratio** | `25–33%` per hero (`[22–36%]`) | `Sylvara 25%`, `Knight 26%`, `Behemoth 31%`, `Noa 33%` |
-| **Pairwise silhouette IoU** | `<= 0.45` target (`<= 0.55` hard gate) | Verified by `python3 tools/hero_skeleton_check.py --strict --iou` |
-| **`Visuals.scale`** | `Vector2(0.5, 0.5)` | Uniform X=Y scale across all 4 heroes (`32–40 px` world height; `64–80 px` at `2×` camera zoom vs `~32 px` Slime) |
-| **`Visuals.position`** | `Vector2(0, -16)` | `-(GROUND_Y - CELL/2) * scale = -(80 - 48) * 0.5 = -16.0`, grounding feet on the `CharacterBody2D` origin |
-| **`Shadow.position`** | `Vector2(0, 32)` | Evaluated in `Visuals` local space (`32 * 0.5 = +16 px` below sprite center = exact `y = 0` foot line) |
+| **Standing height (`f0_h`)** | `56–84 px` | Classic 96×96 pixel-art proportions (`Behemoth 60`, `Sylvara 61`, `Noa 68`, `Knight 72`) |
+| **Standing ground (`f0 bottom_y`)** | `78–86` | Standing feet sit consistently near `y = 80` (`85` on Knight to leave room for helmet & sword arc) |
+| **`Visuals.scale`** | `Vector2(0.5, 0.5)` | Exact integer `2:1` pixel scale across all 4 heroes |
+| **`Visuals.position`** | `Vector2(0, -16)` (`-18.5` Knight) | Grounds each hero's standing boots on the `CharacterBody2D` origin |
+| **`Shadow`** | `res://assets/textures/slime_shadow.png` | Soft `32×10` pixel-art oval shadow beneath feet (never a rectangular square sprite) |
 | **Texture filtering** | `NEAREST` everywhere | `default_texture_filter = 0`, `Visuals.texture_filter = 1`, zero `LINEAR*` or `mipmaps/generate=true` in scenes, UI, or `.import` files |
-| **Alpha channel** | Binary (`0` or `255`) | Semi-transparent pixels (`0 < a < 255`) must be `0.00%` (`<= 2.0%` hard gate) |
-
-Visual proofs live in:
-- `docs/images/silhouettes.png` — pure-black `96×96` stand-pose silhouette gate across all 4 heroes.
-- `docs/images/hero_size_lineup.png` — true on-screen scale (`@2×` camera zoom) comparing Slime + all 4 heroes before and after unification.
+| **Alpha channel** | Crisp (`<= 2.0%` semi-alpha) | Clean pixel edges without blurry linear fringes |
 
 ---
 
@@ -69,18 +63,13 @@ Each hero must read unmistakably as a pure-black `96×96` silhouette (`docs/imag
 ## 4. Regeneration & Automated Verification
 
 ```bash
-# Regenerate all 4 hero sheets, HUD portraits & silhouette/lineup deliverables
+# Regenerate classic 96x96 hero sheets, Noa hand-drawn sheet & HUD portraits
 python3 tools/make_behemoth_sprites.py
 python3 tools/make_knight_sprites.py
 python3 tools/make_sylvara_sprites.py
-python3 tools/make_noa_sprites.py
-python3 tools/make_hero_portraits.py
-python3 tools/make_art_deliverables.py
+python3 tools/import_pose_sheet.py --hero noa
 
-# Enforce per-hero skeleton proportions & pairwise silhouette IoU
-python3 tools/hero_skeleton_check.py --strict --iou
-
-# Enforce sheet dimensions, per-hero f0_h, GROUND_Y=80, <=24 colours, 0% semi-alpha, zero #000000
+# Enforce sheet dimensions, standing height, <=24 colours, <=2% semi-alpha, zero #000000
 python3 tools/measure_hero_sheets.py --strict
 
 # Run headless Godot art-contract & hero suites

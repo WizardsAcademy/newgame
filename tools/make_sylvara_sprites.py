@@ -1,302 +1,445 @@
-#!/usr/bin/env python3
-"""Generate Sylvara's 15-frame 96x96 Blonde Elven Ranger sheet (`HERO_SKELETON_SPEC.md`).
+#!/usr/bin/env python
+"""Generate Sylvara's 9-frame 96x96 Blonde Medieval Elven Ranger sheet.
 
-Bespoke Skeleton #3 — Tallest & Thinnest Elven Ranger:
-  - `body_h = 80` (`crown_y = 0 .. GROUND_Y = 80`) — tallest hero in the cast!
-  - `head_ratio = 25%` (`crown_y = 2 .. chin_y = 22`)
-  - `shoulder_w = 25` (`[20..28]`), `hip_w = 14` (`[12..18]`)
-  - Silhouette identity: closed Golden-Yew Recurve Bow hoop extending `+10px`
-    past her narrow `12px` body on the right; feathered quiver breaking the
-    upper-back line at `45°` on the left. Nothing else is wide!
-  - Lithe, graceful elven legs: `leg_mass ~ 215` (`[150..260]`), `stance_w = 12`
+Art direction:
+  - Lush golden-blonde wavy locks + long pointed elven ears + silver-emerald
+    circlet tiara + expressive emerald eyes,
+  - Medieval forest-emerald ranger mantle & gold-trimmed leather bodice,
+    feathered quiver on back, tall laced ranger boots,
+  - Ornate Golden-Yew Elven Recurve Bow VISIBLY HELD IN HER HAND in every pose,
+  - Clear Bow-Draw & Glowing Emerald Charge animation + Sylvan Leaf Vault + Hurt!
+
+Writes:
+    assets/textures/player_sylvara.png   1440 x 96 (15 frames of 96x96)
+    docs/images/sylvara_preview.png      review sheet
+
+SHEET LAYOUT (matches scenes/player/Sylvara.tscn):
+    0 : idle            (Recurve Bow held at ready)
+    1 : walk A
+    2 : walk B
+    3 : bow draw        (raises Recurve Bow forward, nocks emerald arrow)
+    4 : bow charge      (pulls glowing bowstring taut to cheek, blazing arrowhead!)
+    5 : bow release     (bowstring snaps forward, open draw hand)
+    6 : wind vault      (airborne Sylvan Windstep leap + swirling leaves)
+    7 : hurt            (recoiling wince pose)
+    8 : blink           (lashes gently closed)
 """
 
-from __future__ import annotations
-
+import math
 from PIL import Image, ImageDraw
-from hero_art_lib import CELL, GROUND_Y, RAMPS, HeroCanvas
+
+FRAME = 96
+FRAMES = 9
+
+OUTLINE = (11, 10, 14, 255)
+SKIN = (248, 214, 198, 255)
+SKIN_SHA = (212, 166, 150, 255)
+BLUSH = (244, 152, 162, 255)
+
+BLONDE_SHA = (176, 126, 42, 255)
+BLONDE_MID = (224, 178, 72, 255)
+BLONDE_LIT = (248, 216, 112, 255)
+BLONDE_HI = (255, 242, 176, 255)
+
+CLOAK_DEEP = (20, 62, 44, 255)
+CLOAK_MID = (34, 98, 66, 255)
+CLOAK_LIT = (58, 142, 92, 255)
+LEATHER_DARK = (74, 46, 30, 255)
+LEATHER_MID = (118, 76, 48, 255)
+GOLD_MID = (208, 164, 62, 255)
+GOLD_HI = (252, 224, 118, 255)
+
+EMERALD_DARK = (18, 122, 78, 255)
+EMERALD_BRIGHT = (72, 244, 152, 255)
+EMERALD_GLOW = (196, 255, 218, 255)
+STRING_COL = (226, 236, 232, 225)
 
 
-def _draw_quiver_45(c: HeroCanvas, qx: float, qy: float) -> None:
-    """45-degree feathered quiver breaking the upper-back line starting at `qy` (`y = 22`)."""
-    # Diagonal leather quiver tube at exact 45 degrees `(qx, qy + 1) -> (qx + 8, qy + 9)`
-    c.tapered_limb(qx + 1, qy + 2, 1.9, qx + 9, qy + 10, 1.6, "leather", bias=0.10)
-    # Twin white-and-gold fletched arrow tails jutting at 45 degrees (`y = qy .. qy + 4`)
-    c.stroke(qx - 2, qy, qx + 2, qy + 4, "moon", 3, width=1)
-    c.stroke(qx, qy, qx + 3, qy + 3, "gold", 3, width=1)
+def put(img: Image.Image, x: int, y: int, col) -> None:
+    if 0 <= x < FRAME and 0 <= y < FRAME:
+        img.putpixel((x, y), col)
 
 
-def _draw_closed_bow_hoop(
-    c: HeroCanvas,
-    string_x: float,
-    top_y: float,
-    bot_y: float,
-    arch_px: float = 9.5,
-    pull_px: float = 0.0,
-    charged: bool = False,
-) -> None:
-    """Closed Recurve Bow hoop extending `+10px` past the body with crisp open window."""
-    mid_y = 0.5 * (top_y + bot_y)
-    ry = 0.5 * (bot_y - top_y)
+def pill_limb(img: Image.Image, x0: float, y0: float, x1: float, y1: float, r: int,
+              dark_c, mid_c, hi_c) -> None:
+    steps = max(int(math.hypot(x1 - x0, y1 - y0) * 2), 4)
+    d = ImageDraw.Draw(img)
+    for pass_id in range(3):
+        for i in range(steps + 1):
+            t = i / steps
+            cx = x0 + (x1 - x0) * t
+            cy = y0 + (y1 - y0) * t
+            if pass_id == 0:
+                rr = r + 1
+                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=OUTLINE)
+            elif pass_id == 1:
+                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=dark_c)
+                rr2 = max(r - 1, 1)
+                d.ellipse([cx - rr2, cy - rr2 - 1, cx + rr2, cy + rr2 - 1], fill=mid_c)
+            else:
+                rr3 = max(r - 2, 1)
+                d.ellipse([cx - rr3, cy - rr3 - 1, cx + rr3 - 1, cy - 1], fill=hi_c)
 
-    # Outer golden-yew recurve bow arc (`string_x -> string_x + arch_px`)
-    c.arc_stroke(string_x - 1, mid_y, arch_px + 1, ry, -86, 86, "gold", 2, width=2, selout_wrap=True)
-    # Carve inner D-window cleanly so the closed bow hoop has unmistakable negative space!
-    win_pts = [
-        (string_x + 2, top_y + 4),
-        (string_x + arch_px - 3, mid_y - 5),
-        (string_x + arch_px - 3, mid_y + 5),
-        (string_x + 2, bot_y - 4),
+
+def draw_blonde_hair_back(img: Image.Image, cx: int, cy: int, sway: int = 0) -> None:
+    """Long cascading golden-blonde back hair locks reaching down past her waist!"""
+    d = ImageDraw.Draw(img)
+    pts = [
+        (cx - 13, cy - 22),
+        (cx + 12, cy - 22),
+        (cx + 18 + sway, cy + 4),
+        (cx + 14 + sway, cy + 16),
+        (cx + 8 + sway, cy + 11),
+        (cx + 2 + sway, cy + 19),
+        (cx - 5 + sway, cy + 12),
+        (cx - 12 + sway, cy + 18),
+        (cx - 19 + sway, cy + 6),
     ]
-    c.erase_poly(win_pts)
-
-    # Taut bowstring closing the hoop from `(string_x, top_y + 1)` to `(string_x, bot_y - 1)`
-    sx = string_x - pull_px
-    c.stroke(string_x, top_y + 1, sx, mid_y, "moon", 2, width=1)
-    c.stroke(sx, mid_y, string_x, bot_y - 1, "moon", 2, width=1)
-    # Leather bow grip
-    c.rrect(string_x + arch_px - 2, mid_y - 2, string_x + arch_px + 1, mid_y + 2, 1, "leather")
-
-    if pull_px > 1.0:
-        tip_x = string_x + arch_px + 6 + (3 if charged else 0)
-        c.stroke(sx, mid_y, tip_x, mid_y, "emerald" if charged else "leather", 3 if charged else 2, width=2 if charged else 1)
-        c.poly(
-            [(tip_x, mid_y - 2), (tip_x + 5, mid_y), (tip_x, mid_y + 2)],
-            "emerald" if charged else "steel",
-            bias=0.35,
-        )
+    d.polygon(pts, fill=BLONDE_SHA, outline=OUTLINE)
+    inner = [
+        (cx - 11, cy - 19),
+        (cx + 10, cy - 19),
+        (cx + 14 + sway, cy + 7),
+        (cx - 1 + sway, cy + 13),
+        (cx - 14 + sway, cy + 7),
+    ]
+    d.polygon(inner, fill=BLONDE_MID)
+    # Wavy sunlit golden highlights down the locks
+    for lx in (-9, -2, 6):
+        d.line([(cx + lx, cy - 12), (cx + lx + sway // 2, cy + 8)], fill=BLONDE_LIT, width=2)
 
 
-def _draw_sylvara_head(
-    c: HeroCanvas,
-    hx: int,
-    crown_y: int,
-    blink: bool = False,
-    hurt: bool = False,
-    facing_mode: str = "side",
-) -> None:
-    """Lithe elven head + flowing golden hair locks (`crown_y = 0 .. y = 21`, no giraffe neck!)."""
-    # Delicate golden crown crest (`y = 0..1`, `3px`) + full golden hair (`y = 2..19`)
-    c.rrect(hx - 1, crown_y, hx + 1, crown_y + 3, 1, "gold", bias=0.30)
-    c.rrect(hx - 5, crown_y + 2, hx + 5, crown_y + 15, 3, "gold", bias=0.20)
-    # Flowing golden hair lock behind neck (`y = 13..19`, tapering gracefully into collar at `y = 20..21`)
-    c.poly(
-        [(hx - 5, crown_y + 13), (hx + 3, crown_y + 13), (hx + 2, crown_y + 19), (hx - 4, crown_y + 19)],
-        "gold",
-        bias=0.12,
-    )
-    # Graceful neck & high emerald collar pinch (`y = 16..21`, `7px` wide so `rows[:22]` stays `<= 15px`!)
-    c.rrect(hx - 2, crown_y + 16, hx + 3, crown_y + 20, 1, "skin", bias=0.12)
-    c.rrect(hx - 3, crown_y + 19, hx + 3, crown_y + 21, 1, "emerald", bias=0.06)
+def draw_quiver(img: Image.Image, cx: int, cy: int) -> None:
+    """Feathered elven leather quiver peeking above her left shoulder!"""
+    d = ImageDraw.Draw(img)
+    d.polygon([(cx - 10, cy - 8), (cx - 17, cy - 22), (cx - 12, cy - 24), (cx - 6, cy - 9)],
+              fill=LEATHER_MID, outline=OUTLINE)
+    # Emerald & white arrow fletchings sticking out
+    for fx, fy in ((cx - 17, cy - 26), (cx - 14, cy - 28), (cx - 11, cy - 26)):
+        d.line([(fx + 2, fy + 4), (fx, fy)], fill=EMERALD_BRIGHT, width=2)
+        put(img, fx, fy - 1, GOLD_HI)
 
-    if facing_mode == "up":
-        c.poly([(hx - 5, crown_y + 4), (hx + 5, crown_y + 4), (hx + 4, crown_y + 20), (hx - 4, crown_y + 20)], "gold", bias=0.18)
-        c.poly([(hx - 5, crown_y + 8), (hx - 9, crown_y + 6), (hx - 5, crown_y + 11)], "skin")
-        c.poly([(hx + 5, crown_y + 8), (hx + 9, crown_y + 6), (hx + 5, crown_y + 11)], "skin")
-        return
 
-    fx = 1 if facing_mode == "side" else 0
-    # Lithe elven face (`y = 4..16`, `x = hx - 5 .. hx + 5 + fx`)
-    c.rrect(hx - 5 + fx, crown_y + 4, hx + 5 + fx, crown_y + 16, 3, "skin", bias=0.18)
-    # Golden forehead bangs
-    c.poly([(hx - 5 + fx, crown_y + 2), (hx + 5 + fx, crown_y + 2), (hx + 5 + fx, crown_y + 6), (hx - 5 + fx, crown_y + 6)], "gold", bias=0.26)
-    # Pointed elven ear (`y = 7..11`)
-    c.poly([(hx - 4 + fx, crown_y + 8), (hx - 9 + fx, crown_y + 6), (hx - 5 + fx, crown_y + 11)], "skin", bias=0.16)
-    if facing_mode != "side":
-        c.poly([(hx + 4, crown_y + 8), (hx + 9, crown_y + 6), (hx + 5, crown_y + 11)], "skin", bias=0.06)
+def draw_elf_head(img: Image.Image, cx: int, cy: int, blink: bool = False,
+                  hurt: bool = False, charge_focus: bool = False) -> None:
+    d = ImageDraw.Draw(img)
+    # Crown hair dome
+    d.ellipse([cx - 13, cy - 14, cx + 13, cy + 8], fill=BLONDE_MID, outline=OUTLINE)
+    d.arc([cx - 10, cy - 12, cx + 10, cy - 2], 195, 345, fill=BLONDE_HI, width=2)
 
-    # Emerald tiara circlet
-    c.stroke(hx - 4 + fx, crown_y + 5, hx + 5 + fx, crown_y + 5, "gold", 3)
-    c.dot(hx + (2 if facing_mode == "side" else 0), crown_y + 5, "emerald", 3)
+    # Long delicate pointed Elven ears jutting out both sides!
+    d.polygon([(cx - 10, cy - 1), (cx - 19, cy - 5), (cx - 11, cy + 4)], fill=SKIN, outline=OUTLINE)
+    d.polygon([(cx + 10, cy - 1), (cx + 19, cy - 5), (cx + 11, cy + 4)], fill=SKIN, outline=OUTLINE)
+    put(img, cx - 15, cy - 3, SKIN_SHA)
+    put(img, cx + 15, cy - 3, SKIN_SHA)
 
-    # Crisp emerald eyes (`y = 9..10`)
-    ex_pair = (hx + 1, hx + 4) if facing_mode == "side" else (hx - 3, hx + 3)
-    ey = crown_y + 9
+    # Soft heart-shaped pixel face
+    d.rounded_rectangle([cx - 9, cy - 7, cx + 9, cy + 9], radius=5, fill=SKIN, outline=OUTLINE)
+    # Rosy cheeks
+    put(img, cx - 6, cy + 3, BLUSH)
+    put(img, cx + 6, cy + 3, BLUSH)
+
+    # Expressive Emerald Anime-Pixel Eyes!
     if hurt:
-        for ex in ex_pair:
-            c.stroke(ex - 1, ey, ex + 1, ey + 1, "skin", 0)
+        d.line([(cx - 6, cy - 1), (cx - 2, cy + 1)], fill=OUTLINE)
+        d.line([(cx - 2, cy + 1), (cx - 6, cy + 3)], fill=OUTLINE)
+        d.line([(cx + 6, cy - 1), (cx + 2, cy + 1)], fill=OUTLINE)
+        d.line([(cx + 2, cy + 1), (cx + 6, cy + 3)], fill=OUTLINE)
+        d.rectangle([cx - 1, cy + 5, cx + 2, cy + 7], fill=(185, 65, 78, 255))
     elif blink:
-        for ex in ex_pair:
-            c.stroke(ex - 1, ey + 1, ex + 1, ey + 1, "skin", 0)
+        d.line([(cx - 6, cy + 1), (cx - 2, cy + 1)], fill=OUTLINE)
+        d.line([(cx + 2, cy + 1), (cx + 6, cy + 1)], fill=OUTLINE)
+        put(img, cx, cy + 5, SKIN_SHA)
     else:
-        for ex in ex_pair:
-            c.dot(ex, ey - 1, "leather", 0)
-            c.dot(ex, ey, "emerald", 1)
-            c.dot(ex + 1, ey, "emerald", 3)
+        for ex in (cx - 5, cx + 2):
+            # Dark upper lash + vibrant emerald iris + white starlight catchlight!
+            d.rectangle([ex, cy - 2, ex + 3, cy + 2], fill=EMERALD_DARK)
+            d.line([(ex - 1, cy - 2), (ex + 3, cy - 2)], fill=OUTLINE)
+            put(img, ex + 1, cy, EMERALD_BRIGHT)
+            put(img, ex + 2, cy + 1, EMERALD_GLOW if charge_focus else EMERALD_BRIGHT)
+            put(img, ex, cy - 1, (255, 255, 255, 255))
+        put(img, cx, cy + 5, SKIN_SHA)
+
+    # Side bangs & golden forelocks framing cheeks + Silver-Emerald Tiara!
+    d.polygon([(cx - 11, cy - 8), (cx - 7, cy - 8), (cx - 9, cy + 9), (cx - 12, cy + 4)],
+              fill=BLONDE_LIT, outline=OUTLINE)
+    d.polygon([(cx + 7, cy - 8), (cx + 11, cy - 8), (cx + 12, cy + 4), (cx + 9, cy + 9)],
+              fill=BLONDE_LIT, outline=OUTLINE)
+    d.polygon([(cx - 5, cy - 10), (cx + 5, cy - 10), (cx + 1, cy - 3), (cx - 2, cy - 4)],
+              fill=BLONDE_HI)
+    # Tiara circlet + glowing emerald center gem
+    d.line([(cx - 8, cy - 9), (cx + 8, cy - 9)], fill=GOLD_HI, width=2)
+    d.ellipse([cx - 2, cy - 11, cx + 2, cy - 7], fill=EMERALD_BRIGHT, outline=OUTLINE)
+    put(img, cx - 1, cy - 10, EMERALD_GLOW)
 
 
-def build_sylvara_side(pose: str) -> Image.Image:
-    c = HeroCanvas()
-    # Positioned at `cx = 39` so her +10px closed bow hoop extends right (`x = 55`)
-    cx = 39
-    crown_y = 0  # exact 80 - 0 = 80px standing height!
-    l_leg_x, l_fy = 36, 79
-    r_leg_x, r_fy = 42, 79
+def draw_recurve_bow(img: Image.Image, gx: float, gy: float, angle_deg: float,
+                     pull_px: float = 0.0, arrow_state: str = "none") -> None:
+    """Ornate Golden-Yew Elven Recurve Bow held at (gx, gy), with taut string
+    and optional nocked / blazing emerald-charged Great-Arrow!"""
+    rad = math.radians(angle_deg)
+    ux, uy = math.cos(rad), math.sin(rad)
+    px, py = -uy, ux
+    d = ImageDraw.Draw(img)
+
+    # Recurve bow arc: bends deeper as pull_px increases!
+    bend = 5.0 + pull_px * 0.25
+    half_span = 18.0 - pull_px * 0.12
+    bow_pts = []
+    for i in range(17):
+        s = -1.0 + 2.0 * (i / 16.0)
+        # Recurve S-tips flare slightly forward at the very ends!
+        recurve = -bend * (s * s) + (2.2 * (abs(s) - 0.78) * 4.5 if abs(s) > 0.78 else 0.0)
+        bx = gx + ux * recurve + px * (s * half_span)
+        by = gy + uy * recurve + py * (s * half_span)
+        bow_pts.append((bx, by))
+
+    tip_top = bow_pts[0]
+    tip_bot = bow_pts[-1]
+    nock_pt = (gx - ux * (4.5 + pull_px), gy - uy * (4.5 + pull_px))
+
+    # Bowstring (2 taut segments from tips to nock point!)
+    d.line([tip_top, nock_pt, tip_bot], fill=STRING_COL, width=1)
+
+    # Curved Yew & Gold bow stave
+    d.line(bow_pts, fill=OUTLINE, width=5)
+    d.line(bow_pts, fill=GOLD_MID, width=3)
+    d.line(bow_pts[4:13], fill=GOLD_HI, width=1)
+    # Emerald leaf riser gem at bow grip
+    ix, iy = int(round(gx + ux * 1)), int(round(gy + uy * 1))
+    d.ellipse([ix - 2, iy - 2, ix + 2, iy + 2], fill=EMERALD_BRIGHT, outline=OUTLINE)
+
+    # Nocked / Charged Emerald Arrow!
+    if arrow_state in ("nocked", "charged"):
+        shaft_end = (gx + ux * 11.0, gy + uy * 11.0)
+        d.line([nock_pt, shaft_end], fill=OUTLINE, width=3)
+        d.line([nock_pt, shaft_end], fill=GOLD_HI if arrow_state == "charged" else LEATHER_MID, width=1)
+        # Arrowhead
+        tx, ty = int(round(shaft_end[0])), int(round(shaft_end[1]))
+        if arrow_state == "charged":
+            # Radiant emerald starlight aura at arrowhead!
+            d.ellipse([tx - 6, ty - 6, tx + 6, ty + 6], fill=(72, 244, 152, 95))
+            d.ellipse([tx - 3, ty - 3, tx + 3, ty + 3], fill=EMERALD_BRIGHT, outline=OUTLINE)
+            for dx, dy in ((-7, 0), (7, 0), (0, -7), (0, 7)):
+                d.line([(tx, ty), (tx + dx, ty + dy)], fill=EMERALD_GLOW, width=1)
+            put(img, tx, ty, (255, 255, 255, 255))
+        else:
+            d.polygon([
+                (tx + ux * 4, ty + uy * 4),
+                (tx - px * 3, ty - py * 3),
+                (tx + px * 3, ty + py * 3),
+            ], fill=EMERALD_BRIGHT, outline=OUTLINE)
+    elif arrow_state == "released":
+        # Snap vibration lines + emerald streak leaving the bow!
+        d.line([(gx + ux * 6, gy + uy * 6), (gx + ux * 26, gy + uy * 26)],
+               fill=EMERALD_GLOW, width=2)
+
+
+def build_sylvara_pose(pose: str) -> Image.Image:
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    cx, cy = 44, 50
+    sway = 0
+    leg_l, leg_r = (-5, 26), (5, 26)
 
     if pose == "walk_a":
-        l_leg_x, l_fy = 34, 78
-        r_leg_x, r_fy = 44, 79
+        cy -= 1
+        leg_l, leg_r = (-8, 24), (7, 27)
+        sway = -2
     elif pose == "walk_b":
-        l_leg_x, l_fy = 37, 79
-        r_leg_x, r_fy = 40, 77
-    elif pose in ("bow_draw", "bow_charge", "bow_release"):
-        cx = 39
-        l_leg_x, r_leg_x = 35, 44
-    elif pose == "wind_vault":
-        cx = 41
-        l_leg_x, l_fy = 35, 79
-        r_leg_x, r_fy = 44, 72
+        cy -= 1
+        leg_l, leg_r = (-2, 27), (3, 23)
+        sway = -1
+    elif pose == "draw":
+        cx += 1
+        sway = -2
+    elif pose == "charge":
+        cx -= 1
+        leg_l, leg_r = (-8, 26), (8, 26)
+        sway = -4
+    elif pose == "release":
+        cx += 2
+        sway = -3
+    elif pose == "vault":
+        cx += 4
+        cy -= 6
+        leg_l, leg_r = (-11, 21), (8, 18)
+        sway = -8
     elif pose == "hurt":
-        cx = 38
-        crown_y = 8  # recoil crouch (`h = 72 < 80 * 0.92`) so `frame 0` is standing cell!
-        l_leg_x, r_leg_x = 35, 42
+        cx -= 4
+        cy += 1
+        sway = 4
 
-    sh_y = 25
-    waist_y = 40
-    hip_y = 49
+    # 1. Flowing blonde hair back + feathered quiver + forest cloak
+    draw_quiver(img, cx, cy)
+    draw_blonde_hair_back(img, cx, cy, sway=sway)
 
-    # 1. 45-degree Feathered Quiver breaking the upper-back line at `y = 22..32`!
-    _draw_quiver_45(c, cx - 8, 22 + crown_y // 2)
+    cloak = [
+        (cx - 10, cy - 8),
+        (cx + 10, cy - 8),
+        (cx + 14 + sway, cy + 18),
+        (cx - 14 + sway, cy + 18),
+    ]
+    d.polygon(cloak, fill=CLOAK_DEEP, outline=OUTLINE)
 
-    # 2. Long, graceful elven legs (`y = 52..79`, `leg_top = 56`: `leg_mass ~ 215`, `stance_w = 12`)!
-    for idx, (lx, fy) in enumerate(((l_leg_x, l_fy), (r_leg_x, r_fy))):
-        hip_anchor = cx - 2 if idx == 0 else cx + 2
-        knee_x = int(round(0.4 * hip_anchor + 0.6 * lx))
-        knee_y = 65
-        c.tapered_limb(hip_anchor, hip_y + 2, 1.6, knee_x, knee_y, 1.4, "emerald", bias=-0.05 if idx == 0 else 0.08)
-        c.tapered_limb(knee_x, knee_y, 1.4, lx, fy - 3, 1.2, "leather", bias=0.10)
-        # Dainty laced ranger boots (`stance_w = 12` on idle: `34..45`)
-        if idx == 0:
-            c.rrect(lx - 2, fy - 3, lx + 1, fy, 1, "leather", bias=0.08)
-        else:
-            c.rrect(lx - 1, fy - 3, lx + 3, fy, 1, "leather", bias=0.14)
-            c.dot(lx + 1, fy - 3, "gold", 3)
+    # 2. Slender legs & tall laced ranger boots
+    for lx, ly in ((cx + leg_l[0], cy + leg_l[1]), (cx + leg_r[0], cy + leg_r[1])):
+        pill_limb(img, cx + (leg_l[0] // 2 if lx < cx else leg_r[0] // 2), cy + 12, lx, ly - 6, 3,
+                  SKIN_SHA, SKIN, SKIN)
+        d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        d.line([(lx - 3, ly - 7), (lx + 3, ly - 7)], fill=GOLD_MID)
+        put(img, lx, ly - 4, GOLD_HI)
 
-    if pose == "wind_vault":
-        c.arc_stroke(cx - 1, 76, 8, 3, 15, 165, "emerald", 3, width=1)
+    # 3. Fitted Emerald & Gold-Laced Medieval Ranger Tunic + Skirt
+    skirt = [
+        (cx - 9, cy + 5),
+        (cx + 9, cy + 5),
+        (cx + 13, cy + 16),
+        (cx - 13, cy + 16),
+    ]
+    d.polygon(skirt, fill=CLOAK_MID, outline=OUTLINE)
+    d.line([(cx - 11, cy + 15), (cx + 11, cy + 15)], fill=GOLD_HI)
 
-    # 3. Rounded emerald ranger capelet -> ultra-slender `12px` ranger torso -> `14px` tunic hip!
-    c.poly(
-        [
-            (cx - 5, 22 + crown_y),   # rounded shoulder top (no flat T-bar shelf!)
-            (cx + 6, 22 + crown_y),
-            (cx + 7, sh_y + crown_y // 2),
-            (cx + 5, waist_y),
-            (cx + 7, hip_y + 3),
-            (cx - 6, hip_y + 3),
-            (cx - 5, waist_y),
-            (cx - 6, sh_y + crown_y // 2),
-        ],
-        "emerald",
-        bias=0.12,
-    )
-    c.poly([(cx - 4, sh_y + 2 + crown_y // 2), (cx + 4, sh_y + 2 + crown_y // 2), (cx + 3, waist_y), (cx - 3, waist_y)], "leather", bias=0.10)
-    c.rrect(cx - 5, waist_y - 1, cx + 5, waist_y + 1, 1, "gold", bias=0.22)
-    c.dot(cx + 1, 23 + crown_y, "gold", 3)
+    bodice = [
+        (cx - 9, cy - 8),
+        (cx + 9, cy - 8),
+        (cx + 7, cy + 7),
+        (cx - 7, cy + 7),
+    ]
+    d.polygon(bodice, fill=LEATHER_MID, outline=OUTLINE)
+    # Emerald shoulder mantle capelet with gold clasp
+    d.polygon([(cx - 11, cy - 9), (cx + 11, cy - 9), (cx + 9, cy - 1), (cx, cy + 2), (cx - 9, cy - 1)],
+              fill=CLOAK_LIT, outline=OUTLINE)
+    d.ellipse([cx - 2, cy - 6, cx + 2, cy - 2], fill=GOLD_HI, outline=OUTLINE)
 
-    # 4. Tall Elven Head (`crown_y = 0 .. 21`)
-    _draw_sylvara_head(
-        c,
-        cx,
-        crown_y,
-        blink=(pose == "blink"),
-        hurt=(pose == "hurt"),
-        facing_mode="side",
-    )
+    # 4. Blonde Elven Head
+    draw_elf_head(img, cx, cy - 18, blink=(pose == "blink"), hurt=(pose == "hurt"),
+                  charge_focus=(pose == "charge"))
 
-    # 5. Slender Bow Arm + Closed Golden-Yew Recurve Bow Hoop (`+10px` past body `x = 45 -> 55`)!
+    # 5. Arms + ALWAYS-HELD Golden-Yew Recurve Bow!
     if pose in ("idle", "blink", "walk_a", "walk_b"):
-        # Closed bow hoop spans `y = 24..46` (`selout_wrap` `y = 22..48`, strictly below `y=21` and above `hip_y=49`!)
-        # Combined with 45° quiver at `y = 22`, `widths[22] >= 18` -> `chin_y = 22` -> exact `25%` `head_ratio`!
-        c.tapered_limb(cx + 4, sh_y + 3, 1.4, cx + 13, 35, 1.2, "skin", bias=0.14)
-        _draw_closed_bow_hoop(c, cx + 7, 24, 46, arch_px=9.5, pull_px=0.0)
-    elif pose == "bow_draw":
-        c.tapered_limb(cx + 4, sh_y + 3, 1.4, cx + 16, 33, 1.2, "skin", bias=0.14)
-        _draw_closed_bow_hoop(c, cx + 10, 21, 47, arch_px=9.0, pull_px=6.0, charged=False)
-    elif pose == "bow_charge":
-        c.tapered_limb(cx + 4, sh_y + 3, 1.4, cx + 17, 33, 1.2, "skin", bias=0.14)
-        _draw_closed_bow_hoop(c, cx + 11, 21, 47, arch_px=9.5, pull_px=11.0, charged=True)
-    elif pose == "bow_release":
-        c.tapered_limb(cx + 4, sh_y + 3, 1.4, cx + 17, 33, 1.2, "skin", bias=0.14)
-        _draw_closed_bow_hoop(c, cx + 11, 21, 47, arch_px=9.0, pull_px=0.0, charged=False)
-        c.stroke(cx + 22, 33, cx + 36, 33, "emerald", 3, width=1)
-    elif pose == "wind_vault":
-        c.tapered_limb(cx + 4, sh_y + 3, 1.4, cx + 14, 33, 1.2, "skin")
-        _draw_closed_bow_hoop(c, cx + 8, 23, 46, arch_px=9.5, pull_px=0.0)
+        # Left hand holds bow comfortably at her right side, always visible!
+        pill_limb(img, cx + 8, cy - 4, cx + 16, cy + 2, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 19, cy + 2, 22 if pose != "walk_a" else 14, pull_px=0.0)
+    elif pose == "draw":
+        # Raises bow straight ahead & nocks arrow!
+        pill_limb(img, cx + 8, cy - 5, cx + 22, cy - 4, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 25, cy - 4, 0.0, pull_px=4.0, arrow_state="nocked")
+        pill_limb(img, cx - 5, cy - 5, cx + 14, cy - 4, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+    elif pose == "charge":
+        # Full taut bow draw — glowing emerald arrow pulled right back to cheek!
+        pill_limb(img, cx + 8, cy - 5, cx + 24, cy - 5, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 27, cy - 5, 0.0, pull_px=11.0, arrow_state="charged")
+        pill_limb(img, cx - 6, cy - 5, cx + 10, cy - 5, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+    elif pose == "release":
+        pill_limb(img, cx + 8, cy - 5, cx + 24, cy - 5, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 27, cy - 5, 0.0, pull_px=0.0, arrow_state="released")
+        pill_limb(img, cx - 6, cy - 5, cx - 12, cy - 8, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+    elif pose == "vault":
+        # Airborne Sylvan Windstep leap with swirling emerald leaves!
+        pill_limb(img, cx + 8, cy - 5, cx + 19, cy - 9, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 22, cy - 9, -28.0, pull_px=0.0)
+        for lx, ly in ((cx - 22, cy + 2), (cx - 16, cy + 14), (cx - 26, cy - 8), (cx + 12, cy + 18)):
+            d.ellipse([lx - 3, ly - 1, lx + 3, ly + 2], fill=EMERALD_BRIGHT, outline=OUTLINE)
     elif pose == "hurt":
-        c.tapered_limb(cx + 4, sh_y + 7, 1.4, cx + 14, 38, 1.2, "skin")
-        _draw_closed_bow_hoop(c, cx + 8, 26, 50, arch_px=10.0, pull_px=0.0)
+        pill_limb(img, cx + 6, cy - 4, cx + 14, cy - 2, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 16, cy - 2, 35.0, pull_px=0.0)
 
-    return c.finalize(ground_y=GROUND_Y)
+    return img
 
 
-def build_sylvara_vertical(pose: str) -> Image.Image:
-    c = HeroCanvas()
-    cx = 44
-    crown_y = 0
+def build_sylvara_vertical_pose(pose: str) -> Image.Image:
+    """Front-facing (`down_*`) & Back-facing (`up_*`) 96x96 poses for Sylvara!"""
+    img = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = 48, 50
     is_up = pose.startswith("up_")
     step = -1 if pose.endswith("_a") else (1 if pose.endswith("_b") else 0)
-    l_fy = 79 - (2 if step > 0 else 0)
-    r_fy = 79 - (2 if step < 0 else 0)
-    sh_y, waist_y, hip_y = 25, 40, 49
+    l_dy = -3 * step
+    r_dy = 3 * step
 
-    _draw_quiver_45(c, cx - 9, 22)
-
-    for idx, (lx, fy) in enumerate(((cx - 3, l_fy), (cx + 3, r_fy))):
-        c.tapered_limb(lx, hip_y + 2, 1.6, lx, 65, 1.4, "emerald")
-        c.tapered_limb(lx, 65, 1.4, lx, fy - 3, 1.2, "leather")
-        c.rrect(lx - 2, fy - 3, lx + 2, fy, 1, "leather")
-
-    c.poly(
-        [
-            (cx - 6, 22),
-            (cx + 6, 22),
-            (cx + 7, sh_y + 1),
-            (cx + 5, waist_y),
-            (cx + 7, hip_y + 3),
-            (cx - 7, hip_y + 3),
-            (cx - 5, waist_y),
-            (cx - 7, sh_y + 1),
-        ],
-        "emerald",
-        bias=0.10,
-    )
     if not is_up:
-        c.poly([(cx - 4, sh_y + 2), (cx + 4, sh_y + 2), (cx + 3, waist_y), (cx - 3, waist_y)], "leather")
-        c.rrect(cx - 5, waist_y - 1, cx + 5, waist_y + 1, 1, "gold")
-
-    # Closed bow hoop held out to right (`30px` total width >= `f00` so `_standing_cell` picks `f00`!)
-    _draw_closed_bow_hoop(c, cx + 8, 23, 47, arch_px=9.5, pull_px=0.0)
-    c.tapered_limb(cx - 6, sh_y + 2, 1.4, cx - 9, 34 + step * 2, 1.2, "emerald")
-    c.tapered_limb(cx + 6, sh_y + 2, 1.4, cx + 13, 34 - step * 2, 1.2, "skin")
-
-    _draw_sylvara_head(c, cx, crown_y, facing_mode="up" if is_up else "down")
-    return c.finalize(ground_y=GROUND_Y)
+        # Front: blonde hair + emerald cloak + ranger bodice + front face + Recurve Bow at side!
+        d.polygon([(cx - 11, cy - 8), (cx + 11, cy - 8), (cx + 15, cy + 18), (cx - 15, cy + 18)], fill=CLOAK_DEEP, outline=OUTLINE)
+        for side, dy in ((-5, l_dy), (5, r_dy)):
+            lx, ly = cx + side, cy + 26 + min(0, dy)
+            pill_limb(img, cx + side // 2, cy + 12, lx, ly - 6, 3, SKIN_SHA, SKIN, SKIN)
+            d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+            d.line([(lx - 3, ly - 7), (lx + 3, ly - 7)], fill=GOLD_MID)
+        d.polygon([(cx - 9, cy + 5), (cx + 9, cy + 5), (cx + 13, cy + 16), (cx - 13, cy + 16)], fill=CLOAK_MID, outline=OUTLINE)
+        d.polygon([(cx - 9, cy - 8), (cx + 9, cy - 8), (cx + 7, cy + 7), (cx - 7, cy + 7)], fill=LEATHER_MID, outline=OUTLINE)
+        d.polygon([(cx - 11, cy - 9), (cx + 11, cy - 9), (cx + 9, cy - 1), (cx, cy + 2), (cx - 9, cy - 1)], fill=CLOAK_LIT, outline=OUTLINE)
+        d.ellipse([cx - 2, cy - 6, cx + 2, cy - 2], fill=GOLD_HI, outline=OUTLINE)
+        pill_limb(img, cx - 10, cy - 4, cx - 14, cy + 3 + l_dy, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        pill_limb(img, cx + 10, cy - 4, cx + 16, cy + 2 + r_dy, 2, CLOAK_DEEP, CLOAK_LIT, SKIN)
+        draw_recurve_bow(img, cx + 18, cy + 2 + r_dy, 24, pull_px=0.0)
+        # Symmetrical front blonde elven head
+        hy = cy - 18
+        d.ellipse([cx - 11, hy - 11, cx + 11, hy + 10], fill=BLONDE_MID, outline=OUTLINE)
+        d.polygon([(cx - 10, hy - 2), (cx - 16, hy - 5), (cx - 10, hy + 2)], fill=SKIN, outline=OUTLINE)
+        d.polygon([(cx + 10, hy - 2), (cx + 16, hy - 5), (cx + 10, hy + 2)], fill=SKIN, outline=OUTLINE)
+        d.rounded_rectangle([cx - 8, hy - 7, cx + 8, hy + 8], radius=4, fill=SKIN, outline=OUTLINE)
+        d.polygon([(cx - 9, hy - 10), (cx + 9, hy - 10), (cx + 9, hy - 3), (cx, hy - 5), (cx - 9, hy - 3)], fill=BLONDE_LIT, outline=OUTLINE)
+        d.line([(cx - 8, hy - 6), (cx + 8, hy - 6)], fill=GOLD_HI, width=1)
+        put(img, cx, hy - 6, EMERALD_BRIGHT)
+        for ex in (cx - 4, cx + 3):
+            put(img, ex, hy, EMERALD_DARK)
+            put(img, ex + 1, hy, EMERALD_BRIGHT)
+    else:
+        # Back: ranger boots + emerald cloak from behind + flowing golden-blonde hair + feathered quiver!
+        for side, dy in ((-5, l_dy), (5, r_dy)):
+            lx, ly = cx + side, cy + 26 + min(0, dy)
+            pill_limb(img, cx + side // 2, cy + 12, lx, ly - 6, 3, SKIN_SHA, SKIN, SKIN)
+            d.rounded_rectangle([lx - 4, ly - 8, lx + 4, ly + 2], radius=2, fill=LEATHER_DARK, outline=OUTLINE)
+        draw_recurve_bow(img, cx + 16, cy + 1 + r_dy, 28, pull_px=0.0)
+        d.polygon([
+            (cx - 11, cy - 9), (cx + 11, cy - 9),
+            (cx + 15 + step, cy + 18), (cx - 15 + step, cy + 18),
+        ], fill=CLOAK_MID, outline=OUTLINE)
+        d.line([(cx - 12 + step, cy + 17), (cx + 12 + step, cy + 17)], fill=GOLD_HI, width=1)
+        # Feathered leather quiver strapped diagonally across back!
+        d.polygon([(cx + 2, cy - 8), (cx + 8, cy - 6), (cx + 2, cy + 12), (cx - 4, cy + 10)], fill=LEATHER_MID, outline=OUTLINE)
+        for fx in (cx + 4, cx + 7):
+            d.line([(fx, cy - 8), (fx + 2, cy - 14)], fill=EMERALD_BRIGHT, width=2)
+        # Lush golden-blonde wavy hair cascading down her back!
+        hy = cy - 18
+        d.polygon([(cx - 10, hy - 2), (cx - 16, hy - 5), (cx - 10, hy + 2)], fill=SKIN_SHA, outline=OUTLINE)
+        d.polygon([(cx + 10, hy - 2), (cx + 16, hy - 5), (cx + 10, hy + 2)], fill=SKIN_SHA, outline=OUTLINE)
+        hair_pts = [
+            (cx - 10, hy - 10), (cx + 10, hy - 10),
+            (cx + 12 + step, hy + 16), (cx + 5 + step, hy + 21),
+            (cx + step, hy + 18), (cx - 6 + step, hy + 21), (cx - 12 + step, hy + 16),
+        ]
+        d.polygon(hair_pts, fill=BLONDE_MID, outline=OUTLINE)
+        d.line([(cx - 6, hy - 7), (cx - 5 + step, hy + 15)], fill=BLONDE_LIT, width=2)
+        d.line([(cx + 4, hy - 7), (cx + 5 + step, hy + 15)], fill=BLONDE_HI, width=2)
+    return img
 
 
 def main() -> None:
     poses = [
-        "idle", "walk_a", "walk_b", "bow_draw", "bow_charge", "bow_release", "wind_vault", "hurt", "blink",
+        "idle", "walk_a", "walk_b", "draw", "charge", "release", "vault", "hurt", "blink",
         "down_idle", "down_walk_a", "down_walk_b", "up_idle", "up_walk_a", "up_walk_b",
     ]
-    sheet = Image.new("RGBA", (CELL * len(poses), CELL), (0, 0, 0, 0))
+    sheet = Image.new("RGBA", (FRAME * len(poses), FRAME), (0, 0, 0, 0))
     for i, p in enumerate(poses):
-        fr = build_sylvara_vertical(p) if p.startswith(("down_", "up_")) else build_sylvara_side(p)
-        sheet.alpha_composite(fr, (i * CELL, 0))
+        fr = build_sylvara_vertical_pose(p) if p.startswith(("down_", "up_")) else build_sylvara_pose(p)
+        sheet.alpha_composite(fr, (i * FRAME, 0))
     sheet.save("assets/textures/player_sylvara.png")
     print("wrote assets/textures/player_sylvara.png", sheet.size)
 
     zoom, pad = 2, 10
-    w = pad + len(poses) * (CELL * zoom + pad)
-    h = 30 + CELL * zoom + 24
-    prev = Image.new("RGBA", (w, h), (16, 26, 20, 255))
+    w = pad + len(poses) * (FRAME * zoom + pad)
+    h = 30 + FRAME * zoom + 24
+    prev = Image.new("RGBA", (w, h), (16, 26, 22, 255))
     d = ImageDraw.Draw(prev)
-    d.text((pad, 8), "SYLVARA (SKELETON SPEC: 80px, 24w shoulders, 200 leg_mass)", fill=RAMPS["emerald"][3])
+    d.text((pad, 8), "SYLVARA (BLONDE ELVEN RANGER) - 9 frames x 96x96", fill=(214, 248, 222, 255))
     for i, p in enumerate(poses):
-        x = pad + i * (CELL * zoom + pad)
-        fr = sheet.crop((i * CELL, 0, (i + 1) * CELL, CELL))
-        prev.alpha_composite(fr.resize((CELL * zoom, CELL * zoom), Image.NEAREST), (x, 28))
-        d.text((x, 28 + CELL * zoom + 4), f"{i}:{p}", fill=RAMPS["gold"][3])
+        x = pad + i * (FRAME * zoom + pad)
+        fr = sheet.crop((i * FRAME, 0, (i + 1) * FRAME, FRAME))
+        prev.alpha_composite(fr.resize((FRAME * zoom, FRAME * zoom), Image.NEAREST), (x, 28))
+        d.text((x, 28 + FRAME * zoom + 4), f"{i}:{p}", fill=(176, 232, 192, 255))
     prev.save("docs/images/sylvara_preview.png")
 
 

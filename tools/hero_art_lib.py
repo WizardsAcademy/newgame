@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Shared 32-colour palette, top-left 4-step shader, selective selout, and
-anatomical limb/mask primitives for the Hero Skeleton Spec (`docs/HERO_SKELETON_SPEC.md`).
+"""Shared 96x96 pixel-art palette ramps (`RAMPS` & `NOA_PALETTE_24`) and shading helpers.
 
 Guarantees:
   - Shared 32-colour master palette: 8 material ramps x 4 steps

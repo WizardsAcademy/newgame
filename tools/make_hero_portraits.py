@@ -38,44 +38,30 @@ def put(img: Image.Image, x: int, y: int, col) -> None:
 
 
 def apply_circle_mask(img: Image.Image, bg_top, bg_bot) -> Image.Image:
-    """Render portrait onto a crisp 2-tone pixel-art medallion disc clipped to r=29 (binary alpha)."""
+    """Render portrait onto a rich gradient medallion disc clipped cleanly to r=29."""
     out = Image.new("RGBA", (SZ, SZ), (0, 0, 0, 0))
     px_out = out.load()
     px_in = img.load()
     cx, cy = 31.5, 31.5
     for y in range(SZ):
+        t = y / float(SZ - 1)
+        br = int(bg_top[0] + (bg_bot[0] - bg_top[0]) * t)
+        bg = int(bg_top[1] + (bg_bot[1] - bg_top[1]) * t)
+        bb = int(bg_top[2] + (bg_bot[2] - bg_top[2]) * t)
         for x in range(SZ):
             dist = math.hypot(x - cx, y - cy)
             if dist <= 29.2:
                 sr, sg, sb, sa = px_in[x, y]
-                if sa >= 128:
-                    r, g, b = sr, sg, sb
-                    if (r, g, b) == (0, 0, 0):
-                        r, g, b = OUT[0], OUT[1], OUT[2]
-                    px_out[x, y] = (r, g, b, 255)
+                if sa > 0:
+                    a = sa / 255.0
+                    px_out[x, y] = (
+                        int(sr * a + br * (1.0 - a)),
+                        int(sg * a + bg * (1.0 - a)),
+                        int(sb * a + bb * (1.0 - a)),
+                        255,
+                    )
                 else:
-                    bc = bg_top if y < (33 + ((x + y) & 1) * 2) else bg_bot
-                    px_out[x, y] = (bc[0], bc[1], bc[2], 255)
-    return out
-
-
-def clamp_sheet_palette(sheet: Image.Image, max_colours: int = 24) -> Image.Image:
-    """Ensure <= max_colours opaque RGB values, zero #000000, and 100% binary alpha."""
-    w, h = sheet.size
-    alpha = sheet.getchannel("A")
-    rgb = sheet.convert("RGB")
-    quant = rgb.quantize(colors=max_colours, method=Image.MEDIANCUT, dither=Image.Dither.NONE).convert("RGB")
-    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    opx = out.load()
-    qpx = quant.load()
-    apx = alpha.load()
-    for y in range(h):
-        for x in range(w):
-            if apx[x, y] >= 128:
-                r, g, b = qpx[x, y]
-                if (r, g, b) == (0, 0, 0):
-                    r, g, b = OUT[0], OUT[1], OUT[2]
-                opx[x, y] = (r, g, b, 255)
+                    px_out[x, y] = (br, bg, bb, 255)
     return out
 
 
@@ -151,13 +137,10 @@ def portrait_sylvara(state: str) -> Image.Image:
     bl_mid = (232, 184, 74, 255)
     bl_hi = (255, 238, 158, 255)
 
-    # Back blonde hair mass + 45° feathered quiver tip + emerald collar shoulders
-    d.line([(6, 14 + by), (16, 24 + by)], fill=(142, 92, 52, 255), width=3)
-    d.line([(4, 12 + by), (9, 17 + by)], fill=(242, 244, 252, 255), width=2)
+    # Back blonde hair mass + emerald collar shoulders
     d.ellipse([8 + sway, 8 + by, 56 + sway, 62 + by], fill=bl_sha, outline=OUT)
     d.ellipse([11 + sway, 10 + by, 53 + sway, 58 + by], fill=bl_mid)
     d.polygon([(14, 52 + by), (50, 52 + by), (56, 64), (8, 64)], fill=(34, 104, 70, 255), outline=OUT)
-    d.line([(18, 53 + by), (30, 63)], fill=(142, 92, 52, 255), width=2)
     d.ellipse([29, 53 + by, 35, 59 + by], fill=(252, 224, 118, 255), outline=OUT)
 
     # Delicate long pointed Elven ears!
@@ -276,19 +259,18 @@ def portrait_noa(state: str) -> Image.Image:
         d.line([(29, 43 + by), (35, 43 + by)], fill=(156, 56, 82, 255))
         put(img, 34, 44 + by, (255, 255, 255, 255))  # cute single white fang!
 
-    # Asymmetric moonlit silver-white curls (extra-broad billowing LEFT fall matching skeleton!)
+    # Cascading moonlit silver-white wavy curls & swept gothic bangs!
     for side in (-1, 1):
-        w_extra = 4 if side == -1 else -2
-        sx = 32 + side * (15 + (2 if side == -1 else 0))
+        sx = 32 + side * 15
         d.polygon([
             (32 + side * 10, 13 + by),
-            (32 + side * (20 + w_extra), 19 + by),
-            (32 + side * (21 + w_extra) + sway, 46 + by),
-            (32 + side * (15 + w_extra) + sway, 60 + by),
+            (32 + side * 20, 19 + by),
+            (32 + side * 21 + sway, 44 + by),
+            (32 + side * 14 + sway, 56 + by),
             (32 + side * 11, 46 + by),
             (32 + side * 12, 26 + by),
         ], fill=wh_mid, outline=OUT)
-        d.line([(sx + sway // 2, 19 + by), (sx + side * 1 + sway, 50 + by)], fill=wh_hi, width=2)
+        d.line([(sx + sway // 2, 19 + by), (sx + side * 1 + sway, 48 + by)], fill=wh_hi, width=2)
         d.line([(32 + side * 13, 27 + by), (32 + side * 13 + sway, 49 + by)], fill=wh_sha, width=1)
 
     d.chord([14, 7 + by, 50, 25 + by], 180, 360, fill=wh_mid, outline=OUT)
@@ -321,11 +303,9 @@ def portrait_knight(state: str) -> Image.Image:
     st_lit = (106, 120, 150, 255)
     st_hi = (168, 186, 218, 255)
 
-    # Tattered crimson plume + Zweihander greatsword blade behind right shoulder + armored gorget
+    # Tattered crimson plume behind greathelm + dark armored gorget/pauldrons
     d.polygon([(14, 16 + by), (4 + sway, 9 + by), (6 + sway, 24 + by), (18, 26 + by)],
               fill=(124, 24, 44, 255), outline=OUT)
-    d.polygon([(47, 48 + by), (56, 12 + by), (59, 14 + by), (52, 50 + by)], fill=st_hi, outline=OUT)
-    d.line([(45, 44 + by), (55, 47 + by)], fill=(232, 184, 74, 255), width=2)
     d.polygon([(8, 50 + by), (56, 50 + by), (60, 64), (4, 64)], fill=st_dark, outline=OUT)
     # Glowing betrayal scar across collar
     d.line([(22, 53 + by), (40, 61 + by)], fill=(255, 118, 54, 255), width=2)
@@ -392,12 +372,10 @@ def portrait_brawler(state: str) -> Image.Image:
     hair = (58, 36, 22, 255)
     hair_hi = (98, 64, 40, 255)
 
-    # Crimson headband tail + massive hunched bull-traps & spiked iron pauldron!
+    # Crimson headband tail + broad leather-and-iron shoulders
     d.polygon([(14, 22 + by), (4 + sway, 26 + by), (7 + sway, 34 + by), (16, 29 + by)],
               fill=(178, 30, 44, 255), outline=OUT)
-    d.polygon([(2, 44 + by), (62, 44 + by), (62, 64), (2, 64)], fill=(104, 64, 38, 255), outline=OUT)
-    d.ellipse([3, 42 + by, 18, 56 + by], fill=(116, 132, 162, 255), outline=OUT)
-    d.polygon([(7, 43 + by), (10, 35 + by), (14, 43 + by)], fill=(184, 200, 226, 255), outline=OUT)
+    d.polygon([(8, 50 + by), (56, 50 + by), (60, 64), (4, 64)], fill=(104, 64, 38, 255), outline=OUT)
 
     # Rugged square jaw & hair crown
     d.rounded_rectangle([16, 15 + by, 48, 50 + by], radius=9, fill=skin, outline=OUT)
@@ -466,18 +444,15 @@ def main() -> None:
     pd = ImageDraw.Draw(preview)
 
     for row, (fname, title, fn) in enumerate(builders):
-        raw_sheet = Image.new("RGBA", (SZ * FRAMES, SZ), (0, 0, 0, 0))
+        sheet = Image.new("RGBA", (SZ * FRAMES, SZ), (0, 0, 0, 0))
         for col, st in enumerate(states):
             fr = fn(st)
-            raw_sheet.alpha_composite(fr, (col * SZ, 0))
-        sheet = clamp_sheet_palette(raw_sheet, max_colours=22)
-        for col in range(FRAMES):
-            fr = sheet.crop((col * SZ, 0, (col + 1) * SZ, SZ))
+            sheet.alpha_composite(fr, (col * SZ, 0))
             x = 120 + pad + col * (SZ * zoom + pad)
             y = pad + row * (SZ * zoom + pad)
             preview.alpha_composite(fr.resize((SZ * zoom, SZ * zoom), Image.NEAREST), (x, y))
             if row == 0:
-                pd.text((x, 2), states[col], fill=(220, 214, 236, 255))
+                pd.text((x, 2), st, fill=(220, 214, 236, 255))
         pd.text((10, pad + row * (SZ * zoom + pad) + 54), title, fill=(244, 228, 196, 255))
         out_path = f"assets/textures/{fname}"
         sheet.save(out_path)

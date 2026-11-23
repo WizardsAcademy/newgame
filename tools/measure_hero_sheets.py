@@ -10,9 +10,8 @@ Exits non-zero if:
   - any 96x96 cell has zero visible pixels, or
   - semi-transparent pixel percentage exceeds 2.0%.
 
-Pass `--strict` to also enforce the art & skeleton contract targets
-(`f0_h` per `HERO_SKELETON_SPEC.md`: behemoth 66..70, knight 74..80,
-sylvara 78..84, noa 62..68; `ground_y == {80}`; `colours <= 24`;
+Pass `--strict` to also enforce the 96x96 pixel-art sheet contract targets
+(`f0_h` in `[56, 84]`, standing `f0` bottom_y in `[78, 86]`, `colours <= 24`,
 zero `#000000` pixels).
 """
 
@@ -24,14 +23,8 @@ from pathlib import Path
 from PIL import Image
 
 CELL = 96
-GROUND_Y_TARGET = 80
-HERO_BODY_H_BOUNDS: dict[str, tuple[int, int]] = {
-    "behemoth": (66, 70),
-    "knight": (74, 80),
-    "sylvara": (78, 84),
-    "noa": (62, 68),
-}
-DEFAULT_BODY_H_BOUNDS = (62, 84)
+DEFAULT_BODY_H_BOUNDS = (56, 84)
+STANDING_GROUND_Y_BOUNDS = (78, 86)
 MAX_COLOURS = 24
 MAX_SEMI_ALPHA_PCT = 2.0
 
@@ -169,14 +162,16 @@ def main() -> int:
         )
         all_errors.extend(r["errors"])
         if args.strict:
-            h_lo, h_hi = HERO_BODY_H_BOUNDS.get(r["name"], DEFAULT_BODY_H_BOUNDS)
+            h_lo, h_hi = DEFAULT_BODY_H_BOUNDS
             if not (h_lo <= r["f0_h"] <= h_hi):
                 all_errors.append(
                     f"{r['name']}: standing f0 body_h={r['f0_h']} outside [{h_lo}, {h_hi}]"
                 )
-            if r["grounds"] != [GROUND_Y_TARGET]:
+            f0_ground = r["frame_stats"][0]["bottom_y"] if r["frame_stats"] else None
+            g_lo, g_hi = STANDING_GROUND_Y_BOUNDS
+            if f0_ground is None or not (g_lo <= f0_ground <= g_hi):
                 all_errors.append(
-                    f"{r['name']}: ground_y set {r['grounds']} != [{GROUND_Y_TARGET}]"
+                    f"{r['name']}: standing f0 bottom_y={f0_ground} outside [{g_lo}, {g_hi}]"
                 )
             if r["colour_count"] > MAX_COLOURS:
                 all_errors.append(

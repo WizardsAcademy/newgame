@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/player/sylvara.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/textures/player_sylvara.png" id="2_sheet"]
-[ext_resource type="Texture2D" path="res://assets/textures/white_pixel.png" id="3_white"]
+[ext_resource type="Texture2D" path="res://assets/textures/slime_shadow.png" id="3_shadow"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(14, 16)
@@ -319,10 +319,10 @@ texture = SubResource("AtlasTexture_f0")
 
 [node name="Shadow" type="Sprite2D" parent="Visuals"]
 show_behind_parent = true
-modulate = Color(0, 0, 0, 0.26)
-position = Vector2(0, 32)
-scale = Vector2(3.4, 0.95)
-texture = ExtResource("3_white")
+modulate = Color(1, 1, 1, 0.42)
+position = Vector2(0, 30.5)
+scale = Vector2(1.1, 0.75)
+texture = ExtResource("3_shadow")
 
 [node name="Dust" type="CPUParticles2D" parent="."]
 position = Vector2(0, 10)
