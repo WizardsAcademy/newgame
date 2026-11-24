@@ -277,6 +277,11 @@ func _draw() -> void:
 	if font != null:
 		draw_string(font, Vector2(64.0, 11.0), hero_name_str.to_upper(),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(0.96, 0.90, 0.76, 0.96))
+		var herbs := WitchCauldronProgression.get_reagents()
+		var pts := WitchCauldronProgression.get_brew_points(CharacterRegistry.selected_id)
+		var herb_col := Color(0.55, 1.0, 0.72, 0.96) if herbs >= WitchCauldronProgression.REAGENTS_PER_POTION else Color(0.76, 0.88, 0.82, 0.90)
+		draw_string(font, Vector2(124.0, 11.0), "Herbs %d/%d  SP %d" % [herbs, WitchCauldronProgression.REAGENTS_PER_POTION, pts],
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 7, herb_col)
 
 	# TOP BAR — Crimson HP Bar
 	var hp_bg := Rect2(62.0, 18.0, 142.0, 11.0)

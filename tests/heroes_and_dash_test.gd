@@ -222,9 +222,9 @@ func _run() -> void:
 	_check("Cauldron has 6 frames (green bubbling -> sudden purple flash!)",
 		lobby._cauldron_frames.size() == 6)
 
-	# Verify 16-Node (`1 -> 3 -> 6 -> 6`, Lv 0..5) Skill Tree & 4 Per-Hero Color Palettes!
-	_check_eq("Skill Tree defines 16 nodes per hero (1 -> 3 -> 6 -> 6) & MAX_NODE_LEVEL == 5",
-		WitchCauldronProgression.get_skill_nodes_for_hero("noa").size() == 16
+	# Verify Long Scrollable 14-Node Exclusive-Pillar Skill Tree (`1 -> 3x4 -> 1`), Monster/Wave Reagent Drops -> Witch Majon Brewing, & Backtick DevConsole!
+	_check_eq("Skill Tree defines 14 OP nodes per hero (solo_top -> 3x4 Pillars -> solo_bottom)",
+		WitchCauldronProgression.get_skill_nodes_for_hero("noa").size() == 14
 		and WitchCauldronProgression.MAX_NODE_LEVEL == 5, true)
 	var th_knight := WitchCauldronProgression.get_hero_theme("knight")
 	var th_behemoth := WitchCauldronProgression.get_hero_theme("behemoth")
@@ -236,43 +236,118 @@ func _run() -> void:
 		and (th_sylvara["primary"] as Color).g > 0.65 and (th_sylvara["secondary"] as Color).r > 0.85
 		and (th_noa["primary"] as Color).r > 0.8 and (th_noa["secondary"] as Color).v > 0.9)
 
-	# Open 16-Node Skill Tree for Noa -> upgrade Root (`vitality`) -> test Reset Tree -> upgrade via Inspector UpgradeButton!
+	# Monster kill & Wave clear drop Alchemy Reagents (`ReagentDrop`) -> Witch brews Potions (`Majon` = Skill Points)!
+	_check_eq("Fresh hero starts at 0 Skill Points & 0 Reagents",
+		WitchCauldronProgression.get_brew_points("noa") == 0 and WitchCauldronProgression.get_reagents() == 0, true)
+	var drop_foe := _make_dummy_slime(main.enemies_root, main.player.global_position + Vector2(150.0, 0.0), 20)
+	main._watch_enemy(drop_foe)
+	drop_foe.take_damage(50)
+	await _tick(3)
+	var drops_after_kill := get_tree().get_nodes_in_group("reagent_drops")
+	_check("Killing an enemy spawns a collectible ReagentDrop item on the ground",
+		drops_after_kill.size() >= 1)
+	for rd in drops_after_kill:
+		if rd != null and is_instance_valid(rd) and rd.has_method("collect_now"):
+			rd.collect_now()
+	await _tick(2)
+	_check_eq("Collecting monster reagent drop increments Witch Reagents (+1)",
+		WitchCauldronProgression.get_reagents(), 1)
+
+	# Wave clear spawns +3 Wave Crystal ReagentDrop (and does NOT show old 3-card UpgradeMenu!)
+	main._on_wave_cleared(1)
+	await _tick(4)
+	_check_eq("Wave clear does NOT show 3-card UpgradeMenu popup", main.upgrade_menu.visible, false)
+	for rd2 in get_tree().get_nodes_in_group("reagent_drops"):
+		if rd2 != null and is_instance_valid(rd2) and rd2.has_method("collect_now"):
+			rd2.collect_now()
+	await _tick(2)
+	_check("Wave clear Arcane Crystal grants +3 Reagents (total >= 4)",
+		WitchCauldronProgression.get_reagents() >= 4,
+		"reagents=%d" % WitchCauldronProgression.get_reagents())
+
+	# Open Scrollable Skill Tree -> brew Majon from collected Reagents -> verify scrollability, Exclusive Pillar lock, & Bottom Convergence!
 	main.open_cauldron_skill_tree()
 	await _tick(2)
 	var skill_ui: WitchSkillTreeMenu = main.get_node("UI/WitchSkillTreeMenu")
 	_check_eq("Skill Tree opens for active hero ('noa')", skill_ui._hero_id, "noa")
-	var vit_btn: Button = skill_ui.get_node("CauldronPanel/SkillNode_vitality")
+	var tree_scroll := skill_ui.get_node_or_null("CauldronPanel/TreeScroll") as ScrollContainer
+	var tree_content := skill_ui.get_node_or_null("CauldronPanel/TreeScroll/TreeContent") as Control
+	var brew_btn: Button = skill_ui.get_node("CauldronPanel/BrewPotionButton")
 	var upg_btn: Button = skill_ui.get_node("CauldronPanel/InspectorPanel/UpgradeButton")
 	var rst_btn: Button = skill_ui.get_node("CauldronPanel/ResetButton")
-	_check("Skill Tree UI exposes 16 square SkillNode buttons, Inspector UpgradeButton, & ResetButton",
-		skill_ui._node_buttons.size() == 16 and upg_btn != null and rst_btn != null)
-	vit_btn.pressed.emit()
-	await _tick(3)
-	_check("Upgrading Root node increases Noa Max HP (75 -> 87) & unlocks Row-1 branches",
-		skill_ui._witch_offer_timer > 0.0
-		and main.player.max_health == 87
-		and WitchCauldronProgression.is_node_unlocked("noa", "wrath"),
-		"max_hp=%d" % int(main.player.max_health))
-	rst_btn.pressed.emit()
-	await _tick(3)
-	_check_eq("ResetButton refunds spent skill points & restores Noa base Max HP (75)",
-		main.player.max_health == 75 and WitchCauldronProgression.get_brew_points("noa") == 3, true)
+	_check("Skill Tree UI is vertically scrollable (`TreeContent.size.y >= 600` inside `TreeScroll`) with 14 OP nodes & BrewPotionButton",
+		tree_scroll != null and tree_content != null and tree_content.size.y >= 600.0
+		and skill_ui._node_buttons.size() == 14 and brew_btn != null and upg_btn != null and rst_btn != null)
+
+	brew_btn.pressed.emit()
+	await _tick(2)
+	_check_eq("Giving 3 Reagents to the Witch brews +1 Majon (Skill Point)!",
+		WitchCauldronProgression.get_brew_points("noa"), 1)
+
+	# Backtick (`) Developer Console: `wizard` (+10000 Skill Points) & `canoheil` (Reset all heroes)!
+	var dev_con: DevConsole = main.get_node("UI/DevConsole")
+	var bt_ev := InputEventKey.new()
+	bt_ev.pressed = true
+	bt_ev.keycode = KEY_QUOTELEFT
+	bt_ev.unicode = 96
+	dev_con._input(bt_ev)
+	await _tick(2)
+	_check_eq("Pressing backtick (`) opens DevConsole", dev_con.is_open(), true)
+	dev_con.submit_command("wizard")
+	await _tick(2)
+	_check("Typing 'wizard' grants +10000 Skill Points!",
+		WitchCauldronProgression.get_brew_points("noa") >= 10000,
+		"pts=%d" % WitchCauldronProgression.get_brew_points("noa"))
+	dev_con.toggle_console()
+	await _tick(1)
+
+	# Upgrade Top Solo (`solo_top`) -> choose Pillar 0 (`p0_t1`) -> verify Pillars 1 & 2 LOCK -> descend to `p0_t4` -> verify `solo_bottom` unlocks!
 	upg_btn.pressed.emit()
-	await _tick(3)
-	_check_eq("Inspector UpgradeButton levels up selected skill cleanly (75 -> 87)",
-		main.player.max_health, 87)
-	_check_eq("Knight's Skill Tree stays independent at Lv 0",
-		WitchCauldronProgression.get_node_level("knight", "vitality"), 0)
+	await _tick(2)
+	_check("Upgrading solo_top unlocks all 3 Pillar T1 nodes initially",
+		WitchCauldronProgression.get_node_level("noa", "solo_top") == 1
+		and WitchCauldronProgression.is_node_unlocked("noa", "p0_t1")
+		and WitchCauldronProgression.is_node_unlocked("noa", "p1_t1")
+		and WitchCauldronProgression.is_node_unlocked("noa", "p2_t1"))
+
+	skill_ui._on_skill_node_pressed("p0_t1")
+	upg_btn.pressed.emit()
+	await _tick(2)
+	_check("Choosing Pillar 0 (`p0_t1`) IMMEDIATELY locks out Pillar 1 & Pillar 2!",
+		WitchCauldronProgression.get_chosen_pillar("noa") == 0
+		and not WitchCauldronProgression.is_node_unlocked("noa", "p1_t1")
+		and not WitchCauldronProgression.is_node_unlocked("noa", "p2_t1")
+		and WitchCauldronProgression.is_node_locked_by_other_pillar("noa", "p1_t1")
+		and WitchCauldronProgression.is_node_locked_by_other_pillar("noa", "p2_t1"))
+
+	for next_nid in ["p0_t2", "p0_t3", "p0_t4"]:
+		skill_ui._on_skill_node_pressed(String(next_nid))
+		upg_btn.pressed.emit()
+		await _tick(1)
+	_check_eq("Reaching Pillar Tier-4 (`p0_t4`) converges & unlocks Bottom Solo Ultimate (`solo_bottom`)!",
+		WitchCauldronProgression.is_node_unlocked("noa", "solo_bottom"), true)
+	skill_ui._on_skill_node_pressed("solo_bottom")
+	upg_btn.pressed.emit()
+	await _tick(2)
+	_check_eq("Bottom Converged Solo Ultimate (`solo_bottom`) upgrades cleanly!",
+		WitchCauldronProgression.get_node_level("noa", "solo_bottom"), 1)
+
+	# ResetButton refunds spent points & unlocks all 3 pillars again!
+	rst_btn.pressed.emit()
+	await _tick(2)
+	_check_eq("ResetButton clears chosen pillar back to -1",
+		WitchCauldronProgression.get_chosen_pillar("noa"), -1)
 	skill_ui.hide_menu()
 	await _tick(2)
 
-	# Wave clear does NOT open 3-card UpgradeMenu popup (`remove_wave_menu`), grants +1 Brew Point instead!
-	var pts_before := WitchCauldronProgression.get_brew_points("noa")
-	main._on_wave_cleared(1)
-	await _tick(2)
-	_check_eq("Wave clear does NOT show 3-card UpgradeMenu popup", main.upgrade_menu.visible, false)
-	_check_eq("Wave clear awards +1 Witch Brew Point to active hero",
-		WitchCauldronProgression.get_brew_points("noa"), pts_before + 1)
+	# Typing `canoheil` in DevConsole resets ALL heroes (0 points, 0 nodes, base stats)!
+	dev_con.submit_command("canoheil")
+	await _tick(3)
+	_check_eq("Typing 'canoheil' resets all heroes' points, nodes, & Noa base HP (75)",
+		WitchCauldronProgression.get_brew_points("noa") == 0
+		and WitchCauldronProgression.get_brew_points("sylvara") == 0
+		and WitchCauldronProgression.get_spent_points("noa") == 0
+		and main.player.max_health == 75, true)
 
 	# ESC Pause Menu (`Continue`, `Settings`, `Lobby`, `Quit`)
 	var pause_ui: PauseMenu = main.get_node("UI/PauseMenu")
@@ -435,6 +510,32 @@ func _run() -> void:
 	await _tick(2)
 	_check_eq("4th Blood-Splash erupts 30% Ground Blood Fountain (58 - 14 - 30 = 14 HP)!",
 		splash_foe.current_health, 14)
+
+	# --- SYLVARA EXPLICIT OP SOLO SKILLS (`solo_top` 1.0s Post-Shift Projectile Dodge & `solo_bottom` 30% Auto-Aim Barrage) ---
+	sylvara.global_position = Vector2(520.0, 220.0)
+	sylvara.current_health = sylvara.max_health
+	sylvara.apply_skill_tree_ranks({"solo_top": 1, "solo_bottom": 0})
+	sylvara._try_start_dash()
+	await _wait(0.24)
+	await _tick(2)
+	_check("Sylvara Shift finished AND 1.0s post-Shift projectile dodge window is active!",
+		not sylvara.is_dashing and sylvara.post_dash_dodge_left > 0.65,
+		"dodge_left=%.2f" % sylvara.post_dash_dodge_left)
+	sylvara.take_damage(15, sylvara.global_position + Vector2(30.0, 0.0), true)
+	_check_eq("Sylvara solo_top dodges 100% of projectiles AFTER Shift ends!",
+		sylvara.current_health, sylvara.max_health)
+
+	# Upgrade `solo_bottom` -> verify auto-aim rapid volley fires automatically dealing 30% of attack_damage!
+	sylvara.apply_skill_tree_ranks({"solo_top": 1, "solo_bottom": 1})
+	var expected_auto_dmg := maxi(int(roundf(float(sylvara.attack_damage) * 0.30)), 1)
+	_check_eq("Sylvara solo_bottom auto-aim shot deals 30% of attack_damage",
+		sylvara.get_auto_barrage_shot_damage(), expected_auto_dmg)
+	var barrage_foe := _make_dummy_slime(world, sylvara.global_position + Vector2(110.0, 0.0), 40)
+	await _wait(0.45)
+	await _tick(3)
+	_check("Sylvara solo_bottom auto-aims & hits nearby enemy rapidly without manual input!",
+		barrage_foe.current_health < 40,
+		"foe_hp=%d/40" % barrage_foe.current_health)
 
 	print("\n=== Summary: %d / %d checks passed ===" % [_checks - _failures, _checks])
 	get_tree().quit(1 if _failures > 0 else 0)

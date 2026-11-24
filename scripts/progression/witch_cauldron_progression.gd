@@ -1,25 +1,35 @@
 extends RefCounted
 class_name WitchCauldronProgression
-## Persistent profile, hero selection memory, settings, & 16-Node Per-Hero RPG Skill Tree!
+## Persistent profile, hero memory, Witch Alchemy Reagents, & Scrollable Exclusive-Pillar OP Skill Tree!
 ##
-## Saves to `user://witch_cottage_save.cfg`:
-##   - `profile/selected_hero` -> remembers which hero you picked across game launches!
-##   - `skills_<hero_id>/*`    -> 16-node (`1 -> 3 -> 6 -> 6`, Lv `0..5`) Skill Tree + points!
-##   - `settings/*`            -> Master/SFX volume, Screen Shake, and Fullscreen!
+## Topology (`1 -> 3 Exclusive 4-Tier Pillars -> 1 Converged Ultimate Solo Node`):
+##   - Row 0 (`solo_top`)    : 1 Solo Keystone OP Skill (`max_level = 1`)
+##   - Rows 1..4 (`p0..p2`)  : 3 Pillars x 4 Tiers (`max_level = 5`). Choosing ANY node in
+##                             1 Pillar locks out the other 2 Pillars until Reset!
+##   - Row 5 (`solo_bottom`) : All 3 Pillars converge into 1 Ultimate OP Solo Node (`max_level = 1`)!
+##
+## Economy & Console Cheats:
+##   - Slaying monsters & clearing waves drops Alchemy Reagents (`REAGENTS_PER_POTION = 3` per Potion).
+##   - Giving Reagents to the Witch at the Cauldron brews Potions (`Majon` = Skill Points).
+##   - Backtick `` ` `` Console: `wizard` -> `+10000` Skill Points; `canoheil` -> resets ALL heroes!
 
 const DEFAULT_SAVE_PATH := "user://witch_cottage_save.cfg"
-const STARTING_BREW_POINTS: int = 3
+const STARTING_BREW_POINTS: int = 0
+const REAGENTS_PER_POTION: int = 3
 const MAX_NODE_LEVEL: int = 5
 
 const ALL_NODE_IDS: Array[String] = [
-	"vitality",
-	"wrath", "focus", "essence",
-	"blade", "swiftness", "heart", "ward", "burst", "reaper",
-	"mastery_0", "mastery_1", "mastery_2", "mastery_3", "mastery_4", "mastery_5",
+	"solo_top",
+	"p0_t1", "p1_t1", "p2_t1",
+	"p0_t2", "p1_t2", "p2_t2",
+	"p0_t3", "p1_t3", "p2_t3",
+	"p0_t4", "p1_t4", "p2_t4",
+	"solo_bottom",
 ]
 
 static var save_path: String = DEFAULT_SAVE_PATH
 static var _loaded: bool = false
+static var _reagents: int = 0
 static var _hero_points: Dictionary = {}
 static var _hero_nodes: Dictionary = {}
 
@@ -33,7 +43,6 @@ static func get_hero_theme(hero_id: String) -> Dictionary:
 	var norm := CharacterRegistry.normalize_id(hero_id)
 	match norm:
 		"knight":
-			# Knight: Blue & Black (`نایت ابی مشکی`)
 			return {
 				"id": "knight",
 				"label": "Blue & Obsidian",
@@ -54,7 +63,6 @@ static func get_hero_theme(hero_id: String) -> Dictionary:
 				"stat_highlight": Color(0.46, 0.82, 1.0, 1.0),
 			}
 		"behemoth":
-			# Behemoth: Orange & Red (`بهموث نارنجی قرمز`)
 			return {
 				"id": "behemoth",
 				"label": "Molten Orange & Crimson",
@@ -75,7 +83,6 @@ static func get_hero_theme(hero_id: String) -> Dictionary:
 				"stat_highlight": Color(1.0, 0.68, 0.26, 1.0),
 			}
 		"sylvara":
-			# Elf (Sylvara): Green & Gold (`الف سبز طلایی`)
 			return {
 				"id": "sylvara",
 				"label": "Emerald & Elven Gold",
@@ -96,7 +103,6 @@ static func get_hero_theme(hero_id: String) -> Dictionary:
 				"stat_highlight": Color(0.98, 0.86, 0.36, 1.0),
 			}
 		_:
-			# Noa: Red & White (`نوا قرمز سفید`)
 			return {
 				"id": "noa",
 				"label": "Crimson & Ivory White",
@@ -118,173 +124,196 @@ static func get_hero_theme(hero_id: String) -> Dictionary:
 			}
 
 
-static func _hero_flavor_names(hero_id: String) -> Dictionary:
+static func get_pillar_names(hero_id: String) -> Array[String]:
 	match CharacterRegistry.normalize_id(hero_id):
-		"knight":
-			return {
-				"root": "Oathbound Core",
-				"wrath": "Vanguard Slash",
-				"essence": "Aegis Flame",
-				"essence_desc": "Increase Shield Ram DMG by +4 and Armor by +1 per level.",
-			}
 		"sylvara":
-			return {
-				"root": "Sylvan Heartseed",
-				"wrath": "Windpiercer Strike",
-				"essence": "Sunleaf Aura",
-				"essence_desc": "Increase Charged Arrow DMG by +5 and Max Energy by +12 per level.",
-			}
+			return ["I. Emerald Storm", "II. Gale Phantom", "III. Sun Executioner"]
+		"knight":
+			return ["I. Swordmaster", "II. Lion Bastion", "III. Sky Vanguard"]
 		"noa":
-			return {
-				"root": "Sanguine Awakening",
-				"wrath": "Crimson Strike",
-				"essence": "White Rose Bloodfire",
-				"essence_desc": "Increase Drain Heal by +1/hit and Blood Slash reach by +8 per level.",
-			}
+			return ["I. Blood Empress", "II. Night Swarm", "III. White Sovereign"]
 		_:
-			return {
-				"root": "Titan Core",
-				"wrath": "Crushing Strike",
-				"essence": "Inferno Rage",
-				"essence_desc": "Increase Shoulder Charge & Uppercut damage by +4 per level.",
-			}
+			return ["I. Earthshaker", "II. Blood Frenzy", "III. Volcanic Lord"]
 
 
 static func get_skill_nodes_for_hero(hero_id: String) -> Array[Dictionary]:
-	var fl := _hero_flavor_names(hero_id)
+	var norm := CharacterRegistry.normalize_id(hero_id)
+	match norm:
+		"sylvara":
+			return _nodes_sylvara()
+		"knight":
+			return _nodes_knight()
+		"noa":
+			return _nodes_noa()
+		_:
+			return _nodes_behemoth()
+
+
+static func _make_node(id_str: String, row: int, col: int, pillar: int, icon_idx: int,
+		max_lv: int, title: String, desc: String, reqs: Array, purple: bool) -> Dictionary:
+	return {
+		"id": id_str,
+		"row": row,
+		"col": col,
+		"pillar": pillar,
+		"icon_idx": icon_idx,
+		"max_level": max_lv,
+		"title": title,
+		"desc": desc,
+		"requires": reqs,
+		"purple_vial": purple,
+	}
+
+
+static func _nodes_sylvara() -> Array[Dictionary]:
 	return [
-		# --- ROW 0: 1 ROOT NODE ---
-		{
-			"id": "vitality",
-			"row": 0, "col": 0, "icon_idx": 0,
-			"title": String(fl["root"]),
-			"desc": "Increase your Max HP by +12 per level.",
-			"requires": [],
-			"purple_vial": false,
-		},
-		# --- ROW 1: 3 CORE BRANCHES ---
-		{
-			"id": "wrath",
-			"row": 1, "col": 0, "icon_idx": 1,
-			"title": String(fl["wrath"]),
-			"desc": "Increase your attack damage by +3 (+15% power) per level.",
-			"requires": ["vitality"],
-			"purple_vial": true,
-		},
-		{
-			"id": "focus",
-			"row": 1, "col": 1, "icon_idx": 2,
-			"title": "Inner Focus",
-			"desc": "Increase Energy Regen by +15% and Max Energy by +8 per level.",
-			"requires": ["vitality"],
-			"purple_vial": false,
-		},
-		{
-			"id": "essence",
-			"row": 1, "col": 2, "icon_idx": 3,
-			"title": String(fl["essence"]),
-			"desc": String(fl["essence_desc"]),
-			"requires": ["vitality"],
-			"purple_vial": true,
-		},
-		# --- ROW 2: 6 SPECIALIZATION NODES (2 PER BRANCH) ---
-		{
-			"id": "blade",
-			"row": 2, "col": 0, "icon_idx": 4,
-			"title": "Keen Edge",
-			"desc": "Increase weapon & projectile damage by +2 per level.",
-			"requires": ["wrath"],
-			"purple_vial": true,
-		},
-		{
-			"id": "swiftness",
-			"row": 2, "col": 1, "icon_idx": 5,
-			"title": "Fleet Step",
-			"desc": "Increase Move Speed by +7 and Shift Dash speed by +14 per level.",
-			"requires": ["wrath"],
-			"purple_vial": false,
-		},
-		{
-			"id": "heart",
-			"row": 2, "col": 2, "icon_idx": 6,
-			"title": "Vitality Vessel",
-			"desc": "Increase your Max HP by +10 per level.",
-			"requires": ["focus"],
-			"purple_vial": false,
-		},
-		{
-			"id": "ward",
-			"row": 2, "col": 3, "icon_idx": 7,
-			"title": "Bastion Ward",
-			"desc": "Reduce incoming hit damage & boost toughness (+6 Max HP / lv).",
-			"requires": ["focus"],
-			"purple_vial": false,
-		},
-		{
-			"id": "burst",
-			"row": 2, "col": 4, "icon_idx": 8,
-			"title": "Astral Surge",
-			"desc": "Increase Shift & Special skill damage by +3 per level.",
-			"requires": ["essence"],
-			"purple_vial": true,
-		},
-		{
-			"id": "reaper",
-			"row": 2, "col": 5, "icon_idx": 9,
-			"title": "Grim Harvest",
-			"desc": "Increase Attack DMG by +2 and Max Energy by +6 per level.",
-			"requires": ["essence"],
-			"purple_vial": true,
-		},
-		# --- ROW 3: 6 TIER-4 MASTERY NODES (PADLOCKED UNTIL ROW-2 PARENT >= 1) ---
-		{
-			"id": "mastery_0",
-			"row": 3, "col": 0, "icon_idx": 10,
-			"title": "Twin Fang Mastery",
-			"desc": "Mastery: Increase all attack damage by +3 per level.",
-			"requires": ["blade"],
-			"purple_vial": true,
-		},
-		{
-			"id": "mastery_1",
-			"row": 3, "col": 1, "icon_idx": 11,
-			"title": "Tempest Stride",
-			"desc": "Mastery: +5 Move Speed & faster Shift recovery per level.",
-			"requires": ["swiftness"],
-			"purple_vial": false,
-		},
-		{
-			"id": "mastery_2",
-			"row": 3, "col": 2, "icon_idx": 12,
-			"title": "Immortal Chalice",
-			"desc": "Mastery: Increase Max HP by +14 per level.",
-			"requires": ["heart"],
-			"purple_vial": false,
-		},
-		{
-			"id": "mastery_3",
-			"row": 3, "col": 3, "icon_idx": 13,
-			"title": "Sovereign Crown",
-			"desc": "Mastery: +8 Max HP and +10 Max Energy per level.",
-			"requires": ["ward"],
-			"purple_vial": false,
-		},
-		{
-			"id": "mastery_4",
-			"row": 3, "col": 4, "icon_idx": 14,
-			"title": "All-Seeing Apex",
-			"desc": "Mastery: +4 Special & Charged attack damage per level.",
-			"requires": ["burst"],
-			"purple_vial": true,
-		},
-		{
-			"id": "mastery_5",
-			"row": 3, "col": 5, "icon_idx": 15,
-			"title": "Reaper's Verdict",
-			"desc": "Mastery: +2 Attack DMG, +2 Dash DMG & +6 Max HP per level.",
-			"requires": ["reaper"],
-			"purple_vial": true,
-		},
+		_make_node("solo_top", 0, 1, -1, 5, 1, "Windveil Mirage (OP)",
+			"After Shift ends, dodge 100% of ALL enemy projectiles for 1.0 full second!", [], false),
+		# Pillar 0: Emerald Storm (Multi-arrow & Starburst)
+		_make_node("p0_t1", 1, 0, 0, 1, 5, "Split-Tempest Volley",
+			"EVERY shot fires a multi-arrow fan (+2 arrows, +5 DMG/lv)!", ["solo_top"], true),
+		_make_node("p0_t2", 2, 0, 0, 10, 5, "Piercing Thorn-Flight",
+			"All quick & fan arrows PIERCE through every enemy (+4 DMG/lv)!", ["p0_t1"], false),
+		_make_node("p0_t3", 3, 0, 0, 8, 5, "Emerald Starburst",
+			"Arrows detonate on impact in a 56px AoE blast for +55% (+12%/lv) DMG!", ["p0_t2"], true),
+		_make_node("p0_t4", 4, 0, 0, 14, 5, "Zero-Draw Stormbow",
+			"Cut bow charge & fire cooldown by 55% and gain +10 Attack DMG/lv!", ["p0_t3"], true),
+		# Pillar 1: Gale Phantom (Mobility, Poison Snare & Twin Shadow)
+		_make_node("p1_t1", 1, 1, 1, 11, 5, "Zephyr Vault",
+			"-12% Shift cooldown/lv, +18 Move Speed/lv, & Shift restores 12 HP!", ["solo_top"], false),
+		_make_node("p1_t2", 2, 1, 1, 2, 5, "Briar Root-Venom",
+			"Arrows snare foes by 55% and inflict 12 (+5/lv) Venom burst damage!", ["p1_t1"], false),
+		_make_node("p1_t3", 3, 1, 1, 3, 5, "Twin Phantom Bow",
+			"Every bow shot fires a second Shadow Great-Arrow for 60% (+10%/lv) DMG!", ["p1_t2"], true),
+		_make_node("p1_t4", 4, 1, 1, 12, 5, "Immortal Windrunner",
+			"+22 Max HP/lv, +20% Energy Regen/lv, and kills instantly reset Shift!", ["p1_t3"], false),
+		# Pillar 2: Sun Executioner (Crit & Instant Execute)
+		_make_node("p2_t1", 1, 2, 2, 4, 5, "Heartseeker Critical",
+			"Arrows gain 35% (+10%/lv) Crit Chance to strike for 2.5x DAMAGE!", ["solo_top"], true),
+		_make_node("p2_t2", 2, 2, 2, 0, 5, "Solar Great-Arrow",
+			"Charged Great-Arrows deal +14 DMG/lv and stun enemies for 0.8s!", ["p2_t1"], true),
+		_make_node("p2_t3", 3, 2, 2, 9, 5, "Verdant Executioner",
+			"Instantly EXECUTE non-boss enemies below 30% (+4%/lv) HP on hit!", ["p2_t2"], true),
+		_make_node("p2_t4", 4, 2, 2, 15, 5, "Avatar of the Sunwood",
+			"+12 Attack DMG/lv & +25% total bow damage multiplier!", ["p2_t3"], true),
+		# Converged Bottom Solo Ultimate (`dovomin taki`)
+		_make_node("solo_bottom", 5, 1, -1, 14, 1, "Starlight Auto-Barrage (OP)",
+			"ULTIMATE: Auto-aims at nearby foes and fires at blazing speed for 30% Attack DMG per arrow!",
+			["p0_t4", "p1_t4", "p2_t4"], true),
+	]
+
+
+static func _nodes_behemoth() -> Array[Dictionary]:
+	return [
+		_make_node("solo_top", 0, 1, -1, 0, 1, "Unstoppable Savage (OP)",
+			"After Shift ends, dodge 100% of projectiles & attacks for 1.0s + ground-slam!", [], false),
+		# Pillar 0: Earthshaker
+		_make_node("p0_t1", 1, 0, 0, 1, 5, "Seismic Bare-Knuckles",
+			"Every punch unleashes a 72px Earth Shockwave (+6 Attack DMG/lv)!", ["solo_top"], true),
+		_make_node("p0_t2", 2, 0, 0, 9, 5, "Skullcrusher Concussion",
+			"Punches & Charge stun +0.35s longer/lv and deal +35% bonus stun DMG!", ["p0_t1"], true),
+		_make_node("p0_t3", 3, 0, 0, 8, 5, "Meteor Shoulder-Slam",
+			"Shift Charge detonates a 96px molten crater for 40 (+15/lv) AoE DMG!", ["p0_t2"], true),
+		_make_node("p0_t4", 4, 0, 0, 13, 5, "Titan Worldbreaker",
+			"+14 Attack DMG/lv, +25 Max HP/lv, and 2x Uppercut shockwave size!", ["p0_t3"], true),
+		# Pillar 1: Blood Frenzy
+		_make_node("p1_t1", 1, 1, 1, 5, 5, "Primal Berserk Speed",
+			"+12% faster Punch Speed/lv and +14 Move Speed/lv!", ["solo_top"], false),
+		_make_node("p1_t2", 2, 1, 1, 6, 5, "Savage Feast",
+			"Every punch heals +4 (+2/lv) HP and kills restore 18% Max HP!", ["p1_t1"], false),
+		_make_node("p1_t3", 3, 1, 1, 10, 5, "Deathless Rampage",
+			"Deal +60% (+15%/lv) bonus DMG when below 60% HP & halve Shift cooldown!", ["p1_t2"], true),
+		_make_node("p1_t4", 4, 1, 1, 15, 5, "Chieftain's Bloodbath",
+			"+30 Max HP/lv, +10 Attack DMG/lv, & kills reset Shift cooldown!", ["p1_t3"], true),
+		# Pillar 2: Volcanic Lord
+		_make_node("p2_t1", 1, 2, 2, 3, 5, "Magma Fists",
+			"Punches hurl a piercing FireWave forward for 22 (+8/lv) DMG!", ["solo_top"], true),
+		_make_node("p2_t2", 2, 2, 2, 7, 5, "Obsidian Muscle Hide",
+			"+24 Max HP/lv & attackers suffer 20 (+8/lv) volcanic thorns DMG!", ["p2_t1"], false),
+		_make_node("p2_t3", 3, 2, 2, 14, 5, "Inferno Eruption",
+			"Every 3rd combo hit calls down a Volcanic Pillar for 45 (+12/lv) DMG!", ["p2_t2"], true),
+		_make_node("p2_t4", 4, 2, 2, 4, 5, "Avatar of Ragnarok",
+			"+15 Attack DMG/lv & slain enemies explode in a 80px Fireball!", ["p2_t3"], true),
+		# Converged Bottom Solo Ultimate
+		_make_node("solo_bottom", 5, 1, -1, 14, 1, "Cataclysmic Tremor Aura (OP)",
+			"ULTIMATE: Auto-slams nearby enemies at blistering speed for 40% Attack DMG per tremor!",
+			["p0_t4", "p1_t4", "p2_t4"], true),
+	]
+
+
+static func _nodes_knight() -> Array[Dictionary]:
+	return [
+		_make_node("solo_top", 0, 1, -1, 7, 1, "Crusader's Holy Aegis (OP)",
+			"After Shift ends, reflect & dodge 100% of projectiles for 1.0s in golden light!", [], false),
+		# Pillar 0: Swordmaster
+		_make_node("p0_t1", 1, 0, 0, 4, 5, "Sacred Sword-Beam",
+			"Every Greatsword swing fires a piercing Holy Crescent Beam (+6 DMG/lv)!", ["solo_top"], true),
+		_make_node("p0_t2", 2, 0, 0, 1, 5, "Grandmaster Cleave",
+			"+45% Spin Slash AoE radius & +7 Attack DMG/lv!", ["p0_t1"], true),
+		_make_node("p0_t3", 3, 0, 0, 8, 5, "Templar Verdict Crit",
+			"40% (+10%/lv) Crit Chance for 2.5x Holy Greatsword Damage!", ["p0_t2"], true),
+		_make_node("p0_t4", 4, 0, 0, 10, 5, "Excalibur Awakened",
+			"-35% attack cooldown & +14 Attack DMG/lv!", ["p0_t3"], true),
+		# Pillar 1: Lion Bastion
+		_make_node("p1_t1", 1, 1, 1, 6, 5, "Golden Lion Plate",
+			"+30 Max HP/lv, +2 Flat Armor/lv, & -50% Shield Energy drain!", ["solo_top"], false),
+		_make_node("p1_t2", 2, 1, 1, 13, 5, "Roar of Retribution",
+			"Blocking any hit blasts nearby foes for 35 (+12/lv) Holy Lion DMG!", ["p1_t1"], false),
+		_make_node("p1_t3", 3, 1, 1, 12, 5, "Consecrated Crusader",
+			"Regenerate 6 (+3/lv) HP every second & burn nearby enemies!", ["p1_t2"], false),
+		_make_node("p1_t4", 4, 1, 1, 7, 5, "Unbreakable Citadel",
+			"Shield NEVER exhausts, +35 Max HP/lv, & +8 Attack DMG/lv!", ["p1_t3"], false),
+		# Pillar 2: Sky Vanguard
+		_make_node("p2_t1", 1, 2, 2, 11, 5, "Thunder Shield-Ram",
+			"+14 Move Speed/lv, -12% Shift cooldown/lv, & +12 Shift Ram DMG/lv!", ["solo_top"], false),
+		_make_node("p2_t2", 2, 2, 2, 3, 5, "Heavensfall Smite",
+			"Shift arrival strikes foes with Celestial Lightning for 42 (+14/lv) DMG!", ["p2_t1"], true),
+		_make_node("p2_t3", 3, 2, 2, 9, 5, "Crusader's Judgment",
+			"Stun hit foes during Shift for 1.5s & execute foes under 28% HP!", ["p2_t2"], true),
+		_make_node("p2_t4", 4, 2, 2, 14, 5, "Solaris Grand Paladin",
+			"+12 Attack DMG/lv, +100% Energy Regen, & kills reset Shift!", ["p2_t3"], true),
+		# Converged Bottom Solo Ultimate
+		_make_node("solo_bottom", 5, 1, -1, 14, 1, "Storm of Sacred Blades (OP)",
+			"ULTIMATE: Auto-fires radiant judgment blades at nearby foes at high speed for 35% Attack DMG!",
+			["p0_t4", "p1_t4", "p2_t4"], true),
+	]
+
+
+static func _nodes_noa() -> Array[Dictionary]:
+	return [
+		_make_node("solo_top", 0, 1, -1, 2, 1, "Aristocrat's Mist Veil (OP)",
+			"After Bat-Swarm Shift ends, dodge 100% of projectiles & hits for 1.0s!", [], false),
+		# Pillar 0: Blood Empress
+		_make_node("p0_t1", 1, 0, 0, 6, 5, "Royal Blood-Pact",
+			"Blood-Splash costs ZERO self-HP and heals +3 (+2/lv) extra HP per hit!", ["solo_top"], true),
+		_make_node("p0_t2", 2, 0, 0, 3, 5, "Crimson Fountain Mastery",
+			"30% Max-HP Blood Fountain erupts in HALF the hits (every 2nd hit)!", ["p0_t1"], true),
+		_make_node("p0_t3", 3, 0, 0, 1, 5, "Tidal Scarlet Arc",
+			"+22px Blood-Splash reach/lv & +7 Attack DMG/lv!", ["p0_t2"], true),
+		_make_node("p0_t4", 4, 0, 0, 12, 5, "Empress of Eternal Vitae",
+			"+24 Max HP/lv & +14 Attack DMG/lv!", ["p0_t3"], true),
+		# Pillar 1: Night Swarm
+		_make_node("p1_t1", 1, 1, 1, 5, 5, "Ravenous Nightwings",
+			"Bat-Swarm Shift bites enemies along your path for 26 (+10/lv) DMG + heals!", ["solo_top"], true),
+		_make_node("p1_t2", 2, 1, 1, 11, 5, "Velvet Gale Steps",
+			"+16 Move Speed/lv & -12% Bat-Swarm Shift cooldown/lv!", ["p1_t1"], false),
+		_make_node("p1_t3", 3, 1, 1, 10, 5, "Seeker Bat Familiars",
+			"Every attack unleashes homing Vampire Bats dealing +50% (+12%/lv) DMG!", ["p1_t2"], true),
+		_make_node("p1_t4", 4, 1, 1, 15, 5, "Sovereign of Midnight",
+			"Kills instantly reset Bat-Swarm Shift & +12 Attack DMG/lv!", ["p1_t3"], true),
+		# Pillar 2: White Sovereign
+		_make_node("p2_t1", 1, 2, 2, 13, 5, "Ruby Tiara Decree",
+			"+35% faster Blood-Splash speed & +6 Attack DMG/lv!", ["solo_top"], true),
+		_make_node("p2_t2", 2, 2, 2, 8, 5, "White-Rose Blood Crit",
+			"40% (+10%/lv) Crit Chance for 2.5x Crimson Damage!", ["p2_t1"], true),
+		_make_node("p2_t3", 3, 2, 2, 9, 5, "Noble Execution",
+			"Slain enemies explode in a 85px Crimson Rose Nova for 42 (+12/lv) DMG!", ["p2_t2"], true),
+		_make_node("p2_t4", 4, 2, 2, 14, 5, "Immortal Royal Vampire",
+			"+25 Max HP/lv, +14 Attack DMG/lv, & +4 Drain Heal/hit!", ["p2_t3"], true),
+		# Converged Bottom Solo Ultimate
+		_make_node("solo_bottom", 5, 1, -1, 14, 1, "Royal Crimson Cataclysm (OP)",
+			"ULTIMATE: Ruby Crown auto-fires rapid Blood Lances at nearby foes for 30% Attack DMG + Life Drain!",
+			["p0_t4", "p1_t4", "p2_t4"], true),
 	]
 
 
@@ -305,6 +334,7 @@ static func load_from_disk(custom_path: String = "") -> void:
 	if custom_path != "":
 		save_path = custom_path
 	_loaded = true
+	_reagents = 0
 	_hero_points.clear()
 	_hero_nodes.clear()
 
@@ -320,6 +350,7 @@ static func load_from_disk(custom_path: String = "") -> void:
 
 	var saved_hero := String(cfg.get_value("profile", "selected_hero", CharacterRegistry.selected_id))
 	CharacterRegistry.selected_id = String(CharacterRegistry.get_entry(saved_hero)["id"])
+	_reagents = maxi(int(cfg.get_value("profile", "reagents", 0)), 0)
 
 	master_volume = clampf(float(cfg.get_value("settings", "master_volume", 1.0)), 0.0, 1.0)
 	sfx_volume = clampf(float(cfg.get_value("settings", "sfx_volume", 1.0)), 0.0, 1.0)
@@ -333,7 +364,8 @@ static func load_from_disk(custom_path: String = "") -> void:
 			_hero_points[hid] = maxi(int(cfg.get_value(sec, "points", STARTING_BREW_POINTS)), 0)
 			var map: Dictionary = _hero_nodes[hid]
 			for nid in ALL_NODE_IDS:
-				map[nid] = clampi(int(cfg.get_value(sec, nid, 0)), 0, MAX_NODE_LEVEL)
+				var max_lv := get_node_max_level(hid, nid)
+				map[nid] = clampi(int(cfg.get_value(sec, nid, 0)), 0, max_lv)
 			_hero_nodes[hid] = map
 
 	apply_runtime_settings()
@@ -343,6 +375,7 @@ static func save_to_disk() -> void:
 	ensure_loaded()
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "selected_hero", CharacterRegistry.selected_id)
+	cfg.set_value("profile", "reagents", _reagents)
 
 	cfg.set_value("settings", "master_volume", master_volume)
 	cfg.set_value("settings", "sfx_volume", sfx_volume)
@@ -368,6 +401,56 @@ static func save_selected_hero(hero_id: String) -> String:
 	return valid_id
 
 
+# =====================================================================
+# WITCH ALCHEMY REAGENTS & POTION BREWING (`Majon` -> Skill Points)
+# =====================================================================
+
+static func get_reagents() -> int:
+	ensure_loaded()
+	return _reagents
+
+
+static func add_reagents(amount: int) -> int:
+	ensure_loaded()
+	if amount <= 0:
+		return _reagents
+	_reagents += amount
+	save_to_disk()
+	return _reagents
+
+
+static func can_brew_potion() -> bool:
+	ensure_loaded()
+	return _reagents >= REAGENTS_PER_POTION
+
+
+static func brew_potion_for_hero(hero_id: String) -> bool:
+	ensure_loaded()
+	if _reagents < REAGENTS_PER_POTION:
+		return false
+	_reagents -= REAGENTS_PER_POTION
+	var hid := String(CharacterRegistry.get_entry(hero_id)["id"])
+	_hero_points[hid] = int(_hero_points.get(hid, STARTING_BREW_POINTS)) + 1
+	save_to_disk()
+	return true
+
+
+static func brew_all_potions_for_hero(hero_id: String) -> int:
+	ensure_loaded()
+	var count: int = int(_reagents / REAGENTS_PER_POTION)
+	if count <= 0:
+		return 0
+	_reagents -= count * REAGENTS_PER_POTION
+	var hid := String(CharacterRegistry.get_entry(hero_id)["id"])
+	_hero_points[hid] = int(_hero_points.get(hid, STARTING_BREW_POINTS)) + count
+	save_to_disk()
+	return count
+
+
+# =====================================================================
+# SKILL POINTS, EXCLUSIVE PILLARS, & CHEAT CONSOLE (`wizard` / `canoheil`)
+# =====================================================================
+
 static func get_brew_points(hero_id: String) -> int:
 	ensure_loaded()
 	var hid := String(CharacterRegistry.get_entry(hero_id)["id"])
@@ -382,6 +465,24 @@ static func add_brew_points(hero_id: String, amount: int = 1) -> int:
 	_hero_points[hid] = int(_hero_points.get(hid, STARTING_BREW_POINTS)) + amount
 	save_to_disk()
 	return int(_hero_points[hid])
+
+
+static func grant_wizard_points(amount: int = 10000) -> void:
+	ensure_loaded()
+	for entry in CharacterRegistry.CHARACTERS:
+		var hid := String(entry["id"])
+		_hero_points[hid] = int(_hero_points.get(hid, 0)) + maxi(amount, 0)
+	save_to_disk()
+
+
+static func reset_all_heroes() -> void:
+	ensure_loaded()
+	_reagents = 0
+	for entry in CharacterRegistry.CHARACTERS:
+		var hid := String(entry["id"])
+		_hero_points[hid] = STARTING_BREW_POINTS
+		_hero_nodes[hid] = _make_empty_node_map()
+	save_to_disk()
 
 
 static func get_spent_points(hero_id: String) -> int:
@@ -420,10 +521,41 @@ static func get_node_meta(hero_id: String, node_id: String) -> Dictionary:
 	return {}
 
 
+static func get_node_max_level(hero_id: String, node_id: String) -> int:
+	var meta := get_node_meta(hero_id, node_id)
+	if meta.is_empty():
+		return MAX_NODE_LEVEL
+	return int(meta.get("max_level", MAX_NODE_LEVEL))
+
+
+## Returns `0`, `1`, or `2` once the hero has invested in one of the 3 Pillars, or `-1` if none chosen yet.
+static func get_chosen_pillar(hero_id: String) -> int:
+	ensure_loaded()
+	for p in range(3):
+		for t in range(1, 5):
+			var nid := "p%d_t%d" % [p, t]
+			if get_node_level(hero_id, nid) >= 1:
+				return p
+	return -1
+
+
+static func is_node_locked_by_other_pillar(hero_id: String, node_id: String) -> bool:
+	var meta := get_node_meta(hero_id, node_id)
+	if meta.is_empty():
+		return false
+	var pil := int(meta.get("pillar", -1))
+	if pil < 0:
+		return false
+	var chosen := get_chosen_pillar(hero_id)
+	return chosen != -1 and chosen != pil
+
+
 static func is_node_unlocked(hero_id: String, node_id: String) -> bool:
 	ensure_loaded()
 	var meta := get_node_meta(hero_id, node_id)
 	if meta.is_empty():
+		return false
+	if is_node_locked_by_other_pillar(hero_id, node_id):
 		return false
 	var reqs: Array = meta["requires"]
 	if reqs.is_empty():
@@ -438,7 +570,7 @@ static func can_upgrade_node(hero_id: String, node_id: String) -> bool:
 	ensure_loaded()
 	if get_brew_points(hero_id) <= 0:
 		return false
-	if get_node_level(hero_id, node_id) >= MAX_NODE_LEVEL:
+	if get_node_level(hero_id, node_id) >= get_node_max_level(hero_id, node_id):
 		return false
 	return is_node_unlocked(hero_id, node_id)
 
@@ -449,11 +581,16 @@ static func upgrade_node(hero_id: String, node_id: String) -> bool:
 	var hid := String(CharacterRegistry.get_entry(hero_id)["id"])
 	_hero_points[hid] = maxi(int(_hero_points.get(hid, 0)) - 1, 0)
 	var map: Dictionary = _hero_nodes.get(hid, _make_empty_node_map())
-	map[node_id] = clampi(int(map.get(node_id, 0)) + 1, 0, MAX_NODE_LEVEL)
+	var max_lv := get_node_max_level(hid, node_id)
+	map[node_id] = clampi(int(map.get(node_id, 0)) + 1, 0, max_lv)
 	_hero_nodes[hid] = map
 	save_to_disk()
 	return true
 
+
+# =====================================================================
+# APPLY OP SKILLS & STAT MODIFIERS TO LIVE HERO INSTANCE
+# =====================================================================
 
 static func apply_to_hero_instance(hero: Node) -> void:
 	if hero == null or not is_instance_valid(hero):
@@ -461,83 +598,10 @@ static func apply_to_hero_instance(hero: Node) -> void:
 	ensure_loaded()
 	var hid := String(hero.get("character_id")) if "character_id" in hero else CharacterRegistry.selected_id
 	hid = String(CharacterRegistry.get_entry(hid)["id"])
-	if get_spent_points(hid) <= 0:
-		return
 
-	var vit := get_node_level(hid, "vitality")
-	var wra := get_node_level(hid, "wrath")
-	var foc := get_node_level(hid, "focus")
-	var ess := get_node_level(hid, "essence")
-	var bld := get_node_level(hid, "blade")
-	var swi := get_node_level(hid, "swiftness")
-	var hrt := get_node_level(hid, "heart")
-	var wrd := get_node_level(hid, "ward")
-	var brs := get_node_level(hid, "burst")
-	var rpr := get_node_level(hid, "reaper")
-	var m0 := get_node_level(hid, "mastery_0")
-	var m1 := get_node_level(hid, "mastery_1")
-	var m2 := get_node_level(hid, "mastery_2")
-	var m3 := get_node_level(hid, "mastery_3")
-	var m4 := get_node_level(hid, "mastery_4")
-	var m5 := get_node_level(hid, "mastery_5")
-
-	var bonus_hp := vit * 12 + hrt * 10 + wrd * 6 + m2 * 14 + m3 * 8 + m5 * 6
-	if bonus_hp > 0 and "max_health" in hero and "current_health" in hero:
-		hero.max_health += bonus_hp
-		hero.current_health = mini(hero.current_health + bonus_hp, hero.max_health)
-
-	var bonus_atk := wra * 3 + bld * 2 + rpr * 2 + m0 * 3 + m5 * 2
-	if bonus_atk > 0 and "attack_damage" in hero:
-		hero.attack_damage += bonus_atk
-		if "charged_arrow_damage" in hero:
-			hero.charged_arrow_damage += wra * 4 + bld * 3 + m0 * 4
-
-	var bonus_spd := float(swi * 7 + m1 * 5)
-	if bonus_spd > 0.0 and "move_speed" in hero:
-		hero.move_speed += bonus_spd
-	if (swi > 0 or m1 > 0) and "dash_speed" in hero:
-		hero.dash_speed += float(swi * 14 + m1 * 10)
-	if m1 > 0 and "dash_cooldown" in hero:
-		hero.dash_cooldown = maxf(0.45, float(hero.dash_cooldown) * pow(0.96, float(m1)))
-
-	var bonus_en := float(foc * 8 + rpr * 6 + m3 * 10)
-	if bonus_en > 0.0 and "max_energy" in hero and "current_energy" in hero:
-		hero.max_energy += bonus_en
-		hero.current_energy = hero.max_energy
-	if foc > 0 and "energy_regen_per_sec" in hero:
-		hero.energy_regen_per_sec *= (1.0 + 0.15 * float(foc))
-
-	if wrd > 0 and "armor_flat_reduction" in hero:
-		hero.armor_flat_reduction += wrd
-
-	var bonus_spec := brs * 3 + m4 * 4 + m5 * 2
-	if bonus_spec > 0:
-		if "dash_damage" in hero:
-			hero.dash_damage += bonus_spec
-		if "charged_arrow_damage" in hero:
-			hero.charged_arrow_damage += bonus_spec
-
-	if ess > 0:
-		match hid:
-			"knight":
-				if "armor_flat_reduction" in hero:
-					hero.armor_flat_reduction += ess * 1
-				if "dash_damage" in hero:
-					hero.dash_damage += ess * 4
-			"sylvara":
-				if "charged_arrow_damage" in hero:
-					hero.charged_arrow_damage += ess * 5
-				if "max_energy" in hero and "current_energy" in hero:
-					hero.max_energy += float(ess * 12)
-					hero.current_energy = hero.max_energy
-			"noa":
-				if "heal_per_enemy_hit" in hero:
-					hero.heal_per_enemy_hit += ess * 1
-				if "splash_range" in hero:
-					hero.splash_range += float(ess * 8)
-			_:
-				if "dash_damage" in hero:
-					hero.dash_damage += ess * 4
+	var map: Dictionary = _hero_nodes.get(hid, _make_empty_node_map()).duplicate()
+	if hero.has_method("apply_skill_tree_ranks"):
+		hero.apply_skill_tree_ranks(map)
 
 
 static func apply_runtime_settings() -> void:

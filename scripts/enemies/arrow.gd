@@ -91,9 +91,13 @@ func _on_area_entered(area: Area2D) -> void:
 	var current: Node = area
 	var guard := 4
 	while current != null and guard > 0:
+		if current.has_method("is_dodging_projectiles") and current.is_dodging_projectiles():
+			if current.has_method("on_projectile_dodged"):
+				current.on_projectile_dodged(global_position)
+			return
 		if current.has_method("take_damage"):
 			_has_hit = true
-			current.take_damage(damage, global_position)
+			current.take_damage(damage, global_position, true)
 			_remove()
 			return
 		current = current.get_parent()

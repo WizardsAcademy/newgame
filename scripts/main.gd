@@ -23,6 +23,7 @@ enum WorldMode { LOBBY, STAGES, SANDBOX }
 
 const DOOR_TEX_PATH := "res://assets/textures/lobby_door.png"
 const RevivalRitualFXScript := preload("res://scripts/fx/revival_ritual_fx.gd")
+const ReagentDropScript := preload("res://scripts/world/reagent_drop.gd")
 
 @onready var level_root: Node2D = $Level
 @onready var lobby_hub: Node2D = $LobbyHub
@@ -38,6 +39,7 @@ const RevivalRitualFXScript := preload("res://scripts/fx/revival_ritual_fx.gd")
 @onready var witch_skill_tree_menu: WitchSkillTreeMenu = $UI/WitchSkillTreeMenu
 @onready var minimap: MiniMap = $UI/MiniMap
 @onready var pause_menu: PauseMenu = $UI/PauseMenu
+@onready var dev_console: DevConsole = $UI/DevConsole
 
 var world_mode: int = WorldMode.LOBBY
 var total_damage_dealt: int = 0
@@ -85,9 +87,16 @@ func _ready() -> void:
 
 	if witch_skill_tree_menu != null:
 		witch_skill_tree_menu.skill_leveled_up.connect(_on_cauldron_skill_leveled_up)
+		if witch_skill_tree_menu.has_signal("potion_brewed"):
+			witch_skill_tree_menu.potion_brewed.connect(_on_cauldron_potion_brewed)
 		if witch_skill_tree_menu.has_signal("tree_reset"):
 			witch_skill_tree_menu.tree_reset.connect(_on_cauldron_tree_reset)
 		witch_skill_tree_menu.menu_closed.connect(_on_cauldron_menu_closed)
+
+	if dev_console != null:
+		dev_console.command_wizard_triggered.connect(_on_console_wizard)
+		dev_console.command_canoheil_triggered.connect(_on_console_canoheil)
+		dev_console.console_toggled.connect(_on_console_toggled)
 
 	if pause_menu != null:
 		pause_menu.lobby_requested.connect(_on_pause_lobby_requested)
@@ -96,6 +105,8 @@ func _ready() -> void:
 		lobby_hub.wardrobe_opened.connect(open_wardrobe)
 		if lobby_hub.has_signal("cauldron_opened"):
 			lobby_hub.cauldron_opened.connect(open_cauldron_skill_tree)
+		if lobby_hub.has_signal("potion_brewed_in_world"):
+			lobby_hub.potion_brewed_in_world.connect(_on_world_potion_brewed)
 		lobby_hub.enter_stages_requested.connect(enter_stages)
 		lobby_hub.enter_sandbox_requested.connect(enter_sandbox)
 
@@ -282,11 +293,78 @@ func _on_cauldron_skill_leveled_up(hero_id: String, node_id: String, _new_level:
 			if lobby_hub != null:
 				lobby_hub.player_ref = player
 				if lobby_hub.has_method("play_world_potion_handoff"):
-					lobby_hub.play_world_potion_handoff(player, node_id in ["wrath", "essence", "blade", "burst"])
+					lobby_hub.play_world_potion_handoff(player, node_id == "solo_bottom" or node_id.begins_with("p0") or node_id.begins_with("p2"))
 		else:
 			_apply_camera_bounds(Rect2(0.0, 0.0, 1280.0, 720.0))
 		_sync_hero_hud(entry)
 		_spawn_status_popup(player.global_position + Vector2(-10.0, -14.0), "SKILL UP!", Color(0.76, 1.0, 0.84))
+
+
+func _on_cauldron_potion_brewed(_hero_id: String, _new_points: int) -> void:
+	if player != null and is_instance_valid(player):
+		if world_mode == WorldMode.LOBBY and lobby_hub != null and lobby_hub.has_method("play_world_potion_handoff"):
+			lobby_hub.play_world_potion_handoff(player, true)
+		_spawn_status_popup(player.global_position + Vector2(-14.0, -14.0), "+1 MAJON!", Color(0.86, 0.62, 1.0))
+	if hero_hud != null:
+		hero_hud.queue_redraw()
+
+
+func _on_world_potion_brewed(brewed_count: int) -> void:
+	if player != null and is_instance_valid(player):
+		_spawn_status_popup(player.global_position + Vector2(-18.0, -16.0),
+			"+%d MAJON BREWED!" % brewed_count, Color(0.90, 0.64, 1.0))
+	if witch_skill_tree_menu != null:
+		witch_skill_tree_menu.refresh_if_open()
+	if hero_hud != null:
+		hero_hud.queue_redraw()
+
+
+func _on_console_toggled(is_open_now: bool) -> void:
+	if player == null or not is_instance_valid(player) or not ("input_enabled" in player):
+		return
+	if is_open_now:
+		player.input_enabled = false
+	else:
+		var menu_blocking := (
+			game_is_over
+			or (character_select_menu != null and character_select_menu.is_open())
+			or (witch_skill_tree_menu != null and witch_skill_tree_menu.is_open())
+			or (pause_menu != null and pause_menu.is_open())
+		)
+		player.input_enabled = not menu_blocking
+
+
+func _on_console_wizard() -> void:
+	WitchCauldronProgression.grant_wizard_points(10000)
+	if witch_skill_tree_menu != null:
+		witch_skill_tree_menu.refresh_if_open()
+	if hero_hud != null:
+		hero_hud.queue_redraw()
+	if player != null and is_instance_valid(player):
+		_spawn_status_popup(player.global_position + Vector2(-24.0, -18.0), "+10000 SKILL PTS!", Color(1.0, 0.88, 0.34))
+
+
+func _on_console_canoheil() -> void:
+	WitchCauldronProgression.reset_all_heroes()
+	if player != null and is_instance_valid(player):
+		var cur_pos := player.position
+		var blocking := (
+			game_is_over
+			or (dev_console != null and dev_console.is_open())
+			or (character_select_menu != null and character_select_menu.is_open())
+			or (witch_skill_tree_menu != null and witch_skill_tree_menu.is_open())
+		)
+		var entry := _replace_player_instance(CharacterRegistry.selected_id, not blocking, cur_pos)
+		if world_mode == WorldMode.LOBBY:
+			_apply_camera_bounds(_get_lobby_bounds())
+			if lobby_hub != null:
+				lobby_hub.player_ref = player
+		else:
+			_apply_camera_bounds(Rect2(0.0, 0.0, 1280.0, 720.0))
+		_sync_hero_hud(entry)
+		_spawn_status_popup(player.global_position + Vector2(-20.0, -18.0), "HEROES RESET!", Color(0.58, 0.96, 1.0))
+	if witch_skill_tree_menu != null:
+		witch_skill_tree_menu.refresh_if_open()
 
 
 func _on_cauldron_tree_reset(hero_id: String) -> void:
@@ -379,6 +457,8 @@ func _clear_combat_enemies() -> void:
 		child.queue_free()
 	for node in get_tree().get_nodes_in_group("player_arrows"):
 		node.queue_free()
+	for rdrop in get_tree().get_nodes_in_group("reagent_drops"):
+		rdrop.queue_free()
 
 
 func _clear_arena_gates() -> void:
@@ -504,8 +584,28 @@ func _process(delta: float) -> void:
 # =====================================================================
 
 func _watch_enemy(enemy: Node) -> void:
-	if enemy != null and enemy.has_signal("died") and not enemy.died.is_connected(_on_enemy_died):
-		enemy.died.connect(_on_enemy_died)
+	if enemy != null and enemy.has_signal("died"):
+		var cb := _on_enemy_died.bind(enemy)
+		if not enemy.died.is_connected(cb):
+			enemy.died.connect(cb)
+
+
+func _spawn_reagent_drop(at_pos: Vector2, amount: int, frame_idx: int, label_str: String) -> Node2D:
+	var drop := ReagentDropScript.new()
+	drop.name = "ReagentDrop"
+	add_child(drop)
+	drop.setup(at_pos, amount, frame_idx, label_str, player)
+	drop.collected.connect(_on_reagent_collected)
+	return drop
+
+
+func _on_reagent_collected(amount: int, item_name: String, world_pos: Vector2) -> void:
+	WitchCauldronProgression.add_reagents(amount)
+	_spawn_status_popup(world_pos + Vector2(-12.0, -10.0), "+%d %s" % [amount, item_name], Color(0.56, 1.0, 0.74))
+	if witch_skill_tree_menu != null:
+		witch_skill_tree_menu.refresh_if_open()
+	if hero_hud != null:
+		hero_hud.queue_redraw()
 
 
 func _on_player_attack_hit(enemy: Node) -> void:
@@ -698,6 +798,8 @@ func _on_not_yet_pressed() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if dev_console != null and dev_console.is_open():
+		return
 	if character_select_menu != null and character_select_menu.is_open():
 		return
 	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():

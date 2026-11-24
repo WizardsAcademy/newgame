@@ -21,6 +21,7 @@ signal hurt_triggered(damage_taken: int)
 signal player_died
 signal dash_cooldown_changed(remaining: float, duration: float)
 signal damage_mitigated(blocked_amount: int, final_amount: int)
+signal projectile_dodged(from_position: Vector2)
 
 
 # =====================================================================
@@ -83,6 +84,16 @@ var last_health_change_was_self_cost: bool = false
 var last_mitigation_label: String = "BLOCK"
 
 var dash_cooldown_left: float = 0.0
+var post_dash_dodge_duration: float = 0.0
+var post_dash_dodge_left: float = 0.0
+var post_dash_full_immunity: bool = false
+var reset_dash_on_kill: bool = false
+var kill_heal_ratio: float = 0.0
+var kill_explosion_damage: int = 0
+var kill_explosion_radius: float = 0.0
+var kill_explosion_color: Color = Color(1.0, 0.52, 0.18)
+var skill_ranks: Dictionary = {}
+
 var _dash_time_left: float = 0.0
 var _dash_dir: Vector2 = Vector2.RIGHT
 var _dash_start_pos: Vector2 = Vector2.ZERO
@@ -153,6 +164,39 @@ func _ready() -> void:
 
 
 func _character_ready() -> void:
+	pass
+
+
+func skill_rank(node_id: String) -> int:
+	return int(skill_ranks.get(node_id, 0))
+
+
+func apply_skill_tree_ranks(ranks: Dictionary) -> void:
+	skill_ranks = ranks.duplicate()
+	if skill_rank("solo_top") >= 1:
+		post_dash_dodge_duration = 1.0
+	else:
+		post_dash_dodge_duration = 0.0
+	_on_skill_tree_ranks_applied()
+
+
+func _on_skill_tree_ranks_applied() -> void:
+	pass
+
+
+func is_dodging_projectiles() -> bool:
+	return is_dashing or post_dash_dodge_left > 0.0
+
+
+func on_projectile_dodged(proj_pos: Vector2) -> void:
+	last_mitigation_label = "DODGE!"
+	projectile_dodged.emit(proj_pos)
+	damage_mitigated.emit(5, 0)
+	_spawn_dash_ghost()
+	_on_post_dash_projectile_dodged(proj_pos)
+
+
+func _on_post_dash_projectile_dodged(_proj_pos: Vector2) -> void:
 	pass
 
 
@@ -312,6 +356,8 @@ func restore_energy(amount: float) -> void:
 func _physics_process(delta: float) -> void:
 	if _hurt_anim_left > 0.0:
 		_hurt_anim_left = maxf(_hurt_anim_left - delta, 0.0)
+	if post_dash_dodge_left > 0.0:
+		post_dash_dodge_left = maxf(post_dash_dodge_left - delta, 0.0)
 	_update_dash_timers(delta)
 	if is_dashing:
 		_process_dash(delta)
@@ -502,6 +548,9 @@ func _end_dash() -> void:
 	if not is_dead:
 		collision_layer = _BODY_LAYER_NORMAL
 		collision_mask = _BODY_MASK_NORMAL
+		if post_dash_dodge_duration > 0.0:
+			post_dash_dodge_left = post_dash_dodge_duration
+			_spawn_dash_ghost()
 	_on_dash_ended()
 
 
@@ -720,7 +769,10 @@ func deal_combat_damage(enemy: Node, amount: int, from_dash: bool = false, knock
 	HitStop.freeze(0.035 if from_dash else 0.05)
 	ScreenShake.shake(2.8 if from_dash else 3.0, 0.14)
 
+	var was_dead := (enemy.get("is_dead") == true)
 	enemy.take_damage(final_damage)
+	if not was_dead and enemy != null and is_instance_valid(enemy) and enemy.get("is_dead") == true:
+		_on_killed_enemy_with_combat(enemy)
 
 	if knockback_px > 0.0 and enemy is CharacterBody2D and enemy.get("is_dead") != true and enemy.get("immovable_dummy") != true:
 		var away: Vector2 = (enemy.global_position - global_position)
@@ -738,6 +790,40 @@ func deal_combat_damage(enemy: Node, amount: int, from_dash: bool = false, knock
 
 func _on_dealt_damage(_enemy: Node, _amount: int, _from_dash: bool) -> void:
 	pass
+
+
+func _on_killed_enemy_with_combat(enemy: Node) -> void:
+	if reset_dash_on_kill:
+		dash_cooldown_left = 0.0
+		dash_cooldown_changed.emit(0.0, dash_cooldown)
+	if kill_heal_ratio > 0.0:
+		heal(maxi(int(roundf(float(max_health) * kill_heal_ratio)), 2))
+	if kill_explosion_damage > 0 and kill_explosion_radius > 0.0 and enemy is Node2D:
+		var epos := (enemy as Node2D).global_position
+		var parent := get_parent()
+		if parent != null:
+			var ring := Line2D.new()
+			ring.width = 2.6
+			ring.default_color = kill_explosion_color
+			var pts := PackedVector2Array()
+			for i in range(17):
+				var a := TAU * float(i) / 16.0
+				pts.append(Vector2(cos(a), sin(a)) * kill_explosion_radius * 0.45)
+			ring.points = pts
+			parent.add_child(ring)
+			ring.global_position = epos
+			var tw := ring.create_tween()
+			tw.set_parallel(true)
+			tw.tween_property(ring, "scale", Vector2(2.1, 2.1), 0.20)
+			tw.tween_property(ring, "modulate:a", 0.0, 0.20)
+			tw.chain().tween_callback(ring.queue_free)
+		for other in get_tree().get_nodes_in_group("enemies"):
+			if other == null or not is_instance_valid(other) or other == enemy:
+				continue
+			if other.get("is_dead") == true or not (other is Node2D):
+				continue
+			if (other as Node2D).global_position.distance_to(epos) <= kill_explosion_radius:
+				other.take_damage(kill_explosion_damage)
 
 
 func _find_damageable(node: Node) -> Node:
@@ -800,8 +886,11 @@ func _get_incoming_knockback_multiplier() -> float:
 	return 1.0
 
 
-func take_damage(amount: int, from_position: Vector2 = Vector2.INF) -> void:
+func take_damage(amount: int, from_position: Vector2 = Vector2.INF, is_projectile: bool = false) -> void:
 	if is_dead or _invulnerable or is_dashing:
+		return
+	if post_dash_dodge_left > 0.0 and (is_projectile or post_dash_full_immunity):
+		on_projectile_dodged(from_position if from_position != Vector2.INF else global_position)
 		return
 
 	var final_amount := _mitigate_incoming_damage(amount, from_position)

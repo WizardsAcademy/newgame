@@ -1,25 +1,15 @@
 extends PlayerBase
-## Noa - the Royal Crimson Vampire (Hero 4 of 4).
+## Noa - Royal Aristocrat Vampire (Hero 4 of 4).
 ##
-## Built faithfully from the canonical 1536x1024 Vampire reference sheet:
-##   - 75 HP (lowest HP), 104 Move Speed (grounded boots in all 4 directions:
-##     `idle`/`walk`, `idle_down`/`walk_down`, `idle_up`/`walk_up` — ZERO floating!).
-##   - **Crimson Blood-Splash Slash (`attack` & `attack_splash` — NO yoyo!)**:
-##       1. Costs `6%` Max HP (`5 HP`), **STRICTLY LOCKED AT `1 HP` FLOOR** (never
-##          self-kills by attacking — only enemy hits can kill her!).
-##       2. Unleashes a wide sweeping **Reference Crimson Blood-Splash Arc** in
-##          her aim direction (`92 px` reach), splashing all enemies in the arc
-##          and healing **`paid_hp + 1 * hits_landed`** (`+1 HP` net on 1 foe,
-##          more on multi-hit, `0` on miss)!
-##   - **2-Fang + Reference Ground Blood Fountain (`30%` Max HP)**:
-##       * Every 4th Blood-Splash hit on a foe erupts a massive **Crimson Blood
-##         Fountain** from beneath them for **`30%` of enemy Max HP** + `+4 HP` heal!
-##   - **Classic Bat-Swarm Vanish (`Shift`)**:
-##       * Noa vanishes (`visuals.visible = false`) in crimson mist while
-##         **5 crisp flapping pixel-art Vampire Bats** fly to the destination!
-##   - **8-Frame Blood-Pool Dissolution Death (`die`)**:
-##       * Collapses to her knees and melts into a swirling crimson blood pool!
+## Base Kit + Exclusive-Pillar OP Skill Tree:
+##   - `solo_top`    : **Aristocrat's Mist Veil** — 100% projectile & hit dodge for `1.0s` after Bat-Swarm Shift!
+##   - Pillar 0      : **Blood Empress** — Zero self-HP cost Blood-Splash, 2-hit 30% Blood Fountain, huge Scarlet Arc!
+##   - Pillar 1      : **Night Swarm** — Damaging/healing Bat-Swarm Shift, Homing Bat Familiars, kill resets Shift!
+##   - Pillar 2      : **White Sovereign** — Blazing Blood-Splash speed, 2.5x White-Rose Crits, Crimson Corpse Novas!
+##   - `solo_bottom` : **Royal Crimson Cataclysm** — Ruby Crown auto-fires rapid Blood Lances at nearby foes
+##                     dealing `30%` of `attack_damage` + Life Drain + Vampire Curse stacks!
 
+const PLAYER_ARROW_SCENE := preload("res://scenes/player/PlayerArrow.tscn")
 const EnemyStatusScript := preload("res://scripts/enemies/enemy_status.gd")
 const BAT_SHEET_PATH := "res://assets/textures/crimson_bat.png"
 const FX_SHEET_PATH := "res://assets/textures/noa_fx.png"
@@ -29,16 +19,24 @@ const FX_SHEET_PATH := "res://assets/textures/noa_fx.png"
 @export var blood_self_cost_ratio: float = 0.06
 @export var heal_per_enemy_hit: int = 1
 
+var _base_max_hp: int = 75
+var _base_atk: int = 14
+var _base_move_spd: float = 104.0
+var _base_atk_dur: float = 0.34
+var _base_atk_windup: float = 0.10
+var _base_dash_cd: float = 1.0
+var _base_splash_range: float = 92.0
+var _base_cost_ratio: float = 0.06
+var _base_heal_hit: int = 1
+
 var _combo_idx: int = 0
 var _bat_frames: Array[AtlasTexture] = []
 var _fx_frames: Array[AtlasTexture] = []
 var _swarm_root: Node2D = null
 var _swarm_time: float = 0.0
+var _crimson_lance_timer: float = 0.0
 
 
-## 100% Hand-Crafted Directional Crimson Blood-Splash Slash VFX!
-## Uses `noa_fx.png` sprite strip + additive glow layer + 6 flying droplets
-## (no duplicate procedural crescent polygons).
 class BloodSplashSlash extends Node2D:
 	var aim_dir: Vector2 = Vector2.RIGHT
 	var reach: float = 92.0
@@ -107,7 +105,6 @@ class BloodSplashSlash extends Node2D:
 		var half_ang := 1.12 if is_nova_finisher else 0.96
 		var origin := Vector2(10.0, 0.0)
 
-		# Six flying blood droplets radiating forward
 		for i in range(6):
 			var frac := -0.78 + 1.56 * (float(i) / 5.0)
 			var ang := frac * half_ang
@@ -130,6 +127,16 @@ func _character_ready() -> void:
 	dash_spawns_ghosts = false
 	dash_damage = 0
 	dash_tint = Color(0.95, 0.18, 0.34, 0.82)
+
+	_base_max_hp = max_health
+	_base_atk = attack_damage
+	_base_move_spd = move_speed
+	_base_atk_dur = attack_duration
+	_base_atk_windup = attack_windup
+	_base_dash_cd = dash_cooldown
+	_base_splash_range = splash_range
+	_base_cost_ratio = blood_self_cost_ratio
+	_base_heal_hit = heal_per_enemy_hit
 
 	if ResourceLoader.exists(BAT_SHEET_PATH):
 		var btex: Texture2D = load(BAT_SHEET_PATH)
@@ -154,9 +161,104 @@ func _character_ready() -> void:
 				_fx_frames.append(fx_at)
 
 
+func _on_skill_tree_ranks_applied() -> void:
+	post_dash_full_immunity = (skill_rank("solo_top") >= 1)
+	var p0_1 := skill_rank("p0_t1")
+	var p0_3 := skill_rank("p0_t3")
+	var p0_4 := skill_rank("p0_t4")
+	var p1_1 := skill_rank("p1_t1")
+	var p1_2 := skill_rank("p1_t2")
+	var p1_4 := skill_rank("p1_t4")
+	var p2_1 := skill_rank("p2_t1")
+	var p2_3 := skill_rank("p2_t3")
+	var p2_4 := skill_rank("p2_t4")
+
+	max_health = _base_max_hp + p0_4 * 24 + p2_4 * 25
+	current_health = clampi(current_health + (max_health - _base_max_hp), 1, max_health)
+
+	attack_damage = _base_atk + p0_3 * 7 + p0_4 * 14 + p1_4 * 12 + p2_1 * 6 + p2_4 * 14
+	move_speed = _base_move_spd + float(p1_2 * 16)
+	splash_range = _base_splash_range + float(p0_3 * 22)
+
+	blood_self_cost_ratio = 0.0 if p0_1 > 0 else _base_cost_ratio
+	heal_per_enemy_hit = _base_heal_hit + (1 + 2 * p0_1 if p0_1 > 0 else 0) + (4 * p2_4)
+
+	if p1_1 > 0:
+		dash_deals_damage = true
+		dash_damage = 16 + 10 * p1_1
+	else:
+		dash_deals_damage = false
+		dash_damage = 0
+
+	dash_cooldown = maxf(0.32, _base_dash_cd * pow(0.88, float(p1_2)))
+
+	if p2_1 > 0:
+		attack_duration = _base_atk_dur * 0.65
+		attack_windup = _base_atk_windup * 0.65
+	else:
+		attack_duration = _base_atk_dur
+		attack_windup = _base_atk_windup
+
+	reset_dash_on_kill = (p1_4 > 0)
+	if p2_3 > 0:
+		kill_explosion_damage = 30 + 12 * p2_3
+		kill_explosion_radius = 85.0
+		kill_explosion_color = Color(0.98, 0.22, 0.44, 0.94)
+	else:
+		kill_explosion_damage = 0
+		kill_explosion_radius = 0.0
+
+
 func _exit_tree() -> void:
 	_cleanup_bat_swarm()
 	super._exit_tree()
+
+
+func _character_physics_process(delta: float) -> void:
+	# --- ULTIMATE CONVERGED SOLO NODE (`solo_bottom`): ROYAL CRIMSON CATACLYSM ---
+	if skill_rank("solo_bottom") >= 1 and not is_dead:
+		_crimson_lance_timer -= delta
+		if _crimson_lance_timer <= 0.0:
+			var target := _find_nearest_vampire_target(320.0)
+			if target != null:
+				_fire_royal_blood_lance(target)
+				_crimson_lance_timer = 0.13
+			else:
+				_crimson_lance_timer = 0.06
+
+
+func _find_nearest_vampire_target(max_r: float) -> Node2D:
+	var best: Node2D = null
+	var best_d := max_r
+	for n in get_tree().get_nodes_in_group("enemies"):
+		if n == null or not is_instance_valid(n) or not (n is Node2D):
+			continue
+		if n.get("is_dead") == true or not (n as Node2D).visible:
+			continue
+		var d := global_position.distance_to((n as Node2D).global_position)
+		if d <= best_d:
+			best_d = d
+			best = n as Node2D
+	return best
+
+
+func _fire_royal_blood_lance(target: Node2D) -> void:
+	if get_parent() == null:
+		return
+	var dir := (target.global_position - global_position).normalized()
+	if dir.length() <= 0.01:
+		dir = Vector2(facing, 0.0)
+	var dmg := maxi(int(roundf(float(attack_damage) * 0.30)), 1)
+	var lance: Area2D = PLAYER_ARROW_SCENE.instantiate()
+	lance.speed = 540.0
+	lance.max_range = 350.0
+	lance.modulate = Color(1.0, 0.20, 0.42, 0.96)
+	lance.homing_strength = 9.0
+	lance.lifesteal_heal = 2
+	lance.apply_vampire_stack = true
+	lance.puff_color = Color(0.95, 0.14, 0.34)
+	get_parent().add_child(lance)
+	lance.launch(global_position + dir * 14.0, dir, self, dmg, false)
 
 
 func _get_attack_move_multiplier() -> float:
@@ -164,6 +266,8 @@ func _get_attack_move_multiplier() -> float:
 
 
 func get_blood_cast_cost() -> int:
+	if blood_self_cost_ratio <= 0.0001:
+		return 0
 	return maxi(int(roundf(float(max_health) * blood_self_cost_ratio)), 1)
 
 
@@ -194,10 +298,7 @@ func _start_attack() -> void:
 	if my_token != _attack_token or is_dead:
 		return
 
-	# 1. Pay percentage self-HP cost — STRICTLY LOCKED AT 1 HP FLOOR!
 	var paid_hp := _pay_blood_cost()
-
-	# 2. Unleash Reference Crimson Blood-Splash Cleave (NO yoyo!) & drain blood!
 	_unleash_blood_splash(dir, paid_hp, is_nova)
 
 	var remaining := maxf(attack_duration - attack_windup, 0.08)
@@ -212,6 +313,8 @@ func _pay_blood_cost() -> int:
 	if is_dead:
 		return 0
 	var desired_cost := get_blood_cast_cost()
+	if desired_cost <= 0:
+		return 0
 	var paid := mini(desired_cost, maxi(current_health - 1, 0))
 	if paid > 0:
 		last_health_change_was_self_cost = true
@@ -242,10 +345,27 @@ func _unleash_blood_splash(dir: Vector2, paid_hp: int, is_nova: bool) -> void:
 		fx.global_position = global_position + Vector2(0.0, -3.0)
 		fx.setup(aim, splash_range, is_nova, seq)
 
+		# Pillar 1 Tier 3: Seeker Bat Familiars!
+		var p1_3 := skill_rank("p1_t3")
+		if p1_3 > 0:
+			var fam_dmg := maxi(int(roundf(float(attack_damage) * (0.38 + 0.12 * float(p1_3)))), 2)
+			for off_deg in [-10.0, 10.0]:
+				var seeker: Area2D = PLAYER_ARROW_SCENE.instantiate()
+				seeker.speed = 380.0
+				seeker.max_range = 300.0
+				seeker.modulate = Color(0.95, 0.18, 0.36, 0.95)
+				seeker.homing_strength = 10.0
+				seeker.lifesteal_heal = 2
+				seeker.puff_color = Color(0.92, 0.14, 0.32)
+				parent.add_child(seeker)
+				seeker.launch(global_position + aim * 12.0, aim.rotated(deg_to_rad(off_deg)), self, fam_dmg, false)
+
 	var hits_landed := 0
 	var origin := global_position
 	var eff_range := splash_range * (1.08 if is_nova else 1.0)
 	var min_dot := -0.15 if is_nova else splash_cone_dot
+	var p2_2 := skill_rank("p2_t2")
+	var double_curse := (skill_rank("p0_t2") > 0)
 
 	for node in get_tree().get_nodes_in_group("enemies"):
 		if node == null or not is_instance_valid(node) or node.get("is_dead") == true:
@@ -262,8 +382,13 @@ func _unleash_blood_splash(dir: Vector2, paid_hp: int, is_nova: bool) -> void:
 			continue
 
 		hits_landed += 1
-		deal_combat_damage(node, attack_damage, false, 9.0, origin)
+		var hit_dmg := attack_damage
+		if p2_2 > 0 and randf() < clampf(0.30 + 0.10 * float(p2_2), 0.0, 0.85):
+			hit_dmg = int(roundf(float(hit_dmg) * 2.5))
+		deal_combat_damage(node, hit_dmg, false, 9.0, origin)
 		EnemyStatusScript.add_vampire_fang_stack(node, self)
+		if double_curse and node != null and is_instance_valid(node) and node.get("is_dead") != true:
+			EnemyStatusScript.add_vampire_fang_stack(node, self)
 
 	if hits_landed > 0:
 		var total_heal := paid_hp + heal_per_enemy_hit * hits_landed
@@ -271,13 +396,14 @@ func _unleash_blood_splash(dir: Vector2, paid_hp: int, is_nova: bool) -> void:
 			heal(total_heal)
 
 
+func _on_dash_hit_enemy(_enemy: Node) -> void:
+	if skill_rank("p1_t1") > 0:
+		heal(4)
+
+
 func _die() -> void:
 	super._die()
 
-
-# =====================================================================
-# CLASSIC BAT-SWARM VANISH & REAPPEAR SHIFT!
-# =====================================================================
 
 func _on_dash_started() -> void:
 	if visuals != null:

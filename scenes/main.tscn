@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/Behemoth.tscn" id="1_player_scene"]
 [ext_resource type="Script" path="res://scripts/main.gd" id="3_main_script"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://scripts/ui/game_over_overlay.gd" id="11_game_over"]
 [ext_resource type="Script" path="res://scripts/ui/witch_skill_tree_menu.gd" id="12_witch_tree"]
 [ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="13_pause_menu"]
+[ext_resource type="Script" path="res://scripts/ui/dev_console.gd" id="14_dev_console"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wall_h"]
 size = Vector2(1280, 32)
@@ -241,3 +242,6 @@ script = ExtResource("8_minimap")
 
 [node name="PauseMenu" type="Control" parent="UI"]
 script = ExtResource("13_pause_menu")
+
+[node name="DevConsole" type="Control" parent="UI"]
+script = ExtResource("14_dev_console")

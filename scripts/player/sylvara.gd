@@ -1,21 +1,13 @@
 extends PlayerBase
-## Sylvara - the Blonde Medieval Elven Ranger (Hero 3 of 4).
+## Sylvara - the Blonde Medieval-Fantasy Elven Huntress (Hero 3 of 4).
 ##
-## Stats & Kit:
-##   - 100 HP, 124 Move Speed (FASTEST of all 4 heroes!).
-##   - **Held Golden-Yew Recurve Bow + Visible Charge Animation**:
-##       * Always holds her Recurve Bow in hand.
-##       * Tap Attack: swift 15-DMG emerald arrow (every 4th quick shot fires a
-##         3-arrow Elven Fan!).
-##       * Hold Attack (>= 0.35s) & release: visibly draws & charges a blazing
-##         emerald arrow (`bow_charge` pose) and fires a **30-DMG Piercing
-##         Great-Arrow** through ALL enemies in a line!
-##   - **Sylvan Gale Vault (`Shift`)**:
-##       * Phases cleanly through enemy bodies (`0` Shift damage) in a graceful
-##         airborne leap (`charge` / `vault` pose),
-##       * Leaves a swirling **Sylvan Wind-Leaf Gust** at her takeoff spot that
-##         slows nearby enemies by 45% for 1.8s, and grants Sylvara **+28%
-##         Tailwind Haste** for 1.4s!
+## Base Kit + Exclusive-Pillar OP Skill Tree:
+##   - `solo_top`    : **Windveil Mirage** — 100% projectile dodge for `1.0s` AFTER `Shift` ends!
+##   - Pillar 0      : **Emerald Storm** — Multi-arrow volleys, all-piercing shots, Starburst AoE, Zero-Draw Stormbow!
+##   - Pillar 1      : **Gale Phantom** — Zephyr Vault heal/haste, Briar Root-Venom, Twin Shadow Great-Arrow, Immortal Windrunner!
+##   - Pillar 2      : **Sun Executioner** — 2.5x Heartseeker Crits, Solar Stun Great-Arrows, 30%+ HP Instant Execute!
+##   - `solo_bottom` : **Starlight Auto-Barrage** — Auto-aims at nearby enemies and rapid-fires at blazing
+##                     attack speed dealing `30%` of her `attack_damage` per shot!
 
 const PLAYER_ARROW_SCENE := preload("res://scenes/player/PlayerArrow.tscn")
 const EnemyStatusScript := preload("res://scripts/enemies/enemy_status.gd")
@@ -27,12 +19,29 @@ const EnemyStatusScript := preload("res://scripts/enemies/enemy_status.gd")
 @export var tailwind_duration: float = 1.4
 @export var tailwind_speed_mult: float = 1.28
 
+@export var auto_barrage_enabled: bool = false
+@export var auto_barrage_interval: float = 0.11
+@export var auto_barrage_range: float = 340.0
+@export var auto_barrage_damage_ratio: float = 0.30
+
+var _base_max_hp: int = 100
+var _base_atk: int = 15
+var _base_move_spd: float = 124.0
+var _base_atk_dur: float = 0.38
+var _base_charge_thresh: float = 0.35
+var _base_dash_cd: float = 1.0
+var _base_en_regen: float = 28.0
+
 var _is_drawing: bool = false
 var _draw_time: float = 0.0
 var _shot_cooldown_left: float = 0.0
 var _quick_shot_counter: int = 0
 var _tailwind_left: float = 0.0
+var _auto_barrage_timer: float = 0.0
 var _charge_ring: Line2D = null
+
+var _charged_bonus_dmg: int = 0
+var _total_dmg_mult: float = 1.0
 
 
 func _create_attack_sfx() -> AudioStreamWAV:
@@ -47,7 +56,51 @@ func _character_ready() -> void:
 	dash_phases_enemies = true
 	dash_damage = 0
 	dash_tint = Color(0.45, 0.98, 0.62, 0.78)
+	_base_max_hp = max_health
+	_base_atk = attack_damage
+	_base_move_spd = move_speed
+	_base_atk_dur = attack_duration
+	_base_charge_thresh = charge_threshold
+	_base_dash_cd = dash_cooldown
+	_base_en_regen = energy_regen_per_sec
 	_setup_charge_ring()
+
+
+func _on_skill_tree_ranks_applied() -> void:
+	var p0_1 := skill_rank("p0_t1")
+	var p0_2 := skill_rank("p0_t2")
+	var p0_4 := skill_rank("p0_t4")
+	var p1_1 := skill_rank("p1_t1")
+	var p1_4 := skill_rank("p1_t4")
+	var p2_2 := skill_rank("p2_t2")
+	var p2_4 := skill_rank("p2_t4")
+
+	max_health = _base_max_hp + p1_4 * 22
+	current_health = clampi(current_health + (max_health - _base_max_hp), 1, max_health)
+
+	var raw_atk := _base_atk + p0_1 * 5 + p0_2 * 4 + p0_4 * 10 + p2_4 * 12
+	_total_dmg_mult = 1.25 if p2_4 > 0 else 1.0
+	attack_damage = int(roundf(float(raw_atk) * _total_dmg_mult))
+	_charged_bonus_dmg = p2_2 * 14
+
+	move_speed = _base_move_spd + float(p1_1 * 18)
+	energy_regen_per_sec = _base_en_regen * (1.0 + 0.20 * float(p1_4))
+	dash_cooldown = maxf(0.32, _base_dash_cd * pow(0.88, float(p1_1)))
+
+	if p0_4 > 0:
+		var mult := lerpf(0.65, 0.45, float(p0_4 - 1) / 4.0)
+		charge_threshold = _base_charge_thresh * mult
+		attack_duration = _base_atk_dur * mult
+	else:
+		charge_threshold = _base_charge_thresh
+		attack_duration = _base_atk_dur
+
+	reset_dash_on_kill = (p1_4 > 0)
+	auto_barrage_enabled = (skill_rank("solo_bottom") >= 1)
+
+
+func get_auto_barrage_shot_damage() -> int:
+	return maxi(int(roundf(float(attack_damage) * auto_barrage_damage_ratio)), 1)
 
 
 func _setup_charge_ring() -> void:
@@ -106,6 +159,17 @@ func _character_physics_process(delta: float) -> void:
 	if _tailwind_left > 0.0:
 		_tailwind_left = maxf(_tailwind_left - delta, 0.0)
 
+	# --- ULTIMATE CONVERGED SOLO NODE (`solo_bottom`): STARLIGHT AUTO-BARRAGE ---
+	if auto_barrage_enabled and not is_dead:
+		_auto_barrage_timer -= delta
+		if _auto_barrage_timer <= 0.0:
+			var target := _find_nearest_auto_target()
+			if target != null:
+				_fire_auto_barrage_shot(target)
+				_auto_barrage_timer = auto_barrage_interval
+			else:
+				_auto_barrage_timer = 0.05
+
 	if _is_drawing:
 		if is_dead:
 			_cancel_draw()
@@ -113,7 +177,6 @@ func _character_physics_process(delta: float) -> void:
 		_draw_time += delta
 		if _last_attack_used_mouse:
 			get_aim_direction()
-		# Switch sprite from initial nock (`bow_draw`) into full glowing arrow taut pull (`bow_charge`)!
 		if _draw_time >= charge_threshold * 0.55 and anim_player.has_animation("bow_charge"):
 			if anim_player.current_animation != "bow_charge":
 				anim_player.play("bow_charge")
@@ -124,11 +187,39 @@ func _character_physics_process(delta: float) -> void:
 		_charge_ring.visible = false
 
 
+func _find_nearest_auto_target() -> Node2D:
+	var best: Node2D = null
+	var best_d := auto_barrage_range
+	for n in get_tree().get_nodes_in_group("enemies"):
+		if n == null or not is_instance_valid(n) or not (n is Node2D):
+			continue
+		if n.get("is_dead") == true or not (n as Node2D).visible:
+			continue
+		var d := global_position.distance_to((n as Node2D).global_position)
+		if d <= best_d:
+			best_d = d
+			best = n as Node2D
+	return best
+
+
+func _fire_auto_barrage_shot(target: Node2D) -> void:
+	var dir := (target.global_position - global_position).normalized()
+	if dir.length() <= 0.01:
+		dir = Vector2(facing, 0.0)
+	var dmg := get_auto_barrage_shot_damage()
+	var arrow := _spawn_arrow(dir, dmg, skill_rank("p0_t2") > 0, 560.0)
+	if arrow != null:
+		arrow.modulate = Color(1.0, 0.94, 0.42, 0.95)
+		arrow.scale = Vector2(1.05, 1.05)
+		arrow.homing_strength = 9.0
+		arrow.puff_color = Color(1.0, 0.90, 0.36)
+
+
 func _update_charge_ring() -> void:
 	if _charge_ring == null:
 		return
 	_charge_ring.visible = true
-	var ratio := clampf(_draw_time / charge_threshold, 0.0, 1.0)
+	var ratio := clampf(_draw_time / maxf(charge_threshold, 0.05), 0.0, 1.0)
 	var r := lerpf(16.0, 11.0, ratio)
 	var segs := 20
 	var max_seg := maxi(int(roundf(float(segs) * ratio)), 2)
@@ -161,36 +252,78 @@ func _release_bow_shot() -> void:
 		anim_player.play("attack")
 		anim_player.seek(0.10, true)
 
+	var all_pierce := skill_rank("p0_t2") > 0
+	var volley_rk := skill_rank("p0_t1")
+	var twin_rk := skill_rank("p1_t3")
+
 	if charged:
-		var great_dmg := int(roundf(float(attack_damage) * 2.0))
-		_spawn_arrow(dir, great_dmg, true, 480.0)
+		var great_dmg := int(roundf(float(attack_damage) * 2.0)) + _charged_bonus_dmg
+		_spawn_arrow(dir, great_dmg, true, 495.0, true)
+		if volley_rk > 0:
+			_spawn_arrow(dir.rotated(deg_to_rad(-8.0)), int(roundf(float(great_dmg) * 0.65)), true, 470.0, true)
+			_spawn_arrow(dir.rotated(deg_to_rad(8.0)), int(roundf(float(great_dmg) * 0.65)), true, 470.0, true)
 		ScreenShake.shake(3.0, 0.14)
 	else:
 		_quick_shot_counter += 1
-		_spawn_arrow(dir, attack_damage, false, 395.0)
-		if _quick_shot_counter % 4 == 0:
-			_spawn_arrow(dir.rotated(deg_to_rad(-9.0)), maxi(int(attack_damage * 0.75), 1), false, 380.0)
-			_spawn_arrow(dir.rotated(deg_to_rad(9.0)), maxi(int(attack_damage * 0.75), 1), false, 380.0)
+		_spawn_arrow(dir, attack_damage, all_pierce, 405.0, false)
+		if volley_rk > 0 or (_quick_shot_counter % 4 == 0):
+			var side_dmg := attack_damage if volley_rk > 0 else maxi(int(attack_damage * 0.75), 1)
+			_spawn_arrow(dir.rotated(deg_to_rad(-9.0)), side_dmg, all_pierce, 390.0, false)
+			_spawn_arrow(dir.rotated(deg_to_rad(9.0)), side_dmg, all_pierce, 390.0, false)
+			if volley_rk >= 3:
+				_spawn_arrow(dir.rotated(deg_to_rad(-18.0)), maxi(int(side_dmg * 0.8), 1), all_pierce, 380.0, false)
+				_spawn_arrow(dir.rotated(deg_to_rad(18.0)), maxi(int(side_dmg * 0.8), 1), all_pierce, 380.0, false)
 		else:
 			ScreenShake.shake(1.2, 0.07)
 
-	_shot_cooldown_left = maxf(attack_duration * 0.85, 0.14)
+	# Pillar 1 Tier 3: Twin Phantom Shadow Great-Arrow!
+	if twin_rk > 0:
+		var ph_dmg := maxi(int(roundf(float(attack_damage) * (0.50 + 0.10 * float(twin_rk)))), 1)
+		var ph := _spawn_arrow(dir.rotated(deg_to_rad(2.5)), ph_dmg, true, 520.0, false)
+		if ph != null:
+			ph.modulate = Color(0.55, 1.0, 0.92, 0.82)
+
+	_shot_cooldown_left = maxf(attack_duration * 0.85, 0.08)
 	_attack_token += 1
 	var my_token := _attack_token
-	await get_tree().create_timer(0.14).timeout
+	await get_tree().create_timer(0.12).timeout
 	if my_token == _attack_token:
 		is_attacking = false
 
 
-func _spawn_arrow(dir: Vector2, dmg: int, is_piercing: bool, arrow_speed: float) -> void:
+func _spawn_arrow(dir: Vector2, dmg: int, is_piercing: bool, arrow_speed: float, is_charged_great: bool = false) -> Area2D:
 	var parent := get_parent()
 	if parent == null:
-		return
+		return null
 	var arrow: Area2D = PLAYER_ARROW_SCENE.instantiate()
 	arrow.speed = arrow_speed
+
+	var p0_3 := skill_rank("p0_t3")
+	if p0_3 > 0:
+		arrow.aoe_radius = 56.0
+		arrow.aoe_damage = maxi(int(roundf(float(dmg) * (0.43 + 0.12 * float(p0_3)))), 2)
+
+	var p1_2 := skill_rank("p1_t2")
+	if p1_2 > 0:
+		arrow.slow_duration = 2.4
+		arrow.venom_bonus_damage = 7 + 5 * p1_2
+
+	var p2_1 := skill_rank("p2_t1")
+	if p2_1 > 0:
+		arrow.crit_chance = clampf(0.25 + 0.10 * float(p2_1), 0.0, 0.90)
+		arrow.crit_mult = 2.5
+
+	if is_charged_great and skill_rank("p2_t2") > 0:
+		arrow.stun_duration = 0.80
+
+	var p2_3 := skill_rank("p2_t3")
+	if p2_3 > 0:
+		arrow.execute_ratio = 0.26 + 0.04 * float(p2_3)
+
 	parent.add_child(arrow)
 	var muzzle := global_position + dir.normalized() * 14.0 + Vector2(0.0, -2.0)
 	arrow.launch(muzzle, dir, self, dmg, is_piercing)
+	return arrow
 
 
 func _cancel_draw() -> void:
@@ -203,11 +336,12 @@ func _cancel_draw() -> void:
 func _on_dash_started() -> void:
 	_cancel_draw()
 	_tailwind_left = tailwind_duration
+	if skill_rank("p1_t1") > 0:
+		heal(12)
 	_spawn_sylvan_gust(global_position)
 
 
 func _spawn_sylvan_gust(origin: Vector2) -> void:
-	# Slow nearby pursuing enemies with an emerald woodland vortex!
 	for node in get_tree().get_nodes_in_group("enemies"):
 		if node is Node2D and is_instance_valid(node) and node.get("is_dead") != true:
 			if (node as Node2D).global_position.distance_to(origin) <= gust_slow_radius:
