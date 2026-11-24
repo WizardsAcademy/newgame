@@ -15,9 +15,9 @@ extends Node
 ##   - palette count <= 24 colours per hero sheet and zero #000000 pixels
 ##   - no `.png.import` file in `assets/textures/` enables `mipmaps/generate=true`
 
-const CELL_SIZE: int = 96
-const DEFAULT_STANDING_H := Vector2i(56, 84)
-const STANDING_GROUND_Y_BOUNDS := Vector2i(78, 86)
+const CELL_SIZE: int = 64
+const DEFAULT_STANDING_H := Vector2i(36, 56)
+const STANDING_GROUND_Y_BOUNDS := Vector2i(50, 58)
 const MAX_COLOURS_PER_HERO: int = 24
 const MAX_SEMI_ALPHA_PCT: float = 2.0
 
@@ -154,10 +154,10 @@ func _run() -> void:
 			_check_eq("%s Visuals.scale is Vector2(0.5, 0.5)" % hero_name,
 				Vector2(absf(visuals.scale.x), visuals.scale.y), Vector2(0.5, 0.5))
 			_check("%s Visuals.position.y grounds feet cleanly near node origin" % hero_name,
-				visuals.position.y >= -19.0 and visuals.position.y <= -15.0,
+				visuals.position.y >= -14.0 and visuals.position.y <= -9.0,
 				"position.y=%.2f" % visuals.position.y)
 			var atlas_tex := visuals.texture as AtlasTexture
-			_check("%s Visuals.texture is a 96x96 AtlasTexture" % hero_name,
+			_check("%s Visuals.texture is a 64x64 AtlasTexture" % hero_name,
 				atlas_tex != null and atlas_tex.region.size == Vector2(CELL_SIZE, CELL_SIZE),
 				str(atlas_tex.region.size if atlas_tex != null else Vector2.ZERO))
 

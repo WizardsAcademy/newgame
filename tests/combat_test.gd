@@ -106,25 +106,25 @@ func _run() -> void:
 	_check_eq("Hero Visuals.scale is Vector2(0.5, 0.5)",
 		Vector2(absf(visuals_node.scale.x), visuals_node.scale.y), Vector2(0.5, 0.5))
 	var sheet_tex: Texture2D = (visuals_node.texture as AtlasTexture).atlas
-	_check_eq("Behemoth sprite sheet is 1536x96 (16 frames)",
-		sheet_tex.get_size(), Vector2(1536, 96))
+	_check_eq("Behemoth sprite sheet is 1024x64 (16 frames)",
+		sheet_tex.get_size(), Vector2(1024, 64))
 
 	var anim_player: AnimationPlayer = player.get_node("AnimPlayer")
 	var idle_anim: Animation = anim_player.get_animation("idle")
 	var walk_anim: Animation = anim_player.get_animation("walk")
 	var attack_anim: Animation = anim_player.get_animation("attack")
-	_check_eq("Idle animation uses frame 0 (0,0,96,96)",
-		(idle_anim.track_get_key_value(0, 0) as AtlasTexture).region, Rect2(0, 0, 96, 96))
-	_check("Walk animation uses frames 1 and 2 (96x96 cells)",
+	_check_eq("Idle animation uses frame 0 (0,0,64,64)",
+		(idle_anim.track_get_key_value(0, 0) as AtlasTexture).region, Rect2(0, 0, 64, 64))
+	_check("Walk animation uses frames 1 and 2 (64x64 cells)",
 		walk_anim.track_get_key_count(0) == 2
-		and (walk_anim.track_get_key_value(0, 0) as AtlasTexture).region == Rect2(96, 0, 96, 96)
-		and (walk_anim.track_get_key_value(0, 1) as AtlasTexture).region == Rect2(192, 0, 96, 96))
+		and (walk_anim.track_get_key_value(0, 0) as AtlasTexture).region == Rect2(64, 0, 64, 64)
+		and (walk_anim.track_get_key_value(0, 1) as AtlasTexture).region == Rect2(128, 0, 64, 64))
 	_check_eq("Attack animation has loop disabled", attack_anim.loop_mode, Animation.LOOP_NONE)
 	_check("Attack animation keys: windup f3 @ 0.0s, jab f4 @ 0.14s, idle f0 @ 0.33s",
 		attack_anim.track_get_key_count(0) == 3
-		and (attack_anim.track_get_key_value(0, 0) as AtlasTexture).region == Rect2(288, 0, 96, 96)
-		and (attack_anim.track_get_key_value(0, 1) as AtlasTexture).region == Rect2(384, 0, 96, 96)
-		and (attack_anim.track_get_key_value(0, 2) as AtlasTexture).region == Rect2(0, 0, 96, 96))
+		and (attack_anim.track_get_key_value(0, 0) as AtlasTexture).region == Rect2(192, 0, 64, 64)
+		and (attack_anim.track_get_key_value(0, 1) as AtlasTexture).region == Rect2(256, 0, 64, 64)
+		and (attack_anim.track_get_key_value(0, 2) as AtlasTexture).region == Rect2(0, 0, 64, 64))
 
 	var slimes := _slimes(main)
 	_check_eq("Arena holds 3 test slimes", slimes.size(), 3)
@@ -208,7 +208,7 @@ func _run() -> void:
 	var cam: Camera2D = player.get_node("Camera2D")
 	var active_region: Rect2 = (visuals_node.texture as AtlasTexture).region
 	_check_eq("Visuals texture region equals jab frame (frame 4) during attack",
-		active_region, Rect2(384, 0, 96, 96))
+		active_region, Rect2(256, 0, 64, 64))
 	_check_eq("No impact spark spawned during empty-air swing", _count_hit_sparks(main), 0)
 
 	var start_pos: Vector2 = player.global_position
@@ -224,7 +224,7 @@ func _run() -> void:
 	await _wait(0.16)
 	_check_eq("Attack lock released after swing completes", player.is_attacking, false)
 	_check_eq("Sprite returns to frame 0",
-		(visuals_node.texture as AtlasTexture).region, Rect2(0, 0, 96, 96))
+		(visuals_node.texture as AtlasTexture).region, Rect2(0, 0, 64, 64))
 
 	# Verify ScreenShake additive stacking + max_intensity clamp directly.
 	ScreenShake.shake(2.0, 0.06)
@@ -365,11 +365,15 @@ func _run() -> void:
 	await _tick(2)
 	var footstep_sfx: AudioStreamPlayer = player.get_node("FootstepSFX")
 	_check("Footstep SFX is silent while idle", footstep_sfx.playing == false)
+	var footstep_finished_during_walk := [false]
+	footstep_sfx.finished.connect(func(): footstep_finished_during_walk[0] = true)
 	var walk_start: Vector2 = player.global_position
 	Input.action_press("move_right")
 	await _tick(1)
-	var footstep_played_moving: bool = footstep_sfx.playing
+	var footstep_played_moving: bool = footstep_sfx.playing or footstep_finished_during_walk[0]
 	await _tick(9)
+	if footstep_sfx.playing or footstep_finished_during_walk[0]:
+		footstep_played_moving = true
 	var walk_region: Rect2 = (visuals_node.texture as AtlasTexture).region
 	var walk_anim_name: String = player.get_node("AnimPlayer").current_animation
 	Input.action_release("move_right")
@@ -378,8 +382,8 @@ func _run() -> void:
 		player.global_position.x > walk_start.x + 5.0,
 		"moved %.2f px" % (player.global_position.x - walk_start.x))
 	_check_eq("Walk animation switches to walk", walk_anim_name, "walk")
-	_check("Walk animation displays frame 1 or frame 2 (96x96)",
-		walk_region == Rect2(96, 0, 96, 96) or walk_region == Rect2(192, 0, 96, 96),
+	_check("Walk animation displays frame 1 or frame 2 (64x64)",
+		walk_region == Rect2(64, 0, 64, 64) or walk_region == Rect2(128, 0, 64, 64),
 		str(walk_region))
 	_check("Footstep SFX plays during movement", footstep_played_moving == true)
 	_check("Footstep SFX stops immediately when idle", footstep_sfx.playing == false)

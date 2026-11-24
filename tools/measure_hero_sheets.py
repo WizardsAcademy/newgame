@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Measure 96x96 hero sprite sheets in assets/textures/player_*.png.
+"""Measure 64x64 hero sprite sheets in assets/textures/player_*.png.
 
 Reports per-frame bounding boxes (`bbox`, `body_height`, `top_y`, `bottom_y`)
 and prints a per-hero summary table:
   frames | f0_h | body_h avg/min/max | ground_y set | colours | semi_alpha_pct
 
 Exits non-zero if:
-  - any sheet width is not a multiple of 96 (or height != 96),
-  - any 96x96 cell has zero visible pixels, or
+  - any sheet width is not a multiple of 64 (or height != 64),
+  - any 64x64 cell has zero visible pixels, or
   - semi-transparent pixel percentage exceeds 2.0%.
 
-Pass `--strict` to also enforce the 96x96 pixel-art sheet contract targets
-(`f0_h` in `[56, 84]`, standing `f0` bottom_y in `[78, 86]`, `colours <= 24`,
+Pass `--strict` to also enforce the 64x64 pixel-art sheet contract targets
+(`f0_h` in `[36, 56]`, standing `f0` bottom_y in `[50, 58]`, `colours <= 24`,
 zero `#000000` pixels).
 """
 
@@ -22,9 +22,9 @@ import sys
 from pathlib import Path
 from PIL import Image
 
-CELL = 96
-DEFAULT_BODY_H_BOUNDS = (56, 84)
-STANDING_GROUND_Y_BOUNDS = (78, 86)
+CELL = 64
+DEFAULT_BODY_H_BOUNDS = (36, 56)
+STANDING_GROUND_Y_BOUNDS = (50, 58)
 MAX_COLOURS = 24
 MAX_SEMI_ALPHA_PCT = 2.0
 

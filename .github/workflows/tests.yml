@@ -26,11 +26,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run 96x96 hero sprite sheet checks
+      - name: Run 64x64 hero sprite sheet checks
         run: |
           python3 -m pip install --upgrade pip pillow
-          python3 tools/make_noa_sprites.py
+          python3 tools/make_heroes_64x64.py
           python3 tools/make_witch_cottage_assets.py
+          python3 tools/make_skill_tree_icons.py
           python3 tools/measure_hero_sheets.py --strict
 
       - name: Cache Godot 4.7.2 binary

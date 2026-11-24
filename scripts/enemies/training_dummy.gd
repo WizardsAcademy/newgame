@@ -47,8 +47,9 @@ func _ready() -> void:
 
 	visuals = Sprite2D.new()
 	visuals.name = "Visuals"
-	visuals.position = Vector2(0.0, -8.0)
-	visuals.scale = Vector2(0.78, 0.78)
+	visuals.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	visuals.position = Vector2(0.0, -5.0)
+	visuals.scale = Vector2(0.5, 0.5)
 	add_child(visuals)
 
 	if ResourceLoader.exists(DUMMY_SHEET_PATH):

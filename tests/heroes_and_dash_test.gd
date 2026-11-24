@@ -78,10 +78,10 @@ func _run() -> void:
 	var tex_bats: Texture2D = load("res://assets/textures/crimson_bat.png")
 	var dark_font: Font = load("res://assets/fonts/dark_fantasy.ttf")
 
-	_check_eq("Behemoth 4-dir sheet is 1536x96 (16 frames)", tex_behemoth.get_size(), Vector2(1536, 96))
-	_check_eq("Knight 4-dir sheet is 1536x96 (16 frames)", tex_knight.get_size(), Vector2(1536, 96))
-	_check_eq("Sylvara 4-dir sheet is 1440x96 (15 frames)", tex_sylvara.get_size(), Vector2(1440, 96))
-	_check_eq("Noa 4-dir sheet is 1536x96 (16 frames)", tex_noa.get_size(), Vector2(1536, 96))
+	_check_eq("Behemoth 4-dir sheet is 1024x64 (16 frames)", tex_behemoth.get_size(), Vector2(1024, 64))
+	_check_eq("Knight 4-dir sheet is 1024x64 (16 frames)", tex_knight.get_size(), Vector2(1024, 64))
+	_check_eq("Sylvara 4-dir sheet is 960x64 (15 frames)", tex_sylvara.get_size(), Vector2(960, 64))
+	_check_eq("Noa 4-dir sheet is 1024x64 (16 frames)", tex_noa.get_size(), Vector2(1024, 64))
 	_check_eq("Noa Hand-Crafted Blood FX strip is 1024x128 (8x 128x128)", tex_vel_fx.get_size(), Vector2(1024, 128))
 	_check_eq("Noa Classic Crimson Bat strip is 72x24 (3x 24x24)", tex_bats.get_size(), Vector2(72, 24))
 	_check("Dark-Fantasy Gothic font loaded cleanly", dark_font != null)
@@ -199,27 +199,69 @@ func _run() -> void:
 	_check("Revived hero in Lobby is alive at 100% HP",
 		not main.player.is_dead and main.player.current_health == main.player.max_health)
 
-	# --- WITCH'S COTTAGE, CAULDRON SKILL TREE + POTION HANDOFF, NO WAVE POPUP, ESC PAUSE, & HERO PERSISTENCE ---
-	_check_eq("Witch's Cottage Lobby is compact (480x280)", lobby.LOBBY_BOUNDS.size, Vector2(480, 280))
-	_check("Witch's Cottage has tiled oak floor, Pretty Witch, & Bubbling Cauldron",
+	# --- WITCH'S COTTAGE + LARGE OUTDOOR WOODLAND YARD (`hayat`), 16-NODE PER-HERO SKILL TREE, NO WAVE POPUP, ESC PAUSE, & HERO PERSISTENCE ---
+	_check_eq("Witch's Cottage + Large Outdoor Forest Yard bounds are 640x560",
+		lobby.LOBBY_BOUNDS.size, Vector2(640, 560))
+	_check("Upper Cottage has oak floor, Fireplace + Sofa, Wardrobe, Stages Door, 64x64 Witch, & 48x48 Cauldron (and NO indoor south room!)",
 		lobby.get_node_or_null("CottageFloor") != null
+		and lobby.get_node_or_null("CottageFloorSouth") == null
+		and lobby.get_node_or_null("LobbyFireplace") != null
+		and lobby.get_node_or_null("LobbySofa") != null
+		and lobby.get_node_or_null("WardrobeSprite") != null
+		and lobby.get_node_or_null("DoorStages") != null
 		and lobby.get_node_or_null("WitchSprite") != null
 		and lobby.get_node_or_null("CauldronSprite") != null)
+	var forest_node := lobby.get_node_or_null("ForestTrees")
+	_check("Outdoor Yard (`hayat`) has seamless grass, >50 pixel-art ForestTrees enclosing the clearing, Sandbox Fence Gate + Rails, & 64x64 TrainingDummy",
+		lobby.get_node_or_null("OutdoorYardGrass") != null
+		and forest_node != null and forest_node.get_child_count() >= 50
+		and lobby.get_node_or_null("DoorSandbox") != null
+		and lobby.get_node_or_null("SandboxFenceLeft") != null
+		and lobby.get_node_or_null("SandboxFenceRight") != null
+		and lobby.get_node_or_null("TrainingDummy") != null)
 	_check("Cauldron has 6 frames (green bubbling -> sudden purple flash!)",
 		lobby._cauldron_frames.size() == 6)
 
-	# Open Cauldron Skill Tree for Noa -> upgrade Vitality -> Witch hands potion & Noa gains +12 Max HP!
+	# Verify 16-Node (`1 -> 3 -> 6 -> 6`, Lv 0..5) Skill Tree & 4 Per-Hero Color Palettes!
+	_check_eq("Skill Tree defines 16 nodes per hero (1 -> 3 -> 6 -> 6) & MAX_NODE_LEVEL == 5",
+		WitchCauldronProgression.get_skill_nodes_for_hero("noa").size() == 16
+		and WitchCauldronProgression.MAX_NODE_LEVEL == 5, true)
+	var th_knight := WitchCauldronProgression.get_hero_theme("knight")
+	var th_behemoth := WitchCauldronProgression.get_hero_theme("behemoth")
+	var th_sylvara := WitchCauldronProgression.get_hero_theme("sylvara")
+	var th_noa := WitchCauldronProgression.get_hero_theme("noa")
+	_check("Per-Hero Skill Tree themes match Knight Blue/Black, Behemoth Orange/Red, Sylvara Green/Gold, & Noa Red/White",
+		(th_knight["primary"] as Color).b > 0.8 and (th_knight["stone_dark"] as Color).v < 0.15
+		and (th_behemoth["primary"] as Color).r > 0.8 and (th_behemoth["secondary"] as Color).g > 0.5
+		and (th_sylvara["primary"] as Color).g > 0.65 and (th_sylvara["secondary"] as Color).r > 0.85
+		and (th_noa["primary"] as Color).r > 0.8 and (th_noa["secondary"] as Color).v > 0.9)
+
+	# Open 16-Node Skill Tree for Noa -> upgrade Root (`vitality`) -> test Reset Tree -> upgrade via Inspector UpgradeButton!
 	main.open_cauldron_skill_tree()
 	await _tick(2)
 	var skill_ui: WitchSkillTreeMenu = main.get_node("UI/WitchSkillTreeMenu")
-	_check_eq("Cauldron Skill Tree opens for active hero ('noa')", skill_ui._hero_id, "noa")
+	_check_eq("Skill Tree opens for active hero ('noa')", skill_ui._hero_id, "noa")
 	var vit_btn: Button = skill_ui.get_node("CauldronPanel/SkillNode_vitality")
+	var upg_btn: Button = skill_ui.get_node("CauldronPanel/InspectorPanel/UpgradeButton")
+	var rst_btn: Button = skill_ui.get_node("CauldronPanel/ResetButton")
+	_check("Skill Tree UI exposes 16 square SkillNode buttons, Inspector UpgradeButton, & ResetButton",
+		skill_ui._node_buttons.size() == 16 and upg_btn != null and rst_btn != null)
 	vit_btn.pressed.emit()
 	await _tick(3)
-	_check("Leveling up in Cauldron triggers Witch potion handoff & upgrades Noa Max HP (75 -> 87)",
-		skill_ui._witch_offer_timer > 0.0 and main.player.max_health == 87 and main.player.current_health == 87,
+	_check("Upgrading Root node increases Noa Max HP (75 -> 87) & unlocks Row-1 branches",
+		skill_ui._witch_offer_timer > 0.0
+		and main.player.max_health == 87
+		and WitchCauldronProgression.is_node_unlocked("noa", "wrath"),
 		"max_hp=%d" % int(main.player.max_health))
-	_check_eq("Knight's Cauldron Skill Tree stays independent at Lv 0",
+	rst_btn.pressed.emit()
+	await _tick(3)
+	_check_eq("ResetButton refunds spent skill points & restores Noa base Max HP (75)",
+		main.player.max_health == 75 and WitchCauldronProgression.get_brew_points("noa") == 3, true)
+	upg_btn.pressed.emit()
+	await _tick(3)
+	_check_eq("Inspector UpgradeButton levels up selected skill cleanly (75 -> 87)",
+		main.player.max_health, 87)
+	_check_eq("Knight's Skill Tree stays independent at Lv 0",
 		WitchCauldronProgression.get_node_level("knight", "vitality"), 0)
 	skill_ui.hide_menu()
 	await _tick(2)
@@ -318,12 +360,12 @@ func _run() -> void:
 	for h in [behemoth, knight, sylvara, noa]:
 		h.input_enabled = true
 
-	# Verify Noa's boots stay 100% grounded on node origin (`visuals.position.y == -16.0`, zero vertical float)!
+	# Verify Noa's boots stay 100% grounded on node origin (`visuals.position.y == -11.0`, zero vertical float)!
 	var vy0: float = (noa.visuals as Node2D).position.y
 	await _wait(0.22)
 	var vy1: float = (noa.visuals as Node2D).position.y
-	_check("Noa visuals.position.y is strictly grounded at -16.0 (zero floating bob)",
-		is_equal_approx(vy0, -16.0) and is_equal_approx(vy1, -16.0),
+	_check("Noa visuals.position.y is strictly grounded at -11.0 (zero floating bob)",
+		is_equal_approx(vy0, -11.0) and is_equal_approx(vy1, -11.0),
 		"vy0=%.2f vy1=%.2f" % [vy0, vy1])
 
 	# --- KNIGHT SHIELD STAMINA: 0 hold drain, hit-only drain, lockout at 0 until full ---
