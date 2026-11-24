@@ -835,10 +835,47 @@ def main() -> None:
     dummy_path = TEX_DIR / "training_dummy.png"
     make_upgraded_training_dummy_sheet().save(dummy_path)
 
+    reagents_strip = Image.new("RGBA", (96, 32), (0, 0, 0, 0))
+    # Frame 0: Moonshade Alchemy Herb (+1 Reagent from monsters)
+    r0 = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    dr0 = ImageDraw.Draw(r0)
+    dr0.polygon([(16, 4), (24, 12), (20, 23), (16, 27), (12, 23), (8, 12)],
+                fill=(42, 168, 96, 255), outline=OUTLINE)
+    dr0.polygon([(16, 7), (21, 13), (18, 21), (16, 23), (14, 21), (11, 13)],
+                fill=(108, 238, 152, 255))
+    dr0.line([(16, 8), (16, 26)], fill=(238, 255, 224, 255), width=2)
+    reagents_strip.alpha_composite(r0, (0, 0))
+
+    # Frame 1: Crimson Monster Essence Drop (+2 Reagents from tough monsters)
+    r1 = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    dr1 = ImageDraw.Draw(r1)
+    dr1.polygon([(16, 4), (24, 15), (22, 24), (16, 28), (10, 24), (8, 15)],
+                fill=(178, 32, 86, 255), outline=OUTLINE)
+    dr1.polygon([(16, 8), (21, 16), (19, 23), (16, 25), (13, 23), (11, 16)],
+                fill=(248, 78, 138, 255))
+    put(r1, 14, 13, WHITE_SPEC)
+    put(r1, 15, 12, WHITE_SPEC)
+    reagents_strip.alpha_composite(r1, (32, 0))
+
+    # Frame 2: Golden-Violet Wave Arcane Crystal (+3 Reagents on wave clear = 1 full Majon!)
+    r2 = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    dr2 = ImageDraw.Draw(r2)
+    dr2.polygon([(16, 3), (25, 11), (22, 27), (10, 27), (7, 11)],
+                fill=(146, 72, 224, 255), outline=OUTLINE)
+    dr2.polygon([(16, 6), (22, 12), (19, 25), (13, 25), (10, 12)],
+                fill=(212, 142, 255, 255))
+    dr2.polygon([(16, 8), (19, 14), (16, 22), (13, 14)], fill=GOLD_HI)
+    reagents_strip.alpha_composite(r2, (64, 0))
+
+    reagents_path = TEX_DIR / "witch_reagents.png"
+    reagents_strip.save(reagents_path)
+    write_godot_import(reagents_path, "uid://bw7tchr3agnt8")
+
     print("Generated Witch's Cottage + Outdoor Yard pixel-art assets:")
     for p in (
         witch_path, cauldron_path, potion_path, door_path, wardrobe_path,
-        fp_path, floor_path, rugs_path, grass_path, trees_path, fence_path, dummy_path
+        fp_path, floor_path, rugs_path, grass_path, trees_path, fence_path, dummy_path,
+        reagents_path
     ):
         im = Image.open(p)
         print(f"  - {p.relative_to(REPO_ROOT)}: {im.size}")

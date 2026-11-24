@@ -18,6 +18,7 @@ extends Node2D
 
 signal wardrobe_opened
 signal cauldron_opened
+signal potion_brewed_in_world(brewed_count: int)
 signal enter_stages_requested
 signal enter_sandbox_requested
 
@@ -385,8 +386,8 @@ func _build_cauldron_and_witch() -> void:
 	add_child(ctitle)
 
 	_cauldron_prompt = _make_sign_label("[F] Skill Tree", Color(0.55, 1.0, 0.74), 7)
-	_cauldron_prompt.position = CAULDRON_POS + Vector2(-42.0, 14.0)
-	_cauldron_prompt.size = Vector2(86.0, 12.0)
+	_cauldron_prompt.position = CAULDRON_POS + Vector2(-62.0, 14.0)
+	_cauldron_prompt.size = Vector2(126.0, 12.0)
 	_cauldron_prompt.visible = false
 	add_child(_cauldron_prompt)
 
@@ -580,8 +581,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k := (event as InputEventKey).keycode
+		if k == KEY_B and near_cauldron:
+			if WitchCauldronProgression.brew_potion_for_hero(CharacterRegistry.selected_id):
+				play_world_potion_handoff(player_ref, true)
+				potion_brewed_in_world.emit(1)
+				get_viewport().set_input_as_handled()
+				return
 		if k in [KEY_F, KEY_E, KEY_C, KEY_ENTER]:
 			if near_cauldron and _cauldron_cooldown <= 0.0:
+				var brewed := WitchCauldronProgression.brew_all_potions_for_hero(CharacterRegistry.selected_id)
+				if brewed > 0:
+					play_world_potion_handoff(player_ref, true)
+					potion_brewed_in_world.emit(brewed)
 				cauldron_opened.emit()
 				get_viewport().set_input_as_handled()
 				return
@@ -649,7 +660,16 @@ func _process(delta: float) -> void:
 
 		var dist_c := ppos.distance_to(CAULDRON_POS)
 		if _cauldron_prompt != null:
-			_cauldron_prompt.visible = (dist_c <= 44.0)
+			var near_c := (dist_c <= 46.0)
+			_cauldron_prompt.visible = near_c
+			if near_c:
+				var herbs := WitchCauldronProgression.get_reagents()
+				if herbs >= WitchCauldronProgression.REAGENTS_PER_POTION:
+					_cauldron_prompt.text = "[B] Brew Majon | [F] Tree"
+					_cauldron_prompt.add_theme_color_override("font_color", Color(0.92, 0.68, 1.0))
+				else:
+					_cauldron_prompt.text = "[F] Tree (%d/%d Herbs)" % [herbs, WitchCauldronProgression.REAGENTS_PER_POTION]
+					_cauldron_prompt.add_theme_color_override("font_color", Color(0.55, 1.0, 0.74))
 
 		if dist_w <= 20.0:
 			if not _was_inside_wardrobe and _wardrobe_cooldown <= 0.0:
