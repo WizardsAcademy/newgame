@@ -622,8 +622,15 @@ func _on_player_attack_hit(enemy: Node) -> void:
 		_spawn_damage_number((enemy as Node2D).global_position, dealt, num_color)
 
 
-func _on_enemy_died() -> void:
+func _on_enemy_died(enemy: Node = null) -> void:
 	kills += 1
+	if enemy != null and is_instance_valid(enemy) and enemy is Node2D:
+		var epos := (enemy as Node2D).global_position
+		var max_hp := int(enemy.get("max_health")) if "max_health" in enemy else 30
+		if max_hp >= 70:
+			_spawn_reagent_drop(epos, 2, 1, "Essence")
+		else:
+			_spawn_reagent_drop(epos, 1, 0, "Herb")
 	if world_mode != WorldMode.LOBBY:
 		wave_spawner.notify_enemy_died()
 
@@ -639,12 +646,15 @@ func _on_wave_started(number: int, _enemy_count: int) -> void:
 func _on_wave_cleared(number: int) -> void:
 	if game_is_over:
 		return
-	# Award +1 Witch Brew Point for the active hero's Cauldron Skill Tree (NO 3-card popup!)
-	WitchCauldronProgression.add_brew_points(CharacterRegistry.selected_id, 1)
+	# Finishing a Wave/Stage drops a glowing Arcane Wave Crystal (+3 Reagents = 1 Witch Majon!)
+	var drop_pos := Vector2(320.0, 340.0)
+	if player != null and is_instance_valid(player):
+		drop_pos = player.global_position + Vector2(22.0, 0.0)
+	_spawn_reagent_drop(drop_pos, WitchCauldronProgression.REAGENTS_PER_POTION, 2, "Wave Crystal")
 	if world_mode == WorldMode.SANDBOX:
-		_pop_wave_label("Wave %d Cleared!  +1 Brew Point" % number, Color(0.65, 1.0, 0.82))
+		_pop_wave_label("Wave %d Cleared!  +Arcane Crystal" % number, Color(0.76, 0.68, 1.0))
 	else:
-		_pop_wave_label("Stage %d Cleared!  +1 Brew Point" % number, Color(0.72, 1.0, 0.76))
+		_pop_wave_label("Stage %d Cleared!  +Arcane Crystal" % number, Color(0.76, 0.68, 1.0))
 		_after_stage_reward()
 
 
