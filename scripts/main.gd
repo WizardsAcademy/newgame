@@ -325,9 +325,9 @@ func _on_console_toggled(is_open_now: bool) -> void:
 	if is_open_now:
 		player.input_enabled = false
 	else:
-		var menu_blocking := (
+		var menu_blocking: bool = (
 			game_is_over
-			or (character_select_menu != null and character_select_menu.is_open())
+			or (character_select_menu != null and bool(character_select_menu.is_open()))
 			or (witch_skill_tree_menu != null and witch_skill_tree_menu.is_open())
 			or (pause_menu != null and pause_menu.is_open())
 		)
@@ -348,10 +348,10 @@ func _on_console_canoheil() -> void:
 	WitchCauldronProgression.reset_all_heroes()
 	if player != null and is_instance_valid(player):
 		var cur_pos := player.position
-		var blocking := (
+		var blocking: bool = (
 			game_is_over
 			or (dev_console != null and dev_console.is_open())
-			or (character_select_menu != null and character_select_menu.is_open())
+			or (character_select_menu != null and bool(character_select_menu.is_open()))
 			or (witch_skill_tree_menu != null and witch_skill_tree_menu.is_open())
 		)
 		var entry := _replace_player_instance(CharacterRegistry.selected_id, not blocking, cur_pos)

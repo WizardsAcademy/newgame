@@ -543,7 +543,7 @@ func _draw_tree_connectors() -> void:
 		_draw_conduit(Vector2(px, ROW_Y[4] + 19.0), Vector2(px, merge_y), t4_lv >= 1, pil_blocked, pri, sec)
 		_draw_conduit(Vector2(px, merge_y), Vector2(bot_c.x, merge_y), t4_lv >= 1, pil_blocked, pri, sec)
 
-	var any_t4 := (
+	var any_t4: bool = (
 		WitchCauldronProgression.get_node_level(_hero_id, "p0_t4") >= 1
 		or WitchCauldronProgression.get_node_level(_hero_id, "p1_t4") >= 1
 		or WitchCauldronProgression.get_node_level(_hero_id, "p2_t4") >= 1

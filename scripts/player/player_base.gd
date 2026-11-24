@@ -769,7 +769,7 @@ func deal_combat_damage(enemy: Node, amount: int, from_dash: bool = false, knock
 	HitStop.freeze(0.035 if from_dash else 0.05)
 	ScreenShake.shake(2.8 if from_dash else 3.0, 0.14)
 
-	var was_dead := (enemy.get("is_dead") == true)
+	var was_dead: bool = (enemy.get("is_dead") == true)
 	enemy.take_damage(final_damage)
 	if not was_dead and enemy != null and is_instance_valid(enemy) and enemy.get("is_dead") == true:
 		_on_killed_enemy_with_combat(enemy)

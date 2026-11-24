@@ -153,7 +153,7 @@ func _append_log(line: String) -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var ke := event as InputEventKey
-		var is_backtick := (
+		var is_backtick: bool = (
 			ke.keycode == KEY_QUOTELEFT
 			or ke.physical_keycode == KEY_QUOTELEFT
 			or ke.keycode == KEY_ASCIITILDE
