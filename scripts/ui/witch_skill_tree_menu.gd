@@ -475,11 +475,15 @@ func _draw_tree_connectors() -> void:
 	# Crest -> Root conduit
 	_draw_conduit(Vector2(320.0, 41.0), Vector2(320.0, 48.0), true, pri, sec, locked_line)
 
+	var row1_ids: Array[String] = ["wrath", "focus", "essence"]
+	var row2_ids: Array[String] = ["blade", "swiftness", "heart", "ward", "burst", "reaper"]
+	var row3_ids: Array[String] = ["mastery_0", "mastery_1", "mastery_2", "mastery_3", "mastery_4", "mastery_5"]
+
 	# Row 0 (`vitality`, bottom=86) -> Horizontal bar `y=95` -> Row 1 (`top=104`)
 	var y_bar0 := 95.0
 	_draw_conduit(Vector2(320.0, 86.0), Vector2(320.0, y_bar0), root_active, pri, sec, locked_line)
 	for idx in range(3):
-		var nid1 := ["wrath", "focus", "essence"][idx]
+		var nid1: String = row1_ids[idx]
 		var cx1: float = COL_CENTERS_ROW1[idx]
 		var br_active := root_active and (WitchCauldronProgression.get_node_level(_hero_id, nid1) >= 1 or root_active)
 		_draw_conduit(Vector2(320.0, y_bar0), Vector2(cx1, y_bar0), br_active, pri, sec, locked_line)
@@ -489,9 +493,6 @@ func _draw_tree_connectors() -> void:
 	_draw_diamond(_tree_lines_canvas, Vector2(320.0, y_bar0), 2.8, pri if root_active else locked_gem, glow_rim)
 
 	# Row 1 (`bottom=140`) -> Horizontal split bars `y=150` -> Row 2 (`top=160`)
-	var row1_ids := ["wrath", "focus", "essence"]
-	var row2_ids := ["blade", "swiftness", "heart", "ward", "burst", "reaper"]
-	var row3_ids := ["mastery_0", "mastery_1", "mastery_2", "mastery_3", "mastery_4", "mastery_5"]
 	var y_bar1 := 150.0
 
 	for b in range(3):
