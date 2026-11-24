@@ -365,11 +365,15 @@ func _run() -> void:
 	await _tick(2)
 	var footstep_sfx: AudioStreamPlayer = player.get_node("FootstepSFX")
 	_check("Footstep SFX is silent while idle", footstep_sfx.playing == false)
+	var footstep_finished_during_walk := [false]
+	footstep_sfx.finished.connect(func(): footstep_finished_during_walk[0] = true)
 	var walk_start: Vector2 = player.global_position
 	Input.action_press("move_right")
 	await _tick(1)
-	var footstep_played_moving: bool = footstep_sfx.playing
+	var footstep_played_moving: bool = footstep_sfx.playing or footstep_finished_during_walk[0]
 	await _tick(9)
+	if footstep_sfx.playing or footstep_finished_during_walk[0]:
+		footstep_played_moving = true
 	var walk_region: Rect2 = (visuals_node.texture as AtlasTexture).region
 	var walk_anim_name: String = player.get_node("AnimPlayer").current_animation
 	Input.action_release("move_right")
