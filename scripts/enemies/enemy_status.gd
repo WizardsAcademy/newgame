@@ -109,6 +109,15 @@ static func get_sunder_stacks(enemy: Node) -> int:
 	return int(st.get("sunder_stacks")) if st != null else 0
 
 
+static func get_sunder_multiplier(enemy: Node) -> float:
+	return 1.0 + 0.14 * float(get_sunder_stacks(enemy))
+
+
+static func get_slow_multiplier(_enemy: Node) -> float:
+	# `_start_slow` already scales `host.move_speed` directly and restores it on expiry!
+	return 1.0
+
+
 static func add_vampire_fang_stack(enemy: Node, attacker: Node, count: int = 1) -> int:
 	if enemy == null or not is_instance_valid(enemy) or enemy.get("is_dead") == true:
 		return 0
