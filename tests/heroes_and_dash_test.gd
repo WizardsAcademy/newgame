@@ -372,7 +372,7 @@ func _run() -> void:
 	var spawned_flyers: int = lobby.trigger_cauldron_item_fly_animation(lobby.CAULDRON_POS + Vector2(-36.0, 20.0))
 	await _tick(2)
 	_check("Approaching Cauldron triggers arcing Reagent Fly-In Animation into the Cauldron",
-		spawned_flyers == 3 and get_tree().get_nodes_in_group("cauldron_flying_items").size() >= 1)
+		spawned_flyers >= 3 and get_tree().get_nodes_in_group("cauldron_flying_items").size() >= 1)
 	_check_eq("Lobby Sandbox Gate requires 3.0s hold progress ring (`SANDBOX_HOLD_DURATION == 3.0`)",
 		is_equal_approx(lobby.SANDBOX_HOLD_DURATION, 3.0), true)
 

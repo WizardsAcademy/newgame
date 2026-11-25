@@ -630,17 +630,22 @@ func play_world_potion_handoff(hero: Node2D, is_purple: bool) -> void:
 	var target := hero.global_position + Vector2(0.0, -10.0)
 	var mid := (vial.global_position + target) * 0.5 + Vector2(0.0, -18.0)
 
+	var vial_wr := weakref(vial)
+	var hero_wr := weakref(hero)
 	var tw := create_tween()
 	tw.tween_property(vial, "global_position", mid, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(vial, "global_position", target, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func() -> void:
-		if is_instance_valid(vial):
-			vial.queue_free()
-		if is_instance_valid(hero) and "visuals" in hero and hero.visuals != null:
+		var v := vial_wr.get_ref() as Node
+		if v != null and is_instance_valid(v):
+			v.queue_free()
+		var h := hero_wr.get_ref() as Node2D
+		if h != null and is_instance_valid(h) and "visuals" in h and h.get("visuals") != null:
+			var vis_node := h.get("visuals") as CanvasItem
 			var glow := Color(1.35, 0.82, 1.55, 1.0) if is_purple else Color(0.82, 1.45, 1.05, 1.0)
-			hero.visuals.modulate = glow
-			var htw := hero.create_tween()
-			htw.tween_property(hero.visuals, "modulate", Color.WHITE, 0.35)
+			vis_node.modulate = glow
+			var htw := h.create_tween()
+			htw.tween_property(vis_node, "modulate", Color.WHITE, 0.35)
 	)
 
 

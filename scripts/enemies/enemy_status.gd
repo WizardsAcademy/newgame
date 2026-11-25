@@ -281,15 +281,9 @@ func _spawn_fang_explosion_fx() -> void:
 
 			var stw := spire.create_tween()
 			stw.tween_property(spire, "scale", Vector2(0.50, 0.54), 0.09).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			stw.tween_callback(func() -> void:
-				if is_instance_valid(spire):
-					spire.texture = at_peak
-			)
+			stw.tween_property(spire, "texture", at_peak, 0.0)
 			stw.tween_interval(0.14)
-			stw.tween_callback(func() -> void:
-				if is_instance_valid(spire):
-					spire.texture = at_rain
-			)
+			stw.tween_property(spire, "texture", at_rain, 0.0)
 			stw.tween_property(spire, "modulate:a", 0.0, 0.20)
 			stw.tween_callback(spire.queue_free)
 
