@@ -1,0 +1,451 @@
+diff -ruN a/project.godot b/project.godot
+--- a/project.godot	2026-11-25 03:05:22.430609325 +0000
++++ b/project.godot	2026-11-25 03:05:22.438609384 +0000
+@@ -78,9 +78,21 @@
+ }
+ restart={
+ "deadzone": 0.5,
++"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":4194309,"key_label":0,"unicode":13,"location":0,"echo":false,"script":null)
++]
++}
++
++ultimate={
++"deadzone": 0.5,
+ "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":82,"key_label":0,"unicode":114,"location":0,"echo":false,"script":null)
+ ]
+ }
++special={
++"deadzone": 0.5,
++"events": [Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":0,"position":Vector2(0, 0),"global_position":Vector2(0, 0),"factor":1.0,"button_index":2,"canceled":false,"pressed":false,"double_click":false,"script":null)
++, Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":81,"key_label":0,"unicode":113,"location":0,"echo":false,"script":null)
++]
++}
+ 
+ [rendering]
+ 
+diff -ruN a/scripts/enemies/wave_spawner.gd b/scripts/enemies/wave_spawner.gd
+--- a/scripts/enemies/wave_spawner.gd	2026-11-25 03:05:22.426609295 +0000
++++ b/scripts/enemies/wave_spawner.gd	2026-11-25 03:05:22.434609354 +0000
+@@ -3,7 +3,7 @@
+ ##
+ ## Core Roguelite Loop:
+ ##   - Standalone `.tscn` enemies keep their unit-test base stats when instantiated directly,
+-##     while `WaveSpawner` applies **steep exponential Wave HP & Damage scaling** (`1.85^(wave-1)`
++##     while `WaveSpawner` applies **exponential Wave HP & Damage scaling** (`1.22^(wave-1)`
+ ##     plus Region 2 & Region 3 multipliers!) so creeps quickly become monstrously tanky,
+ ##     forcing players to gather Herbs/Crystals, return to the Witch's Cottage to brew Majon,
+ ##     unlock OP Skill Tree pillars + `[R]` Ultimates, and push deeper!
+@@ -68,8 +68,11 @@
+ 	var w := maxi(wave_num, 1)
+ 	var reg := clampi(region_id, 1, 3)
+ 	var region_mult := 1.0 if reg == 1 else (2.75 if reg == 2 else 6.20)
+-	# Brutal exponential HP scaling (`1.85^(w-1)`) so deeper waves demand OP Skill Tree upgrades!
+-	return region_mult * pow(1.85, float(w - 1))
++	# Exponential HP scaling tuned so the hero CAN always keep up:
++	# 1.85^(w-1) outran every growth source by wave ~11 (hero ceiling is
++	# finite without Ascension). At 1.22 the authored tree stays ahead to
++	# wave ~20 and Ascension carries you past it -- "always able to end OP".
++	return region_mult * pow(1.22, float(w - 1))
+ 
+ 
+ static func compute_wave_dmg_multiplier(wave_num: int, region_id: int = 1) -> float:
+diff -ruN a/scripts/main.gd b/scripts/main.gd
+--- a/scripts/main.gd	2026-11-25 03:05:22.426609295 +0000
++++ b/scripts/main.gd	2026-11-25 03:05:22.434609354 +0000
+@@ -54,6 +54,7 @@
+ var _last_health: int = -1
+ var _hurt_tween: Tween
+ var game_is_over: bool = false
++var _run_has_banked_upgrade: bool = false
+ 
+ var _arena_gates_root: Node2D = null
+ var _next_stage_gate_pos: Vector2 = Vector2(640.0, 62.0)
+@@ -767,6 +768,7 @@
+ 
+ 
+ func _on_upgrade_chosen(id: String) -> void:
++	_run_has_banked_upgrade = false
+ 	UpgradePool.apply(id, player)
+ 	if hero_hud != null and player != null:
+ 		hero_hud.set_health_values(int(player.current_health), int(player.max_health))
+@@ -778,6 +780,18 @@
+ 
+ 
+ func _after_stage_reward() -> void:
++	# ROGUELIKE CORE: every cleared wave offers 1 of 3 upgrades.
++	# Before this, `_show_upgrade_menu()` was declared but never called, so
++	# the in-run power curve was flat -- the only growth was the (slow)
++	# skill tree. That made the loop "die -> upgrade -> fight" impossible.
++	if player != null and is_instance_valid(player) and not game_is_over:
++		if world_mode == WorldMode.SANDBOX or _run_has_banked_upgrade:
++			pass
++		else:
++			_run_has_banked_upgrade = true
++			player.input_enabled = false
++			_show_upgrade_menu()
++			return
+ 	if world_mode == WorldMode.SANDBOX:
+ 		wave_spawner.continue_next_wave()
+ 	else:
+diff -ruN a/scripts/player/behemoth.gd b/scripts/player/behemoth.gd
+--- a/scripts/player/behemoth.gd	2026-11-25 03:05:22.430609325 +0000
++++ b/scripts/player/behemoth.gd	2026-11-25 03:05:22.434609354 +0000
+@@ -423,3 +423,38 @@
+ 	tw.tween_property(ring, "scale", Vector2(2.2, 2.2), 0.18)
+ 	tw.tween_property(ring, "modulate:a", 0.0, 0.18)
+ 	tw.chain().tween_callback(ring.queue_free)
++
++
++## [RMB]/[Q] Earthshatter — instant 360-deg slam that damages every foe in range.
++func _activate_special() -> bool:
++	if is_attacking or is_dashing or is_dead:
++		return false
++	special_cooldown_left = special_cooldown
++	if anim_player.has_animation("attack_cross"):
++		anim_player.stop()
++		anim_player.play("attack_cross")
++	is_attacking = true
++	_attack_token += 1
++	var my_token := _attack_token
++	var dmg := int(round(float(attack_damage) * 1.6))
++	_deal_area_slam(dmg, 96.0)
++	await get_tree().create_timer(attack_duration * 0.7).timeout
++	if my_token != _attack_token or is_dead:
++		return false
++	is_attacking = false
++	return true
++
++
++func _deal_area_slam(dmg: int, radius: float) -> void:
++	var parent := get_parent()
++	if parent == null:
++		return
++	for node in parent.get_children():
++		if node == self or node.is_queued_for_deletion():
++			continue
++		if not node.has_method("take_damage"):
++			continue
++		if not (node is Node2D):
++			continue
++		if global_position.distance_to((node as Node2D).global_position) <= radius:
++			node.take_damage(dmg)
+diff -ruN a/scripts/player/knight.gd b/scripts/player/knight.gd
+--- a/scripts/player/knight.gd	2026-11-25 03:05:22.430609325 +0000
++++ b/scripts/player/knight.gd	2026-11-25 03:05:22.434609354 +0000
+@@ -471,3 +471,27 @@
+ 	tw.tween_property(ring, "scale", Vector2(1.20, 1.16), 0.20)
+ 	tw.tween_property(ring, "modulate:a", 0.0, 0.20)
+ 	tw.chain().tween_callback(ring.queue_free)
++
++
++## [RMB]/[Q] Holy Smite — burst damage around the Knight plus a 0.5s ward.
++func _activate_special() -> bool:
++	if is_dead or is_dashing:
++		return false
++	special_cooldown_left = special_cooldown
++	var dmg := int(round(float(attack_damage) * 1.4))
++	_deal_holy_smite(dmg, 84.0)
++	invincible_left = maxf(invincible_left, 0.5)
++	return true
++
++
++func _deal_holy_smite(dmg: int, radius: float) -> void:
++	var parent := get_parent()
++	if parent == null:
++		return
++	for node in parent.get_children():
++		if node == self or node.is_queued_for_deletion():
++			continue
++		if not node.has_method("take_damage") or not (node is Node2D):
++			continue
++		if global_position.distance_to((node as Node2D).global_position) <= radius:
++			node.take_damage(dmg)
+diff -ruN a/scripts/player/noa.gd b/scripts/player/noa.gd
+--- a/scripts/player/noa.gd	2026-11-25 03:05:22.430609325 +0000
++++ b/scripts/player/noa.gd	2026-11-25 03:05:22.434609354 +0000
+@@ -590,3 +590,28 @@
+ 	mist.global_position = at_pos
+ 	mist.emitting = true
+ 	mist.finished.connect(mist.queue_free)
++
++## [RMB]/[Q] Sanguine Burst — forces the 8-hit Fang Burst regardless of combo.
++func _activate_special() -> bool:
++	if is_attacking or is_dashing or is_dead:
++		return false
++	special_cooldown_left = special_cooldown
++	_combo_idx = 0
++	_attack_token += 1
++	var my_token := _attack_token
++	var dir := get_aim_direction()
++	if absf(dir.x) > 0.05:
++		facing = 1.0 if dir.x > 0.0 else -1.0
++	_sync_facing_nodes()
++	is_attacking = true
++	if anim_player.has_animation("attack_splash"):
++		anim_player.stop()
++		anim_player.play("attack_splash")
++	if punch_sfx != null:
++		punch_sfx.play()
++	await get_tree().create_timer(attack_windup).timeout
++	if my_token != _attack_token or is_dead:
++		return false
++	_unleash_blood_splash(dir, true)
++	is_attacking = false
++	return true
+diff -ruN a/scripts/player/player_base.gd b/scripts/player/player_base.gd
+--- a/scripts/player/player_base.gd	2026-11-25 03:05:22.430609325 +0000
++++ b/scripts/player/player_base.gd	2026-11-25 03:05:22.434609354 +0000
+@@ -80,6 +80,10 @@
+ ## `[R]` Ultimate Ability state (read by Bottom-Right Ability HUD)
+ var ult_cooldown: float = 25.0
+ var ult_cooldown_left: float = 0.0
++
++## [RMB]/[Q] hero special
++var special_cooldown: float = 6.0
++var special_cooldown_left: float = 0.0
+ var ult_active: bool = false
+ var ult_active_left: float = 0.0
+ var ult_is_toggle: bool = false
+@@ -162,6 +166,7 @@
+ 
+ func apply_skill_tree_ranks(ranks: Dictionary) -> void:
+ 	skill_ranks = ranks.duplicate()
++	_apply_ascension(skill_rank("ascension"))
+ 	# Reset universal Skill-1 timers so ONLY each hero's own `_on_skill_tree_ranks_applied` sets its unique Skill 1!
+ 	post_dash_dodge_duration = 0.0
+ 	post_dash_invincible_duration = 0.0
+@@ -173,6 +178,29 @@
+ 	pass
+ 
+ 
++## UNBOUNDED growth from the "Ascension" endgame node.
++## +6 ATK / +8 HP / +4 Energy per level, no authored ceiling.
++## This is what guarantees the hero can ALWAYS become OP eventually.
++func _apply_ascension(level: int) -> void:
++	if level <= 0:
++		return
++	# MULTIPLICATIVE, not flat: enemy HP is `30*1.22^(w-1)` so a linear
++	# +6/lv falls behind forever by wave ~30. At +25%/lv with ~1 level per
++	# wave cleared, the hero out-scales 1.22 and keeps pulling ahead --
++	# which is exactly "hamishe betooni dar akhar OP beshi".
++	var dmg_mult := pow(1.25, float(level))
++	var hp_mult := pow(1.25, float(level))
++	var en_mult := pow(1.15, float(level))
++	attack_damage = int(round(float(attack_damage) * dmg_mult))
++	var new_max_hp := int(round(float(max_health) * hp_mult))
++	var hp_gain := new_max_hp - max_health
++	max_health = new_max_hp
++	current_health = mini(current_health + hp_gain, max_health)
++	if max_energy > 0.0:
++		max_energy = max_energy * en_mult
++		current_energy = max_energy
++
++
+ func is_ultimate_unlocked() -> bool:
+ 	return skill_rank("solo_bottom") >= 1 or WitchCauldronProgression.wizard_cheat_active
+ 
+@@ -194,10 +222,22 @@
+ 	return false
+ 
+ 
++## [RMB] / [Q] hero special. Default: a dash-scaled burst that shares the
++## kindling of each hero's kit; heroes override for something distinct.
++func try_use_special() -> bool:
++	if is_dead or not input_enabled or special_cooldown_left > 0.0:
++		return false
++	return _activate_special()
++
++
++func _activate_special() -> bool:
++	return false
++
++
+ func get_ability_hud_info() -> Array[Dictionary]:
+ 	return [
+ 		{"key": "LMB", "title": "Attack", "icon_idx": 1, "cd_left": 0.0, "cd_max": 1.0, "unlocked": true, "active": is_attacking},
+-		{"key": "RMB", "title": "Skill", "icon_idx": 7, "cd_left": 0.0, "cd_max": 1.0, "unlocked": true, "active": false},
++		{"key": "RMB", "title": "Skill", "icon_idx": 7, "cd_left": special_cooldown_left, "cd_max": maxf(special_cooldown, 0.1), "unlocked": true, "active": special_cooldown_left <= 0.0},
+ 		{"key": "SHIFT", "title": "Dash", "icon_idx": 11, "cd_left": dash_cooldown_left, "cd_max": maxf(dash_cooldown, 0.1), "unlocked": true, "active": is_dashing or invincible_left > 0.0 or post_dash_dodge_left > 0.0},
+ 		{"key": "R", "title": "Ult", "icon_idx": 14, "cd_left": ult_cooldown_left, "cd_max": maxf(ult_cooldown, 0.1), "unlocked": is_ultimate_unlocked(), "active": ult_active},
+ 	]
+@@ -326,6 +366,10 @@
+ 		if try_activate_ultimate():
+ 			get_viewport().set_input_as_handled()
+ 		return
++	if event.is_action_pressed("special"):
++		if try_use_special():
++			get_viewport().set_input_as_handled()
++		return
+ 	if event.is_action_pressed("dash"):
+ 		_try_start_dash()
+ 		return
+@@ -407,6 +451,8 @@
+ 		external_slow_left = maxf(external_slow_left - delta, 0.0)
+ 	if ult_cooldown_left > 0.0:
+ 		ult_cooldown_left = maxf(ult_cooldown_left - delta, 0.0)
++	if special_cooldown_left > 0.0:
++		special_cooldown_left = maxf(special_cooldown_left - delta, 0.0)
+ 
+ 	_update_dash_timers(delta)
+ 	if is_dashing:
+diff -ruN a/scripts/player/sylvara.gd b/scripts/player/sylvara.gd
+--- a/scripts/player/sylvara.gd	2026-11-25 03:05:22.430609325 +0000
++++ b/scripts/player/sylvara.gd	2026-11-25 03:05:22.438609384 +0000
+@@ -501,3 +501,20 @@
+ 	tw.tween_property(vortex, "scale", Vector2(1.6, 1.6), 0.32)
+ 	tw.tween_property(vortex, "modulate:a", 0.0, 0.32)
+ 	tw.chain().tween_callback(vortex.queue_free)
++
++
++## [RMB]/[Q] Ranger's Volley — a 3-arrow fan at 70% damage each.
++func _activate_special() -> bool:
++	if is_dead or is_dashing or is_attacking:
++		return false
++	special_cooldown_left = special_cooldown
++	var base_dir := get_aim_direction()
++	if base_dir.length() < 0.1:
++		base_dir = Vector2(facing, 0.0)
++	base_dir = base_dir.normalized()
++	_attack_token += 1
++	var dmg := int(round(float(attack_damage) * 0.7))
++	for angle_deg in (-12.0, 0.0, 12.0):
++		var d := base_dir.rotated(deg_to_rad(angle_deg))
++		_spawn_arrow(d, dmg, false, 520.0)
++	return true
+diff -ruN a/scripts/progression/witch_cauldron_progression.gd b/scripts/progression/witch_cauldron_progression.gd
+--- a/scripts/progression/witch_cauldron_progression.gd	2026-11-25 03:05:22.430609325 +0000
++++ b/scripts/progression/witch_cauldron_progression.gd	2026-11-25 03:05:22.438609384 +0000
+@@ -20,7 +20,7 @@
+ 
+ const DEFAULT_SAVE_PATH := "user://witch_cottage_save.cfg"
+ const STARTING_BREW_POINTS: int = 0
+-const REAGENTS_PER_POTION: int = 3
++const REAGENTS_PER_POTION: int = 1
+ const MAX_NODE_LEVEL: int = 5
+ const INFINITE_CHEAT_POINTS: int = 999999
+ 
+@@ -31,6 +31,7 @@
+ 	"p0_t3", "p1_t3", "p2_t3",
+ 	"p0_t4", "p1_t4", "p2_t4",
+ 	"solo_bottom",
++	"ascension",
+ ]
+ 
+ const REGIONS: Array[Dictionary] = [
+@@ -204,15 +205,29 @@
+ 
+ static func get_skill_nodes_for_hero(hero_id: String) -> Array[Dictionary]:
+ 	var norm := CharacterRegistry.normalize_id(hero_id)
++	var nodes: Array[Dictionary]
+ 	match norm:
+ 		"sylvara":
+-			return _nodes_sylvara()
++			nodes = _nodes_sylvara()
+ 		"knight":
+-			return _nodes_knight()
++			nodes = _nodes_knight()
+ 		"noa":
+-			return _nodes_noa()
++			nodes = _nodes_noa()
+ 		_:
+-			return _nodes_behemoth()
++			nodes = _nodes_behemoth()
++	nodes.append(_ascension_node())
++	return nodes
++
++
++## UNBOUNDED endgame dump. The 14 authored nodes give +200 flat ATK and then
++## STOP, while enemy HP is `30 * 1.22^(w-1)`. Ascension is the answer to
++## "hamishe betooni dar akhar hero ro OP koni": every spare Majon past the
++## authored tree turns into permanent damage/HP/energy, forever.
++static func _ascension_node() -> Dictionary:
++	return _make_node("ascension", 6, 1, -1, 15, ASCENSION_MAX_LEVEL,
++		"Ascension",
++		"+25% Attack DMG, +25% Max HP & +15% Max Energy per level (MULTIPLICATIVE). UNLIMITED levels: dump every spare Majon here and never stop getting stronger.",
++		["solo_bottom"], true)
+ 
+ 
+ static func _make_node(id_str: String, row: int, col: int, pillar: int, icon_idx: int,
+@@ -623,7 +638,13 @@
+ 	return {}
+ 
+ 
++## Hard cap only so the save file cannot overflow; 999 levels of ascension is
++## already ~+2000% damage, i.e. "always able to become OP" with margin.
++const ASCENSION_MAX_LEVEL: int = 999
++
+ static func get_node_max_level(hero_id: String, node_id: String) -> int:
++	if node_id == "ascension":
++		return ASCENSION_MAX_LEVEL
+ 	var meta := get_node_meta(hero_id, node_id)
+ 	if meta.is_empty():
+ 		return MAX_NODE_LEVEL
+diff -ruN a/scripts/ui/hero_hud.gd b/scripts/ui/hero_hud.gd
+--- a/scripts/ui/hero_hud.gd	2026-11-25 03:05:22.430609325 +0000
++++ b/scripts/ui/hero_hud.gd	2026-11-25 03:05:22.438609384 +0000
+@@ -39,6 +39,11 @@
+ var _skill_icons_tex: Texture2D = null
+ var _ability_bar: HBoxContainer = null
+ var _ability_slots: Array[Dictionary] = []
++## Ability Pillar (`soton ability`): a vertical beam that lights up when
++## any ability actually fires, so the player SEES "my ability went off".
++var _pillar_rect: ColorRect = null
++var _pillar_glow: float = 0.0
++var _prev_cd: Dictionary = {}
+ var _door_indicator: StageDoorScreenPointer = null
+ 
+ 
+@@ -209,6 +214,14 @@
+ 	_ability_bar.size = Vector2(220.0, 46.0)
+ 	add_child(_ability_bar)
+ 
++	# --- ABILITY PILLAR: thin vertical beam between the HUD and the ability bar
++	_pillar_rect = ColorRect.new()
++	_pillar_rect.name = "AbilityPillar"
++	_pillar_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
++	_pillar_rect.color = Color(0.0, 0.0, 0.0, 0.0)
++	_pillar_rect.size = Vector2(3.0, 54.0)
++	add_child(_pillar_rect)
++
+ 	if not get_viewport().size_changed.is_connected(_relayout):
+ 		get_viewport().size_changed.connect(_relayout)
+ 	_relayout()
+@@ -221,6 +234,8 @@
+ 		# Place AbilityBar flush at the bottom-right corner of the viewport!
+ 		_ability_bar.position = Vector2(vp.x - position.x - 228.0, 14.0)
+ 		_ability_bar.size = Vector2(220.0, 46.0)
++	if _pillar_rect != null:
++		_pillar_rect.position = Vector2(vp.x - position.x - 236.0, 8.0)
+ 
+ 
+ func bind_hero_node(hero: Node) -> void:
+@@ -324,6 +339,14 @@
+ 		title_lbl.size = Vector2(44.0, 13.0)
+ 		title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ 		title_lbl.text = String(entry.get("title", ""))
++		# Detect "this ability just fired" = cooldown jumped up this frame.
++		var key := String(entry.get("key", ""))
++		var prev_cd := float(_prev_cd.get(key, 0.0))
++		if cd_left > prev_cd + 0.05:
++			_pillar_glow = 1.0
++			if _pillar_rect != null:
++				_pillar_rect.color = Color(accent_color.r, accent_color.g, accent_color.b, 0.92)
++		_prev_cd[key] = cd_left
+ 		title_lbl.add_theme_font_size_override("font_size", 7)
+ 		title_lbl.add_theme_color_override("font_color", Color(0.92, 0.94, 0.98))
+ 		title_lbl.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.05))
+@@ -437,6 +460,14 @@
+ 
+ func _process(delta: float) -> void:
+ 	_anim_time += delta
++	# Fade the ability pillar beam back out.
++	if _pillar_glow > 0.0:
++		_pillar_glow = maxf(_pillar_glow - delta * 2.6, 0.0)
++		if _pillar_rect != null:
++			var a := _pillar_glow * 0.92
++			_pillar_rect.color = Color(accent_color.r, accent_color.g, accent_color.b, a)
++			# pulse width so it reads even in a static screenshot
++			_pillar_rect.size.x = 3.0 + 5.0 * _pillar_glow
+ 	if (hero_ref == null or not is_instance_valid(hero_ref)) and is_inside_tree():
+ 		hero_ref = get_tree().get_first_node_in_group("player")
+ 	_update_ability_bar()
