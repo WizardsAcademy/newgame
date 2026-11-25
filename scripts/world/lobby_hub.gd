@@ -630,8 +630,8 @@ func play_world_potion_handoff(hero: Node2D, is_purple: bool) -> void:
 	var target := hero.global_position + Vector2(0.0, -10.0)
 	var mid := (vial.global_position + target) * 0.5 + Vector2(0.0, -18.0)
 
-	var vial_wr := weakref(vial)
-	var hero_wr := weakref(hero)
+	var vial_wr: WeakRef = weakref(vial)
+	var hero_wr: WeakRef = weakref(hero)
 	var tw := create_tween()
 	tw.tween_property(vial, "global_position", mid, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(vial, "global_position", target, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
