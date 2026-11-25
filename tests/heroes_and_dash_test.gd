@@ -284,22 +284,34 @@ func _run() -> void:
 	_check_eq("Giving 3 Reagents to the Witch brews +1 Majon (Skill Point)!",
 		WitchCauldronProgression.get_brew_points("noa"), 1)
 
-	# Backtick (`) Developer Console: `wizard` (+10000 Skill Points) & `canoheil` (Reset all heroes)!
+	# Backtick (`) Blank Developer Console: ZERO hints/placeholders, `wizard` God-Mode Cheat, & `canoheil` Cheat Disabler!
 	var dev_con: DevConsole = main.get_node("UI/DevConsole")
+	_check("Developer Console is completely blank (zero placeholder & zero command hint text!)",
+		dev_con._input_line.placeholder_text == "" and dev_con._log_lbl.text == "")
 	var bt_ev := InputEventKey.new()
 	bt_ev.pressed = true
 	bt_ev.keycode = KEY_QUOTELEFT
 	bt_ev.unicode = 96
 	dev_con._input(bt_ev)
 	await _tick(2)
-	_check_eq("Pressing backtick (`) opens DevConsole", dev_con.is_open(), true)
+	_check_eq("Pressing backtick (`) opens blank DevConsole", dev_con.is_open(), true)
 	dev_con.submit_command("wizard")
 	await _tick(2)
-	_check("Typing 'wizard' grants +10000 Skill Points!",
-		WitchCauldronProgression.get_brew_points("noa") >= 10000,
-		"pts=%d" % WitchCauldronProgression.get_brew_points("noa"))
+	_check("Typing 'wizard' enables wizard_cheat_active (infinite money/SP, infinite HP, 0 CD, 1-shot-1-kill & all regions)!",
+		WitchCauldronProgression.wizard_cheat_active
+		and WitchCauldronProgression.get_brew_points("noa") >= 100000
+		and WitchCauldronProgression.is_region_unlocked(3))
 	dev_con.toggle_console()
 	await _tick(1)
+
+	# Test 1-shot-1-kill & infinite HP under `wizard` cheat!
+	var cheat_target := _make_dummy_slime(main.enemies_root, main.player.global_position + Vector2(36.0, 0.0), 50000)
+	main.player.take_damage(999, main.player.global_position + Vector2(20.0, 0.0))
+	_check_eq("Wizard cheat grants Infinite Health (takes 0 damage from 999 hit)",
+		main.player.current_health, main.player.max_health)
+	main.player.deal_combat_damage(cheat_target, 10, false, 0.0)
+	_check_eq("Wizard cheat grants 1-Shot 1-Kill (instantly slays 50,000 HP monster!)",
+		cheat_target.is_dead, true)
 
 	# Upgrade Top Solo (`solo_top`) -> choose Pillar 0 (`p0_t1`) -> verify Pillars 1 & 2 LOCK -> descend to `p0_t4` -> verify `solo_bottom` unlocks!
 	upg_btn.pressed.emit()
@@ -324,15 +336,17 @@ func _run() -> void:
 		skill_ui._on_skill_node_pressed(String(next_nid))
 		upg_btn.pressed.emit()
 		await _tick(1)
-	_check_eq("Reaching Pillar Tier-4 (`p0_t4`) converges & unlocks Bottom Solo Ultimate (`solo_bottom`)!",
+	_check_eq("Reaching Pillar Tier-4 (`p0_t4`) converges & unlocks Bottom Solo `[R]` Ultimate (`solo_bottom`)!",
 		WitchCauldronProgression.is_node_unlocked("noa", "solo_bottom"), true)
 	skill_ui._on_skill_node_pressed("solo_bottom")
 	upg_btn.pressed.emit()
 	await _tick(2)
-	_check_eq("Bottom Converged Solo Ultimate (`solo_bottom`) upgrades cleanly!",
+	_check_eq("Bottom Converged `[R]` Ultimate (`solo_bottom`) upgrades cleanly!",
 		WitchCauldronProgression.get_node_level("noa", "solo_bottom"), 1)
 
-	# ResetButton refunds spent points & unlocks all 3 pillars again!
+	# Prominent ResetButton inside Skill Tree refunds spent points & unlocks all 3 pillars again!
+	_check("ResetButton inside Skill Tree shows spent points count",
+		rst_btn.text.find("Reset") != -1 and not rst_btn.disabled)
 	rst_btn.pressed.emit()
 	await _tick(2)
 	_check_eq("ResetButton clears chosen pillar back to -1",
@@ -340,14 +354,69 @@ func _run() -> void:
 	skill_ui.hide_menu()
 	await _tick(2)
 
-	# Typing `canoheil` in DevConsole resets ALL heroes (0 points, 0 nodes, base stats)!
+	# Typing `canoheil` in DevConsole disables ALL cheats & restores legitimate pre-wizard state!
 	dev_con.submit_command("canoheil")
 	await _tick(3)
-	_check_eq("Typing 'canoheil' resets all heroes' points, nodes, & Noa base HP (75)",
-		WitchCauldronProgression.get_brew_points("noa") == 0
-		and WitchCauldronProgression.get_brew_points("sylvara") == 0
+	_check("Typing 'canoheil' disables ALL cheats (`wizard_cheat_active == false`, restores legitimate 1 brewed SP & base 75 HP)",
+		not WitchCauldronProgression.wizard_cheat_active
+		and WitchCauldronProgression.get_brew_points("noa") == 1
 		and WitchCauldronProgression.get_spent_points("noa") == 0
-		and main.player.max_health == 75, true)
+		and main.player.max_health == 75)
+
+	# Verify Bottom-Right AbilityBar HUD, Lobby Cauldron Fly-In Animation, Sandbox 3.0s Door Ring, & 3 Named Stage Regions!
+	var ability_bar := hero_hud.get_node_or_null("AbilityBar") as Control
+	_check("HeroHUD places AbilityBar at the bottom-right of the screen",
+		ability_bar != null and (hero_hud.position.x + ability_bar.position.x) >= 350.0)
+
+	WitchCauldronProgression.add_reagents(3)
+	var spawned_flyers: int = lobby.trigger_cauldron_item_fly_animation(lobby.CAULDRON_POS + Vector2(-36.0, 20.0))
+	await _tick(2)
+	_check("Approaching Cauldron triggers arcing Reagent Fly-In Animation into the Cauldron",
+		spawned_flyers >= 3 and get_tree().get_nodes_in_group("cauldron_flying_items").size() >= 1)
+	_check_eq("Lobby Sandbox Gate requires 3.0s hold progress ring (`SANDBOX_HOLD_DURATION == 3.0`)",
+		is_equal_approx(lobby.SANDBOX_HOLD_DURATION, 3.0), true)
+
+	# Verify 3 Distinct Named Stage Regions, Sandbox-only `$Level`, Boss Gate Unlock, Wave HP Scaling, & Door Beacon!
+	_check("3 Distinct Named Stage Regions exist & Region 2/3 start locked until Boss kill",
+		WitchCauldronProgression.get_max_unlocked_region() == 1
+		and not WitchCauldronProgression.is_region_unlocked(2)
+		and String(WitchCauldronProgression.get_region_info(1)["name"]) == "Whispering Jungle"
+		and String(WitchCauldronProgression.get_region_info(2)["name"]) == "Cursed Bone Crypt"
+		and String(WitchCauldronProgression.get_region_info(3)["name"]) == "Infernal Citadel")
+	_check("WaveSpawner applies steep exponential HP scaling (`Wave 5 HP mult > 10x Wave 1` & `Region 3 > Region 2 > Region 1`)",
+		main.wave_spawner.compute_wave_hp_multiplier(5, 1) > 10.0
+		and main.wave_spawner.compute_wave_hp_multiplier(1, 3) > main.wave_spawner.compute_wave_hp_multiplier(1, 2)
+		and main.wave_spawner.compute_wave_hp_multiplier(1, 2) > main.wave_spawner.compute_wave_hp_multiplier(1, 1))
+
+	main.enter_stages(1)
+	await _tick(3)
+	main.wave_spawner.stop_spawning()
+	_check("Entering Stage Region 1 activates StageMap ('Whispering Jungle') & strictly disables Sandbox `$Level`!",
+		main.stage_map.visible and main.stage_map.active_region_id == 1 and not main.level_root.visible)
+
+	# Simulate defeating Region 1 Boss -> unlocks Region 2 AND spawns tracked `stage_portals` doors on round clear!
+	var fake_boss := _make_dummy_slime(main.enemies_root, Vector2(500.0, 360.0), 40)
+	fake_boss.add_to_group("boss")
+	main._watch_enemy(fake_boss)
+	fake_boss.take_damage(100)
+	await _tick(2)
+	main._on_wave_cleared(5)
+	await _tick(3)
+	_check("Defeating Region 1 Boss unlocks Region 2 ('Cursed Bone Crypt') AND spawns tracked Stage Exit + Next-Region Portals!",
+		WitchCauldronProgression.is_region_unlocked(2)
+		and main._next_region_gate_active
+		and get_tree().get_nodes_in_group("stage_portals").size() >= 2)
+
+	main.enter_stages(2)
+	await _tick(3)
+	main.wave_spawner.stop_spawning()
+	var reg2_foe: Node = main.wave_spawner._spawn_enemy()
+	var reg2_boss: Node = main.wave_spawner._spawn_boss()
+	await _tick(2)
+	_check("Stage Region 2 ('Cursed Bone Crypt') builds Crypt obstacles & spawns new RegionEnemy + Malakor Arch-Lich Boss!",
+		main.stage_map.active_region_id == 2 and reg2_foe is RegionEnemy and reg2_boss is RegionBoss)
+	main.enter_lobby()
+	await _tick(3)
 
 	# ESC Pause Menu (`Continue`, `Settings`, `Lobby`, `Quit`)
 	var pause_ui: PauseMenu = main.get_node("UI/PauseMenu")
@@ -458,7 +527,7 @@ func _run() -> void:
 		knight.shield_exhausted and not knight.is_shielding, true)
 	knight.set_shielding(false)
 
-	# --- NOA: Classic 5-Bat Shift (NO purple shadow form!) + Sweeping Blood-Splash Slash (NO yoyo!) ---
+	# --- NOA REWORK: 0 Self-HP Cost, 0 Default Heal, Skill 1 = 1% Enemy HP Lifesteal, 8-Hit Burst + 10% Lifesteal, & Toggle [R] Blood Rain! ---
 	noa.global_position = Vector2(520, 480)
 	noa.set_move_facing(Vector2.RIGHT)
 	noa._try_start_dash()
@@ -472,70 +541,141 @@ func _run() -> void:
 	await _tick(2)
 	_check_eq("Noa re-materializes cleanly after Bat-Swarm Shift", noa.visuals.visible, true)
 
-	# Self-HP Cost into empty air + STRICT 1-HP Floor!
 	noa.global_position = Vector2(520, 480)
-	noa.current_health = 60
-	noa._start_attack()
-	await _wait(0.38)
-	await _tick(2)
-	_check_eq("Blood-Splash into empty air costs 5 HP and spawns NO yoyo orb (60 -> 55)",
-		noa.current_health == 55 and world.get_node_or_null("BloodWhipOrb") == null, true)
-
-	noa.current_health = 1
-	noa._start_attack()
-	await _wait(0.38)
-	await _tick(2)
-	_check_eq("Noa at 1 HP NEVER kills herself with Blood-Splash (1 -> 1, alive!)",
-		noa.current_health == 1 and not noa.is_dead, true)
-
-	# Sweeping Blood-Splash hitting 1 enemy -> heals `5 + 1 = 6` (+1 net HP), 14 DMG, & 4th hit 30% Fountain!
+	noa.apply_skill_tree_ranks({})
 	noa.current_health = 50
-	var splash_foe := _make_dummy_slime(world, Vector2(582, 480), 100)
-	await _tick(2)
-
 	noa._start_attack()
-	await _wait(0.40)
+	await _wait(0.38)
 	await _tick(2)
-	_check_eq("Blood-Splash hitting 1 enemy yields +1 net HP (50 - 5 + 6 = 51)", noa.current_health, 51)
-	_check_eq("First Blood-Splash deals 14 DMG (100 -> 86)", splash_foe.current_health, 86)
+	_check_eq("Noa basic attack into empty air costs ZERO self-HP (50 -> 50)",
+		noa.current_health, 50)
 
-	for _i in range(2):
+	var splash_foe := _make_dummy_slime(world, Vector2(582, 480), 200)
+	await _tick(2)
+	noa._start_attack()
+	await _wait(0.38)
+	await _tick(2)
+	_check_eq("Noa un-upgraded basic attack heals 0 HP by default (50 -> 50) & deals 14 DMG (200 -> 186)",
+		noa.current_health == 50 and splash_foe.current_health == 186, true)
+
+	# Upgrade Noa Skill 1 (`solo_top`): 1% Enemy Max HP Lifesteal (and NO 1s projectile dodge!)
+	noa.apply_skill_tree_ranks({"solo_top": 1})
+	_check_eq("Noa solo_top has 0.0s projectile dodge (unique 1% HP Lifesteal instead!)",
+		is_equal_approx(noa.post_dash_dodge_duration, 0.0), true)
+	noa._start_attack()
+	await _wait(0.38)
+	await _tick(2)
+	_check_eq("Noa solo_top heals 1% of 200 Max HP (+2 HP: 50 -> 52) on hit!",
+		noa.current_health, 52)
+
+	# Hit 6 more times to reach 8 total Fang stacks -> triggers 30% Max HP burst (60 DMG) + 10% burst lifesteal (+6 HP)!
+	noa.apply_skill_tree_ranks({}) # disable solo_top heal to isolate exact 10% 8-hit burst lifesteal!
+	noa.current_health = 40
+	for _i in range(5):
+		splash_foe.global_position = Vector2(560, 480)
 		noa._start_attack()
-		await _wait(0.40)
+		await _wait(0.38)
 		await _tick(2)
-	_check_eq("After 3 Blood-Splash hits: enemy at 58 HP (100 - 3*14)", splash_foe.current_health, 58)
+	_check_eq("After 7 total Blood-Splash hits: enemy has NOT burst yet (200 - 7*14 = 102 HP)",
+		splash_foe.current_health, 102)
 
+	splash_foe.global_position = Vector2(560, 480)
 	noa._start_attack()
-	await _wait(0.40)
+	await _wait(0.38)
 	await _tick(2)
-	_check_eq("4th Blood-Splash erupts 30% Ground Blood Fountain (58 - 14 - 30 = 14 HP)!",
-		splash_foe.current_health, 14)
+	_check_eq("8th Blood-Splash triggers 30% Fountain (102 - 14 - 60 = 28 HP) AND lifesteals 10% of burst (+6 HP: 40 -> 46)!",
+		splash_foe.current_health == 28 and noa.current_health == 46, true)
+	splash_foe.queue_free()
 
-	# --- SYLVARA EXPLICIT OP SOLO SKILLS (`solo_top` 1.0s Post-Shift Projectile Dodge & `solo_bottom` 30% Auto-Aim Barrage) ---
+	# Noa `[R]` Toggle Sanguine Rain (`solo_bottom`): Active / Deactive medium circle!
+	noa.apply_skill_tree_ranks({"solo_bottom": 1})
+	noa.current_health = 60
+	var rain_foe := _make_dummy_slime(world, noa.global_position + Vector2(60.0, 0.0), 300)
+	await _tick(2)
+	_check_eq("Pressing [R] toggles Noa Sanguine Rain ON", noa.try_activate_ultimate() and noa.blood_rain_active, true)
+	await _wait(0.25)
+	await _tick(2)
+	_check("Noa [R] Sanguine Rain damages enemy in medium circle (1% Max HP = 3 DMG) & lifesteals!",
+		rain_foe.current_health == 297 and noa.current_health >= 60)
+	_check_eq("Pressing [R] a second time toggles Noa Sanguine Rain OFF",
+		noa.try_activate_ultimate() and not noa.blood_rain_active, true)
+	rain_foe.queue_free()
+
+	# --- DISTINCT SKILL 1 (`solo_top`) & `[R]` ULTIMATES FOR BEHEMOTH, KNIGHT, & SYLVARA + WALL PROJECTILE STOP ---
+	# 1. Behemoth: `solo_top` = 1.0s Full Invincibility; `[R]` = Infernal Rage (`2x` damage + Fire VFX)!
+	behemoth.apply_skill_tree_ranks({"solo_top": 1, "solo_bottom": 1})
+	_check("Behemoth solo_top grants 1.0s post-Shift Invincibility (NOT projectile-only dodge)",
+		is_equal_approx(behemoth.post_dash_invincible_duration, 1.0) and is_equal_approx(behemoth.post_dash_dodge_duration, 0.0))
+	behemoth._try_start_dash()
+	await _wait(0.24)
+	await _tick(2)
+	var beh_hp_before: int = behemoth.current_health
+	behemoth.take_damage(35, behemoth.global_position + Vector2(15.0, 0.0), false)
+	_check_eq("Behemoth solo_top blocks 100% of melee/all damage during 1.0s post-Shift Invincibility!",
+		behemoth.current_health, beh_hp_before)
+	_check("Behemoth [R] Infernal Rage activates Fire VFX & doubles damage (2.0x)!",
+		behemoth.try_activate_ultimate() and behemoth.ult_active and is_equal_approx(behemoth.get_rage_damage_multiplier(), 2.0))
+
+	# 2. Knight: ZERO arrow spam, `solo_top` = Sacred Aegis Shield Dome, `[R]` = War Banner + 1 Allied Knight (7s dur, 60s CD)!
+	knight.apply_skill_tree_ranks({"solo_top": 1, "p0_t1": 5, "p0_t4": 5, "solo_bottom": 1})
+	_check("Knight solo_top activates Sacred Aegis Shield Barrier (and 0.0s projectile dodge)",
+		knight.aegis_unlocked and knight.aegis_ready and is_equal_approx(knight.post_dash_dodge_duration, 0.0))
+	var k_hp_before: int = knight.current_health
+	knight.set_shielding(false)
+	knight.take_damage(40, knight.global_position + Vector2(20.0, 0.0), false)
+	_check_eq("Knight Sacred Aegis Shield absorbs full incoming hit for 0 HP damage!",
+		knight.current_health, k_hp_before)
+	knight._start_attack()
+	await _wait(0.25)
+	await _tick(2)
+	_check_eq("Knight NEVER spams arrows at max Skill Tree (`player_arrows` count == 0)!",
+		get_tree().get_nodes_in_group("player_arrows").size(), 0)
+	_check("Knight [R] plants Royal War Banner & summons 1 Allied Knight (7s duration, 60s CD)!",
+		knight.try_activate_ultimate()
+		and is_equal_approx(knight.ult_cooldown, 60.0)
+		and is_equal_approx(knight.banner_ally_duration, 7.0)
+		and get_tree().get_nodes_in_group("allied_knights").size() == 1)
+
+	# 3. Sylvara: `solo_top` = 1.0s Post-Shift Projectile Dodge, shortened lock range, & `[R]` Lock-On Arrow Spam!
 	sylvara.global_position = Vector2(520.0, 220.0)
 	sylvara.current_health = sylvara.max_health
-	sylvara.apply_skill_tree_ranks({"solo_top": 1, "solo_bottom": 0})
+	sylvara.apply_skill_tree_ranks({"solo_top": 1, "solo_bottom": 1})
+	_check("Sylvara auto-lock range is shortened (`<= 220px`)", sylvara.auto_barrage_range <= 220.0)
 	sylvara._try_start_dash()
 	await _wait(0.24)
 	await _tick(2)
-	_check("Sylvara Shift finished AND 1.0s post-Shift projectile dodge window is active!",
-		not sylvara.is_dashing and sylvara.post_dash_dodge_left > 0.65,
-		"dodge_left=%.2f" % sylvara.post_dash_dodge_left)
 	sylvara.take_damage(15, sylvara.global_position + Vector2(30.0, 0.0), true)
 	_check_eq("Sylvara solo_top dodges 100% of projectiles AFTER Shift ends!",
 		sylvara.current_health, sylvara.max_health)
 
-	# Upgrade `solo_bottom` -> verify auto-aim rapid volley fires automatically dealing 30% of attack_damage!
-	sylvara.apply_skill_tree_ranks({"solo_top": 1, "solo_bottom": 1})
-	var expected_auto_dmg := maxi(int(roundf(float(sylvara.attack_damage) * 0.30)), 1)
-	_check_eq("Sylvara solo_bottom auto-aim shot deals 30% of attack_damage",
-		sylvara.get_auto_barrage_shot_damage(), expected_auto_dmg)
-	var barrage_foe := _make_dummy_slime(world, sylvara.global_position + Vector2(110.0, 0.0), 40)
+	var barrage_foe := _make_dummy_slime(world, sylvara.global_position + Vector2(120.0, 0.0), 80)
+	await _tick(2)
+	_check_eq("Sylvara does NOT passively spam arrows before [R] is pressed",
+		barrage_foe.current_health, 80)
+	_check("Pressing [R] on Sylvara locks onto 1 enemy & auto-spams homing arrows at it!",
+		sylvara.try_activate_ultimate() and sylvara.locked_ult_target == barrage_foe)
 	await _wait(0.45)
 	await _tick(3)
-	_check("Sylvara solo_bottom auto-aims & hits nearby enemy rapidly without manual input!",
-		barrage_foe.current_health < 40,
-		"foe_hp=%d/40" % barrage_foe.current_health)
+	_check("Sylvara [R] Hunter's Lock-On rapidly damages the selected enemy!",
+		barrage_foe.current_health < 80, "foe_hp=%d/80" % barrage_foe.current_health)
+
+	# 4. Projectiles vs Walls: piercing `PlayerArrow` hitting a `StaticBody2D` wall MUST stop & despawn!
+	var test_wall := StaticBody2D.new()
+	test_wall.collision_layer = 1
+	test_wall.position = Vector2(780.0, 220.0)
+	var tw_cs := CollisionShape2D.new()
+	var tw_rs := RectangleShape2D.new()
+	tw_rs.size = Vector2(28.0, 120.0)
+	tw_cs.shape = tw_rs
+	test_wall.add_child(tw_cs)
+	world.add_child(test_wall)
+	await _tick(2)
+	var wall_arrow: Area2D = sylvara._spawn_arrow(Vector2.RIGHT, 20, true, 500.0, true)
+	wall_arrow.global_position = Vector2(740.0, 220.0)
+	await _wait(0.22)
+	await _tick(3)
+	_check_eq("Piercing PlayerArrow hitting a StaticBody2D wall stops & despawns cleanly!",
+		not is_instance_valid(wall_arrow), true)
 
 	print("\n=== Summary: %d / %d checks passed ===" % [_checks - _failures, _checks])
 	get_tree().quit(1 if _failures > 0 else 0)

@@ -1,20 +1,19 @@
 extends Node2D
 ## Universal Enemy Status Overlay & Controller (`"EnemyStatusNode"`).
 ##
-## Attaches cleanly onto ANY enemy (`Slime`, `Archer`, `Golem`, `Colossus`,
-## `TrainingDummy`) without modifying enemy scene hierarchies:
-##   1. **Stun** (Behemoth's punches & Shoulder Charge):
-##      Pauses enemy movement/attacks and orbits 3 golden stars overhead.
-##   2. **Sylvan Slow** (Sylvara's Wind-Vault gust):
-##      Temporarily slows pursuing enemies with emerald wind wisps.
-##   3. **Vampire 2-Fang + Filling Crimson Circle Debuff** (Noa):
-##      Draws 2 crisp Vampire Fangs + a crimson circular gauge (`0..4` stacks).
-##      When the circle fills (`4/4`), it EXPLODES for **30% of enemy Max HP**!
+## Supports:
+##   1. **Stun** (Behemoth / Knight / Sylvara): pauses movement & orbits golden stars.
+##   2. **Slow** (Sylvara): slows enemy movement with emerald wind wisps.
+##   3. **Burn DoT** (Behemoth Volcanic Warlord): ticks fire damage over time.
+##   4. **Vampire 2-Fang + 8-Attack Crimson Circle Debuff** (Noa):
+##      Requires **8 attacks (`FANG_STACKS_TO_BURST = 8`)** to fill!
+##      When `8/8` fills, it detonates for `30%` of enemy Max HP (or boosted by
+##      Noa's Hemomancer branch) AND **lifesteals `10%` of the HP damage dealt**!
 
-const FANG_STACKS_TO_BURST: int = 4
-const FANG_DECAY_SECONDS: float = 6.0
+const FANG_STACKS_TO_BURST: int = 8
+const FANG_DECAY_SECONDS: float = 8.0
 const FANG_MAX_HP_RATIO: float = 0.30
-const BOSS_BURST_CAP: int = 55
+const FANG_LIFESTEAL_RATIO: float = 0.10
 const NOA_FX_PATH: String = "res://assets/textures/noa_fx.png"
 
 var stun_left: float = 0.0
@@ -23,6 +22,13 @@ var _paused_enemy_physics: bool = false
 
 var slow_left: float = 0.0
 var _saved_move_speed: float = -1.0
+
+var burn_left: float = 0.0
+var burn_dps: int = 0
+var _burn_tick_accum: float = 0.0
+var _burn_attacker: Node = null
+
+var sunder_stacks: int = 0
 
 var fang_stacks: int = 0
 var fang_decay_left: float = 0.0
@@ -70,29 +76,80 @@ static func apply_slow(enemy: Node, factor: float, duration: float) -> void:
 		return
 	var st = ensure_on(enemy)
 	if st != null:
-		st._start_slow(clampf(factor, 0.25, 0.95), duration)
+		st._start_slow(clampf(factor, 0.20, 0.95), duration)
 
 
-static func add_vampire_fang_stack(enemy: Node, attacker: Node) -> int:
+static func apply_burn(enemy: Node, dps: int, duration: float, attacker: Node = null) -> void:
+	if dps <= 0 or duration <= 0.0 or enemy == null or not is_instance_valid(enemy):
+		return
+	if enemy.get("is_dead") == true:
+		return
+	var st = ensure_on(enemy)
+	if st != null:
+		st.burn_dps = maxi(int(st.burn_dps), dps)
+		st.burn_left = maxf(float(st.burn_left), duration)
+		st._burn_attacker = attacker
+		st.queue_redraw()
+
+
+static func add_sunder_stack(enemy: Node, max_stacks: int = 5) -> int:
 	if enemy == null or not is_instance_valid(enemy) or enemy.get("is_dead") == true:
 		return 0
 	var st = ensure_on(enemy)
 	if st == null:
 		return 0
-	return int(st._push_fang_stack(attacker))
+	st.sunder_stacks = mini(int(st.sunder_stacks) + 1, max_stacks)
+	return int(st.sunder_stacks)
+
+
+static func get_sunder_stacks(enemy: Node) -> int:
+	if enemy == null or not is_instance_valid(enemy):
+		return 0
+	var st := enemy.get_node_or_null("EnemyStatusNode")
+	return int(st.get("sunder_stacks")) if st != null else 0
+
+
+static func get_sunder_multiplier(enemy: Node) -> float:
+	return 1.0 + 0.14 * float(get_sunder_stacks(enemy))
+
+
+static func get_slow_multiplier(_enemy: Node) -> float:
+	# `_start_slow` already scales `host.move_speed` directly and restores it on expiry!
+	return 1.0
+
+
+static func add_vampire_fang_stack(enemy: Node, attacker: Node, count: int = 1) -> int:
+	if enemy == null or not is_instance_valid(enemy) or enemy.get("is_dead") == true:
+		return 0
+	var st = ensure_on(enemy)
+	if st == null:
+		return 0
+	var total_burst: int = 0
+	for _i in range(maxi(count, 1)):
+		if enemy == null or not is_instance_valid(enemy) or enemy.get("is_dead") == true:
+			break
+		total_burst += int(st._push_fang_stack(attacker))
+	return total_burst
+
+
+static func get_fang_stacks(enemy: Node) -> int:
+	if enemy == null or not is_instance_valid(enemy):
+		return 0
+	var st := enemy.get_node_or_null("EnemyStatusNode")
+	return int(st.get("fang_stacks")) if st != null else 0
 
 
 func _start_stun(duration: float) -> bool:
 	var host := get_parent()
 	if host == null or host.get("is_dead") == true:
 		return false
-	var max_hp := int(host.get("max_health")) if "max_health" in host else 30
+	var is_boss_host: bool = ("is_enraged" in host)
 	var actual := duration
-	if max_hp >= 250:
+	if is_boss_host:
 		if _boss_stun_dr_left > 0.0:
 			return false
 		actual = duration * 0.35
-		_boss_stun_dr_left = 1.2
+		_boss_stun_dr_left = 1.4
 
 	stun_left = maxf(stun_left, actual)
 	host.set_meta("is_stunned", true)
@@ -148,22 +205,32 @@ func _push_fang_stack(attacker: Node) -> int:
 	if fang_stacks < FANG_STACKS_TO_BURST:
 		return 0
 
-	# 4/4 FULL CIRCLE -> DETONATE FOR 30% OF ENEMY MAX HP!
+	# 8/8 FULL CIRCLE -> DETONATE BLOOD FOUNTAIN & LIFESTEAL 10% OF DAMAGE DEALT!
 	fang_stacks = 0
 	fang_decay_left = 0.0
-	_burst_flash_left = 0.34
+	_burst_flash_left = 0.36
+
+	var hp_ratio := FANG_MAX_HP_RATIO
+	var ls_ratio := FANG_LIFESTEAL_RATIO
+	if attacker != null and is_instance_valid(attacker):
+		if attacker.has_method("get_fang_burst_hp_ratio"):
+			hp_ratio = float(attacker.get_fang_burst_hp_ratio())
+		if attacker.has_method("get_fang_burst_lifesteal_ratio"):
+			ls_ratio = float(attacker.get_fang_burst_lifesteal_ratio())
 
 	var enemy_max_hp := maxi(int(host.get("max_health")) if "max_health" in host else 30, 1)
-	var burst_dmg := maxi(int(roundf(float(enemy_max_hp) * FANG_MAX_HP_RATIO)), 1)
-	if enemy_max_hp >= 250:
-		burst_dmg = mini(burst_dmg, BOSS_BURST_CAP)
+	var is_boss_host: bool = ("is_enraged" in host)
+	if is_boss_host:
+		hp_ratio *= 0.45
+	var burst_dmg := maxi(int(roundf(float(enemy_max_hp) * hp_ratio)), 1)
+	var lifesteal_hp := maxi(int(roundf(float(burst_dmg) * ls_ratio)), 1)
 
 	_in_burst = true
 	_spawn_fang_explosion_fx()
 	if attacker != null and is_instance_valid(attacker) and attacker.has_method("deal_combat_damage"):
 		attacker.deal_combat_damage(host, burst_dmg, false, 6.0, (host as Node2D).global_position)
 		if attacker.has_method("heal"):
-			attacker.heal(4)
+			attacker.heal(lifesteal_hp)
 	elif host.has_method("take_damage"):
 		host.take_damage(burst_dmg)
 	_in_burst = false
@@ -184,7 +251,6 @@ func _spawn_fang_explosion_fx() -> void:
 	sfx.play()
 	sfx.finished.connect(sfx.queue_free)
 
-	# Spawn 100% hand-crafted 3-frame Pixel-Art Ground Crimson Blood Fountain (`frames 5 -> 6 -> 7` of `noa_fx.png`)!
 	if ResourceLoader.exists(NOA_FX_PATH):
 		var fx_tex: Texture2D = load(NOA_FX_PATH)
 		if fx_tex != null:
@@ -197,11 +263,9 @@ func _spawn_fang_explosion_fx() -> void:
 			var at_surge := AtlasTexture.new()
 			at_surge.atlas = fx_tex
 			at_surge.region = Rect2(fcell * float(idx0), 0.0, fcell, fcell)
-
 			var at_peak := AtlasTexture.new()
 			at_peak.atlas = fx_tex
 			at_peak.region = Rect2(fcell * float(idx1), 0.0, fcell, fcell)
-
 			var at_rain := AtlasTexture.new()
 			at_rain.atlas = fx_tex
 			at_rain.region = Rect2(fcell * float(idx2), 0.0, fcell, fcell)
@@ -217,15 +281,9 @@ func _spawn_fang_explosion_fx() -> void:
 
 			var stw := spire.create_tween()
 			stw.tween_property(spire, "scale", Vector2(0.50, 0.54), 0.09).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			stw.tween_callback(func() -> void:
-				if is_instance_valid(spire):
-					spire.texture = at_peak
-			)
+			stw.tween_property(spire, "texture", at_peak, 0.0)
 			stw.tween_interval(0.14)
-			stw.tween_callback(func() -> void:
-				if is_instance_valid(spire):
-					spire.texture = at_rain
-			)
+			stw.tween_property(spire, "texture", at_rain, 0.0)
 			stw.tween_property(spire, "modulate:a", 0.0, 0.20)
 			stw.tween_callback(spire.queue_free)
 
@@ -272,6 +330,20 @@ func _process(delta: float) -> void:
 		if slow_left <= 0.0:
 			_clear_slow()
 
+	if burn_left > 0.0:
+		burn_left = maxf(burn_left - delta, 0.0)
+		_burn_tick_accum += delta
+		dirty = true
+		if _burn_tick_accum >= 0.5:
+			_burn_tick_accum -= 0.5
+			var tick_dmg := maxi(int(roundf(float(burn_dps) * 0.5)), 1)
+			if _burn_attacker != null and is_instance_valid(_burn_attacker) and _burn_attacker.has_method("deal_combat_damage"):
+				_burn_attacker.deal_combat_damage(host, tick_dmg, false, 0.0, (host as Node2D).global_position)
+			elif host.has_method("take_damage"):
+				host.take_damage(tick_dmg)
+		if burn_left <= 0.0:
+			burn_dps = 0
+
 	if fang_stacks > 0:
 		fang_decay_left -= delta
 		dirty = true
@@ -296,7 +368,6 @@ func _draw() -> void:
 	var max_hp := int(host.get("max_health")) if (host != null and "max_health" in host) else 30
 	var top_y := -34.0 if max_hp >= 85 else -24.0
 
-	# 1. Orbiting Golden Stun Stars (`✦`)
 	if stun_left > 0.0:
 		for i in range(3):
 			var ang := _orbit_time * 7.5 + float(i) * (TAU / 3.0)
@@ -305,28 +376,30 @@ func _draw() -> void:
 			draw_line(sc + Vector2(-2.6, 0), sc + Vector2(2.6, 0), Color(1.0, 0.92, 0.32), 1.4)
 			draw_line(sc + Vector2(0, -2.6), sc + Vector2(0, 2.6), Color(1.0, 0.96, 0.65), 1.4)
 
-	# 2. Sylvan Wind Slow wisps at feet
 	if slow_left > 0.0:
 		var a0 := _orbit_time * 5.0
 		draw_arc(Vector2(0.0, 8.0), 10.0, a0, a0 + 2.1, 10, Color(0.42, 0.98, 0.64, 0.78), 1.6)
 		draw_arc(Vector2(0.0, 8.0), 10.0, a0 + PI, a0 + PI + 2.1, 10, Color(0.75, 1.0, 0.82, 0.68), 1.4)
 
-	# 3. Noa's 2-Fang + Filling Crimson Circle Debuff!
+	if burn_left > 0.0:
+		for fi in range(3):
+			var fa := _orbit_time * 6.5 + float(fi) * 2.1
+			var fp := Vector2(cos(fa) * 8.0, 2.0 + sin(fa * 1.7) * 4.0)
+			draw_circle(fp, 2.2, Color(1.0, 0.44, 0.10, 0.88))
+			draw_circle(fp + Vector2(0.0, -1.0), 1.2, Color(1.0, 0.92, 0.38, 0.92))
+
 	if fang_stacks > 0 or _burst_flash_left > 0.0:
 		var cy := top_y - (9.0 if stun_left > 0.0 else 2.0)
 		var center := Vector2(0.0, cy)
-		var radius := 6.5
+		var radius := 6.8
 		var ratio := 1.0 if _burst_flash_left > 0.0 else float(fang_stacks) / float(FANG_STACKS_TO_BURST)
 
-		# Dark circle backing + outer crimson rim
 		draw_circle(center, radius + 1.2, Color(0.06, 0.02, 0.04, 0.88))
-		draw_arc(center, radius, 0.0, TAU, 18, Color(0.38, 0.06, 0.14, 0.92), 2.0)
+		draw_arc(center, radius, 0.0, TAU, 20, Color(0.38, 0.06, 0.14, 0.92), 2.0)
 
-		# Filling scarlet blood arc (`gerdi ke por mishe`!)
 		var fill_col := Color(1.0, 0.45, 0.58, 0.98) if _burst_flash_left > 0.0 else Color(0.98, 0.14, 0.32, 0.96)
-		draw_arc(center, radius, -PI * 0.5, -PI * 0.5 + TAU * ratio, 18, fill_col, 2.4)
+		draw_arc(center, radius, -PI * 0.5, -PI * 0.5 + TAU * ratio, 20, fill_col, 2.4)
 
-		# TWO VAMPIRE FANGS (`2 ta feng vampire`) poised inside/above the crimson ring!
 		for fx in [-2.6, 2.6]:
 			var f_top := center + Vector2(fx, -4.0)
 			var fang_pts := PackedVector2Array([
@@ -335,5 +408,4 @@ func _draw() -> void:
 				f_top + Vector2(0.0, 5.4),
 			])
 			draw_colored_polygon(fang_pts, Color(0.98, 0.95, 0.98, 0.98))
-			# Crimson blood tip on each fang!
 			draw_circle(f_top + Vector2(0.0, 4.6), 1.0, Color(0.95, 0.12, 0.30, 0.98))

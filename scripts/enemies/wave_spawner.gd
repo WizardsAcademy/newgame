@@ -1,17 +1,22 @@
 extends Node2D
-## WaveSpawner - spawns scaled enemy waves in `STAGES` and `SANDBOX` modes.
+## WaveSpawner - spawns scaled enemy waves in `STAGES` (Regions 1, 2, 3) and `SANDBOX`!
 ##
-## Guarantees:
-##   1. Safe stop/restart across Lobby <-> Sandbox <-> Stages transitions via
-##      monotonic `_run_token` (calling `stop_spawning()` in Lobby never blocks
-##      subsequent `start_spawning()` calls!).
-##   2. Spawned enemies appear in an active ring (`165..340 px`) around the
-##      player with full-arena `detection_range = 2400.0` so every enemy in
-##      BOTH Sandbox and Stages immediately locks onto and chases the player!
+## Core Roguelite Loop:
+##   - Standalone `.tscn` enemies keep their unit-test base stats when instantiated directly,
+##     while `WaveSpawner` applies **steep exponential Wave HP & Damage scaling** (`1.85^(wave-1)`
+##     plus Region 2 & Region 3 multipliers!) so creeps quickly become monstrously tanky,
+##     forcing players to gather Herbs/Crystals, return to the Witch's Cottage to brew Majon,
+##     unlock OP Skill Tree pillars + `[R]` Ultimates, and push deeper!
+##   - Region 1 (`Whispering Jungle`): Slimes, Skeleton Archers, Stone Golems & `Forest Colossus`.
+##   - Region 2 (`Cursed Bone Crypt`): Blink-Stalkers, Hex-Weavers, Bone Phalanx & `Malakor, Arch-Lich`.
+##   - Region 3 (`Infernal Citadel`): Hellfire Imps, Void Snipers, Magma Juggernauts & `Igniszar, Dreadlord`.
 
 signal wave_started(wave_number: int, enemy_count: int)
 signal wave_cleared(wave_number: int)
 signal enemy_spawned(enemy: Node)
+
+const RegionEnemyScript := preload("res://scripts/enemies/region_enemy.gd")
+const RegionBossScript := preload("res://scripts/enemies/region_boss.gd")
 
 @export var slime_scene: PackedScene = preload("res://scenes/enemies/Slime.tscn")
 @export var archer_scene: PackedScene = preload("res://scenes/enemies/Archer.tscn")
@@ -19,24 +24,24 @@ signal enemy_spawned(enemy: Node)
 @export var boss_scene: PackedScene = preload("res://scenes/enemies/Colossus.tscn")
 @export var boss_interval: int = 5
 
-@export var archer_start_wave: int = 3
-@export var golem_start_wave: int = 5
-@export var archer_chance: float = 0.3
-@export var golem_chance: float = 0.15
+@export var archer_start_wave: int = 2
+@export var golem_start_wave: int = 3
+@export var archer_chance: float = 0.34
+@export var golem_chance: float = 0.22
 
-@export var elite_start_wave: int = 6
-@export var elite_chance: float = 0.08
-@export var elite_chance_per_wave: float = 0.02
-@export var elite_chance_cap: float = 0.25
+@export var elite_start_wave: int = 4
+@export var elite_chance: float = 0.14
+@export var elite_chance_per_wave: float = 0.04
+@export var elite_chance_cap: float = 0.42
 
 @export var base_count: int = 4
-@export var count_per_wave: int = 1
-@export var hp_per_wave: int = 10
-@export var speed_per_wave: float = 5.0
-@export var damage_step: int = 3
+@export var count_per_wave: int = 2
+@export var hp_per_wave: int = 22
+@export var speed_per_wave: float = 5.5
+@export var damage_step: int = 2
 
-@export var spawn_interval: float = 0.32
-@export var rest_between_waves: float = 1.4
+@export var spawn_interval: float = 0.30
+@export var rest_between_waves: float = 1.2
 @export var wait_for_upgrades_between_waves: bool = true
 @export var first_wave_delay: float = 0.30
 @export var autostart: bool = true
@@ -47,6 +52,8 @@ signal enemy_spawned(enemy: Node)
 @export var max_spawn_tries: int = 24
 @export var full_map_aggro: bool = false
 
+## Active Stage Region (`1` = Whispering Jungle, `2` = Cursed Bone Crypt, `3` = Infernal Citadel)
+var stage_region_id: int = 1
 var wave_number: int = 0
 var enemies_alive: int = 0
 var total_spawned: int = 0
@@ -57,12 +64,26 @@ var _continue_ok: bool = false
 var _run_token: int = 0
 
 
+static func compute_wave_hp_multiplier(wave_num: int, region_id: int = 1) -> float:
+	var w := maxi(wave_num, 1)
+	var reg := clampi(region_id, 1, 3)
+	var region_mult := 1.0 if reg == 1 else (2.75 if reg == 2 else 6.20)
+	# Brutal exponential HP scaling (`1.85^(w-1)`) so deeper waves demand OP Skill Tree upgrades!
+	return region_mult * pow(1.85, float(w - 1))
+
+
+static func compute_wave_dmg_multiplier(wave_num: int, region_id: int = 1) -> float:
+	var w := maxi(wave_num, 1)
+	var reg := clampi(region_id, 1, 3)
+	var region_mult := 1.0 if reg == 1 else (1.55 if reg == 2 else 2.35)
+	return region_mult * pow(1.26, float(w - 1))
+
+
 func _ready() -> void:
 	if autostart:
 		start_spawning(true)
 
 
-## Starts (or restarts) the wave loop cleanly.
 func start_spawning(reset_waves: bool = true) -> void:
 	_run_token += 1
 	var my_token := _run_token
@@ -75,7 +96,6 @@ func start_spawning(reset_waves: bool = true) -> void:
 	_run_waves(my_token)
 
 
-## Halts any in-flight wave coroutine immediately.
 func stop_spawning() -> void:
 	_run_token += 1
 	_stopped = true
@@ -98,8 +118,6 @@ func _run_waves(my_token: int) -> void:
 		var is_boss_wave: bool = wave_number % boss_interval == 0
 		var count := 1 if is_boss_wave else base_count + (wave_number - 1) * count_per_wave
 		wave_started.emit(wave_number, count)
-		print("[Wave] ", "BOSS WAVE " if is_boss_wave else "Wave ",
-			wave_number, " starting - ", count, " enemies")
 
 		enemies_alive = 0
 		for i in count:
@@ -114,7 +132,6 @@ func _run_waves(my_token: int) -> void:
 			enemies_alive += 1
 
 		while enemies_alive > 0 and not _is_cancelled(my_token):
-			# Self-heal `enemies_alive` if all combat enemies were cleared externally
 			var parent := get_parent().get_node_or_null("Enemies") if get_parent() != null else null
 			if parent != null:
 				var living := 0
@@ -129,7 +146,6 @@ func _run_waves(my_token: int) -> void:
 			return
 
 		wave_cleared.emit(wave_number)
-		print("[Wave] Wave ", wave_number, " cleared!")
 		await _sleep(rest_between_waves)
 		if _is_cancelled(my_token):
 			return
@@ -140,26 +156,63 @@ func _run_waves(my_token: int) -> void:
 				return
 
 
-func _spawn_enemy() -> void:
-	var scene := _pick_scene_for_wave(wave_number)
-	var enemy := scene.instantiate()
+func _instantiate_enemy_for_active_region(current_wave: int) -> Node2D:
+	# Sandbox or Region 1 (`Whispering Jungle`): classic Slime, Skeleton Archer, & Stone Golem!
+	var reg := 1 if full_map_aggro else clampi(stage_region_id, 1, 3)
+	if reg == 1:
+		var scene := _pick_scene_for_wave(current_wave)
+		var inst := scene.instantiate() as Node2D
+		if inst != null and "variant_id" in inst:
+			inst.variant_id = SlimeVariant.pick_for_wave(current_wave)
+		return inst
+
+	var renemy := RegionEnemyScript.new()
+	if reg == 2:
+		# Region 2 (`Cursed Bone Crypt`): Blink-Stalkers, Hex-Weavers, & Bone Phalanx!
+		var roll2 := randf()
+		if current_wave >= 2 and roll2 < 0.34:
+			renemy.configure_kind(RegionEnemyScript.Kind.CRYPT_HEXER)
+		elif current_wave >= 2 and roll2 < 0.58:
+			renemy.configure_kind(RegionEnemyScript.Kind.CRYPT_PHALANX)
+		else:
+			renemy.configure_kind(RegionEnemyScript.Kind.CRYPT_STALKER)
+	else:
+		# Region 3 (`Infernal Citadel`): Hellfire Kamikaze Imps, Void Snipers, & Magma Juggernauts!
+		var roll3 := randf()
+		if roll3 < 0.36:
+			renemy.configure_kind(RegionEnemyScript.Kind.CITADEL_SNIPER)
+		elif roll3 < 0.62:
+			renemy.configure_kind(RegionEnemyScript.Kind.CITADEL_BRUTE)
+		else:
+			renemy.configure_kind(RegionEnemyScript.Kind.CITADEL_IMP)
+	return renemy
+
+
+func _spawn_enemy() -> Node:
+	var enemy := _instantiate_enemy_for_active_region(wave_number)
 	if enemy == null:
-		return
+		return null
 
-	if "variant_id" in enemy:
-		enemy.variant_id = SlimeVariant.pick_for_wave(wave_number)
+	var reg := 1 if full_map_aggro else clampi(stage_region_id, 1, 3)
+	var hp_mult := compute_wave_hp_multiplier(wave_number, reg)
+	var dmg_mult := compute_wave_dmg_multiplier(wave_number, reg)
 
-	enemy.max_health += (wave_number - 1) * hp_per_wave
-	enemy.current_health = enemy.max_health
-	enemy.move_speed = minf(
-		enemy.move_speed + (wave_number - 1) * speed_per_wave,
-		enemy.max_move_speed)
-	enemy.attack_damage += floori((wave_number - 1) / float(damage_step))
+	var base_hp: int = int(enemy.get("max_health"))
+	var scaled_hp: int = maxi(int(roundf(float(base_hp) * hp_mult)) + (wave_number - 1) * hp_per_wave, base_hp)
+	enemy.set("max_health", scaled_hp)
+	enemy.set("current_health", scaled_hp)
 
-	# In SANDBOX (`full_map_aggro == true`), enemies see the player from anywhere on the map & chase!
-	# In STAGES (`full_map_aggro == false`), enemies keep their normal default detection radius (`adi`).
+	if "move_speed" in enemy and "max_move_speed" in enemy:
+		enemy.set("move_speed", minf(
+			float(enemy.get("move_speed")) + float(wave_number - 1) * speed_per_wave,
+			float(enemy.get("max_move_speed"))
+		))
+	if "attack_damage" in enemy:
+		var base_dmg: int = int(enemy.get("attack_damage"))
+		enemy.set("attack_damage", maxi(int(roundf(float(base_dmg) * dmg_mult)), base_dmg))
+
 	if full_map_aggro and "detection_range" in enemy:
-		enemy.detection_range = 2500.0
+		enemy.set("detection_range", 2500.0)
 
 	var parent := get_parent().get_node_or_null("Enemies")
 	if parent == null:
@@ -167,14 +220,14 @@ func _spawn_enemy() -> void:
 	parent.add_child(enemy)
 
 	if full_map_aggro and "detection_range" in enemy:
-		enemy.detection_range = 2500.0
+		enemy.set("detection_range", 2500.0)
 
 	enemy.global_position = _pick_spawn_position()
 
 	var is_elite_spawned: bool = false
 	if wave_number >= elite_start_wave:
 		var chance := minf(
-			elite_chance + (wave_number - elite_start_wave) * elite_chance_per_wave,
+			elite_chance + float(wave_number - elite_start_wave) * elite_chance_per_wave,
 			elite_chance_cap)
 		if randf() < chance and enemy.has_method("become_elite"):
 			enemy.become_elite()
@@ -187,17 +240,17 @@ func _spawn_enemy() -> void:
 	if is_elite_spawned:
 		type_name = "Elite" + type_name
 	enemy.name = "%s_W%d_%d" % [type_name, wave_number, total_spawned]
-	print("[Wave] Spawned ", enemy.name,
-		" hp=", enemy.max_health,
-		" speed=", enemy.move_speed,
-		" dmg=", enemy.attack_damage)
 
-	enemy.visuals.scale = Vector2.ZERO
-	var tween := enemy.create_tween()
-	tween.tween_property(enemy.visuals, "scale", Vector2.ONE, 0.2)\
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var vis := enemy.get("visuals") as Node2D
+	if vis != null:
+		var target_scale := vis.scale
+		vis.scale = Vector2.ZERO
+		var tween := enemy.create_tween()
+		tween.tween_property(vis, "scale", target_scale, 0.2)\
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 	enemy_spawned.emit(enemy)
+	return enemy
 
 
 func _pick_scene_for_wave(current_wave: int) -> PackedScene:
@@ -208,36 +261,66 @@ func _pick_scene_for_wave(current_wave: int) -> PackedScene:
 	return slime_scene
 
 
-func _spawn_boss() -> void:
-	var boss := boss_scene.instantiate()
+func _spawn_boss() -> Node:
+	var reg := 1 if full_map_aggro else clampi(stage_region_id, 1, 3)
+	var boss: Node2D = null
+	if reg == 1:
+		boss = boss_scene.instantiate() as Node2D
+	else:
+		var rboss := RegionBossScript.new()
+		rboss.configure_for_region(reg)
+		boss = rboss
+
 	if boss == null:
-		return
+		return null
+
+	var hp_mult := compute_wave_hp_multiplier(wave_number, reg)
+	var dmg_mult := compute_wave_dmg_multiplier(wave_number, reg)
+
 	var parent := get_parent().get_node_or_null("Enemies")
 	if parent == null:
 		parent = get_parent()
 	parent.add_child(boss)
+
+	# Scale Boss HP & Damage AFTER `_ready()` so `.tscn` defaults are multiplied cleanly!
+	var base_bhp: int = int(boss.get("max_health"))
+	var scaled_bhp: int = maxi(int(roundf(float(base_bhp) * hp_mult)), base_bhp)
+	boss.set("max_health", scaled_bhp)
+	boss.set("current_health", scaled_bhp)
+	if "attack_damage" in boss:
+		boss.set("attack_damage", maxi(int(roundf(float(int(boss.get("attack_damage"))) * dmg_mult)), int(boss.get("attack_damage"))))
+
 	boss.global_position = _pick_spawn_position()
 
 	total_spawned += 1
-	boss.name = "Colossus_W%d_%d" % [wave_number, total_spawned]
-	print("[Wave] Spawned ", boss.name, " hp=", boss.max_health)
+	boss.name = "Boss_R%d_W%d_%d" % [reg, wave_number, total_spawned]
 
-	boss.visuals.scale = Vector2.ZERO
-	var tween := boss.create_tween()
-	tween.tween_property(boss.visuals, "scale", Vector2.ONE, 0.5)\
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var vis := boss.get("visuals") as Node2D
+	if vis != null:
+		var target_sc := vis.scale
+		vis.scale = Vector2.ZERO
+		var tween := boss.create_tween()
+		tween.tween_property(vis, "scale", target_sc, 0.5)\
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 	enemy_spawned.emit(boss)
+	return boss
 
 
 func _is_clear_of_obstacles(pt: Vector2) -> bool:
-	var level := get_parent().get_node_or_null("Level") if get_parent() != null else null
-	if level == null:
+	var root := get_parent()
+	if root == null:
 		return true
-	for ch in level.get_children():
-		if ch is StaticBody2D and ch.name.begins_with("Obstacle"):
-			if pt.distance_to((ch as Node2D).global_position) < 58.0:
-				return false
+	var level := root.get_node_or_null("Level") as Node2D
+	if level != null and level.visible:
+		for ch in level.get_children():
+			if ch is StaticBody2D and ch.name.begins_with("Obstacle"):
+				if pt.distance_to((ch as Node2D).global_position) < 58.0:
+					return false
+	var stage_map := root.get_node_or_null("StageMap")
+	if stage_map != null and stage_map.visible and stage_map.has_method("is_point_clear"):
+		if not bool(stage_map.is_point_clear(pt, 52.0)):
+			return false
 	return true
 
 
@@ -245,9 +328,6 @@ func _pick_spawn_position() -> Vector2:
 	var player_node: Node2D = get_tree().get_first_node_in_group("player")
 	var ppos := player_node.global_position if (player_node != null and is_instance_valid(player_node)) else Vector2(-9999.0, -9999.0)
 
-	# In STAGES (`full_map_aggro == false`), spawn normally across the whole arena (`>= 220 px` away).
-	# In SANDBOX (`full_map_aggro == true`), spawn across the arena too — every enemy has `detection_range = 2500`
-	# so they spot the player from EVERYWHERE on the map and chase immediately!
 	for _i in range(max_spawn_tries):
 		var candidate := Vector2(
 			randf_range(arena_rect.position.x, arena_rect.end.x),
@@ -256,10 +336,7 @@ func _pick_spawn_position() -> Vector2:
 		if candidate.distance_to(ppos) >= min_spawn_distance and _is_clear_of_obstacles(candidate):
 			return candidate
 
-	return Vector2(
-		randf_range(arena_rect.position.x, arena_rect.end.x),
-		randf_range(arena_rect.position.y, arena_rect.end.y),
-	)
+	return Vector2(640.0, 360.0)
 
 
 func _sleep(seconds: float) -> void:

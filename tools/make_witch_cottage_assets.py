@@ -871,11 +871,167 @@ def main() -> None:
     reagents_strip.save(reagents_path)
     write_godot_import(reagents_path, "uid://bw7tchr3agnt8")
 
+    # Region 2 & Region 3 Enemies + Knight's Royal Lion War Banner (8x 48x48 = 384x48)
+    reg_enemies = Image.new("RGBA", (384, 48), (0, 0, 0, 0))
+    for fidx in range(2):
+        # 0,1: Shadow Blink-Stalker (Crypt teleporting hooded assassin wraith)
+        c = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+        dc = ImageDraw.Draw(c)
+        lean = 3 if fidx == 1 else 0
+        dc.polygon([(14 + lean, 40), (16 + lean, 12), (24 + lean, 6), (33 + lean, 12), (36 + lean, 40), (29, 36), (24, 42), (19, 36)],
+                   fill=(46, 26, 78, 255), outline=OUTLINE)
+        dc.polygon([(18 + lean, 14), (24 + lean, 9), (30 + lean, 14), (28 + lean, 22), (20 + lean, 22)],
+                   fill=(22, 14, 38, 255), outline=OUTLINE)
+        put(c, 22 + lean, 15, (186, 92, 255, 255))
+        put(c, 27 + lean, 15, (186, 92, 255, 255))
+        # Twin glowing soul-daggers
+        dc.line([(31 + lean, 24), (42, 18 if fidx == 1 else 27)], fill=(198, 124, 255, 255), width=2)
+        dc.line([(16 + lean, 25), (8, 30)], fill=(154, 88, 236, 255), width=2)
+        reg_enemies.alpha_composite(c, (fidx * 48, 0))
+
+    # 2: Plague Hex-Weaver (Crypt skull-masked necromancer kiter)
+    c2 = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+    dc2 = ImageDraw.Draw(c2)
+    dc2.polygon([(14, 42), (17, 16), (31, 16), (34, 42), (24, 39)], fill=(34, 62, 58, 255), outline=OUTLINE)
+    dc2.line([(24, 18), (24, 40)], fill=(116, 232, 168, 255), width=2)
+    dc2.ellipse([18, 7, 30, 19], fill=(224, 228, 214, 255), outline=OUTLINE)
+    put(c2, 22, 12, (92, 255, 164, 255))
+    put(c2, 26, 12, (92, 255, 164, 255))
+    dc2.line([(35, 8), (35, 41)], fill=(96, 62, 42, 255), width=2)
+    dc2.ellipse([31, 4, 39, 12], fill=(124, 255, 178, 255), outline=OUTLINE)
+    reg_enemies.alpha_composite(c2, (2 * 48, 0))
+
+    # 3: Bone Phalanx (Crypt armored skeleton shield-lancer)
+    c3 = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+    dc3 = ImageDraw.Draw(c3)
+    dc3.rounded_rectangle([16, 18, 31, 39], radius=3, fill=(84, 92, 114, 255), outline=OUTLINE)
+    dc3.ellipse([18, 7, 30, 19], fill=(232, 226, 212, 255), outline=OUTLINE)
+    put(c3, 22, 13, (96, 212, 255, 255))
+    put(c3, 26, 13, (96, 212, 255, 255))
+    dc3.line([(10, 24), (44, 24)], fill=(214, 222, 236, 255), width=2)
+    dc3.polygon([(41, 21), (47, 24), (41, 27)], fill=(154, 228, 255, 255), outline=OUTLINE)
+    dc3.rounded_rectangle([26, 16, 37, 37], radius=3, fill=(218, 208, 188, 255), outline=OUTLINE)
+    dc3.ellipse([29, 23, 34, 29], fill=(78, 182, 238, 255))
+    reg_enemies.alpha_composite(c3, (3 * 48, 0))
+
+    # 4: Hellfire Kamikaze Imp (Citadel fast demon bomber)
+    c4 = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+    dc4 = ImageDraw.Draw(c4)
+    dc4.polygon([(9, 18), (18, 22), (14, 32)], fill=(138, 24, 34, 255), outline=OUTLINE)
+    dc4.polygon([(39, 18), (30, 22), (34, 32)], fill=(138, 24, 34, 255), outline=OUTLINE)
+    dc4.ellipse([17, 19, 31, 38], fill=(208, 44, 36, 255), outline=OUTLINE)
+    dc4.ellipse([18, 9, 30, 21], fill=(228, 58, 42, 255), outline=OUTLINE)
+    dc4.polygon([(18, 11), (14, 4), (21, 9)], fill=(54, 32, 28, 255), outline=OUTLINE)
+    dc4.polygon([(30, 11), (34, 4), (27, 9)], fill=(54, 32, 28, 255), outline=OUTLINE)
+    put(c4, 22, 15, (255, 238, 88, 255))
+    put(c4, 26, 15, (255, 238, 88, 255))
+    dc4.ellipse([29, 18, 41, 30], fill=(255, 138, 28, 255), outline=OUTLINE)
+    dc4.ellipse([32, 21, 38, 27], fill=(255, 236, 112, 255))
+    reg_enemies.alpha_composite(c4, (4 * 48, 0))
+
+    # 5: Void Flame-Sniper (Citadel obsidian inquisitor marksman)
+    c5 = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+    dc5 = ImageDraw.Draw(c5)
+    dc5.polygon([(14, 42), (17, 16), (31, 16), (34, 42)], fill=(48, 22, 28, 255), outline=OUTLINE)
+    dc5.polygon([(17, 16), (24, 5), (31, 16)], fill=(78, 24, 34, 255), outline=OUTLINE)
+    put(c5, 24, 13, (255, 86, 52, 255))
+    put(c5, 25, 13, (255, 214, 92, 255))
+    dc5.line([(20, 23), (44, 23)], fill=(124, 118, 132, 255), width=3)
+    dc5.arc([34, 15, 44, 31], start=250, end=110, fill=(255, 112, 38, 255), width=2)
+    reg_enemies.alpha_composite(c5, (5 * 48, 0))
+
+    # 6: Magma Juggernaut (Citadel molten-armored charger brute)
+    c6 = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+    dc6 = ImageDraw.Draw(c6)
+    dc6.rounded_rectangle([10, 13, 38, 41], radius=6, fill=(58, 44, 48, 255), outline=OUTLINE)
+    dc6.line([(16, 20), (32, 28)], fill=(255, 116, 28, 255), width=2)
+    dc6.line([(32, 19), (17, 32)], fill=(255, 168, 44, 255), width=2)
+    dc6.polygon([(12, 14), (6, 6), (17, 11)], fill=(255, 132, 34, 255), outline=OUTLINE)
+    dc6.polygon([(36, 14), (42, 6), (31, 11)], fill=(255, 132, 34, 255), outline=OUTLINE)
+    put(c6, 21, 16, (255, 238, 96, 255))
+    put(c6, 27, 16, (255, 238, 96, 255))
+    reg_enemies.alpha_composite(c6, (6 * 48, 0))
+
+    # 7: Knight's Royal Lion War Banner (48x48 tall golden-trimmed royal blue banner!)
+    c7 = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+    dc7 = ImageDraw.Draw(c7)
+    dc7.line([(24, 4), (24, 45)], fill=(214, 172, 62, 255), width=3)
+    dc7.polygon([(24, 1), (28, 7), (24, 10), (20, 7)], fill=GOLD_HI, outline=OUTLINE)
+    dc7.line([(12, 10), (36, 10)], fill=GOLD_HI, width=3)
+    dc7.polygon([(13, 11), (35, 11), (35, 34), (29, 30), (24, 38), (19, 30), (13, 34)],
+                fill=(36, 98, 214, 255), outline=GOLD_HI)
+    dc7.line([(16, 12), (16, 31)], fill=(18, 42, 112, 255), width=2)
+    dc7.line([(32, 12), (32, 31)], fill=(18, 42, 112, 255), width=2)
+    # Golden Lion Crest in center of Banner
+    dc7.ellipse([19, 16, 29, 26], fill=(218, 158, 42, 255), outline=OUTLINE)
+    dc7.ellipse([21, 18, 27, 24], fill=GOLD_HI)
+    put(c7, 22, 20, OUTLINE)
+    put(c7, 26, 20, OUTLINE)
+    reg_enemies.alpha_composite(c7, (7 * 48, 0))
+
+    reg_enemies_path = TEX_DIR / "region_enemies.png"
+    reg_enemies.save(reg_enemies_path)
+    write_godot_import(reg_enemies_path, "uid://breg3nem1es01")
+
+    # Region 2 & Region 3 Bosses (4x 64x64 = 256x64)
+    reg_bosses = Image.new("RGBA", (256, 64), (0, 0, 0, 0))
+    for bframe in range(2):
+        # 0,1: Malakor, Arch-Lich of the Crypt (64x64)
+        b = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        db = ImageDraw.Draw(b)
+        bob = -2 if bframe == 1 else 0
+        db.polygon([(14, 58), (20, 22 + bob), (44, 22 + bob), (50, 58), (40, 52), (32, 60), (24, 52)],
+                   fill=(42, 24, 78, 255), outline=OUTLINE)
+        db.polygon([(22, 24 + bob), (42, 24 + bob), (38, 54), (26, 54)],
+                   fill=(76, 42, 128, 255), outline=(188, 152, 68, 255))
+        db.ellipse([23, 10 + bob, 41, 26 + bob], fill=(228, 232, 222, 255), outline=OUTLINE)
+        db.polygon([(22, 12 + bob), (25, 3 + bob), (32, 9 + bob), (39, 3 + bob), (42, 12 + bob)],
+                   fill=GOLD_HI, outline=OUTLINE)
+        db.ellipse([26, 15 + bob, 30, 19 + bob], fill=(88, 246, 255, 255))
+        db.ellipse([34, 15 + bob, 38, 19 + bob], fill=(88, 246, 255, 255))
+        # Soul Scythe-Staff + twin floating soul-orbs
+        db.line([(48, 8 + bob), (46, 56)], fill=(116, 86, 58, 255), width=3)
+        db.polygon([(46, 8 + bob), (59, 12 + bob), (52, 22 + bob), (46, 15 + bob)],
+                   fill=(112, 242, 255, 255), outline=OUTLINE)
+        db.ellipse([8, 16 - bob, 16, 24 - bob], fill=(168, 96, 255, 255), outline=OUTLINE)
+        reg_bosses.alpha_composite(b, (bframe * 64, 0))
+
+    for dframe in range(2):
+        # 2,3: Igniszar, Dreadlord of the Citadel (64x64)
+        b2 = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        db2 = ImageDraw.Draw(b2)
+        lift = -3 if dframe == 1 else 0
+        # Great Demon Wings
+        db2.polygon([(4, 14 + lift), (22, 22), (16, 44), (5, 36)], fill=(118, 20, 28, 255), outline=OUTLINE)
+        db2.polygon([(60, 14 + lift), (42, 22), (48, 44), (59, 36)], fill=(118, 20, 28, 255), outline=OUTLINE)
+        # Armored Volcanic Torso & Legs
+        db2.rounded_rectangle([18, 20, 46, 48], radius=6, fill=(54, 32, 36, 255), outline=OUTLINE)
+        db2.rounded_rectangle([20, 44, 29, 59], radius=3, fill=(44, 26, 30, 255), outline=OUTLINE)
+        db2.rounded_rectangle([35, 44, 44, 59], radius=3, fill=(44, 26, 30, 255), outline=OUTLINE)
+        # Blazing Molten Core
+        db2.polygon([(32, 24), (39, 32), (32, 41), (25, 32)], fill=(255, 138, 28, 255), outline=GOLD_HI)
+        db2.ellipse([29, 29, 35, 35], fill=(255, 244, 132, 255))
+        # Horned Demon Crown Head
+        db2.ellipse([23, 8, 41, 24], fill=(186, 36, 34, 255), outline=OUTLINE)
+        db2.polygon([(23, 12), (11, 2), (26, 9)], fill=(255, 162, 42, 255), outline=OUTLINE)
+        db2.polygon([(41, 12), (53, 2), (38, 9)], fill=(255, 162, 42, 255), outline=OUTLINE)
+        put(b2, 28, 15, (255, 246, 118, 255))
+        put(b2, 36, 15, (255, 246, 118, 255))
+        # Hellfire Greatsword
+        sw_y = 6 if dframe == 1 else 18
+        db2.polygon([(49, sw_y), (55, sw_y - 4), (58, 48), (48, 48)], fill=(255, 118, 26, 255), outline=OUTLINE)
+        db2.line([(53, sw_y), (53, 45)], fill=(255, 238, 120, 255), width=2)
+        reg_bosses.alpha_composite(b2, ((2 + dframe) * 64, 0))
+
+    reg_bosses_path = TEX_DIR / "region_bosses.png"
+    reg_bosses.save(reg_bosses_path)
+    write_godot_import(reg_bosses_path, "uid://bregb0ss3s002")
+
     print("Generated Witch's Cottage + Outdoor Yard pixel-art assets:")
     for p in (
         witch_path, cauldron_path, potion_path, door_path, wardrobe_path,
         fp_path, floor_path, rugs_path, grass_path, trees_path, fence_path, dummy_path,
-        reagents_path
+        reagents_path, reg_enemies_path, reg_bosses_path
     ):
         im = Image.open(p)
         print(f"  - {p.relative_to(REPO_ROOT)}: {im.size}")
