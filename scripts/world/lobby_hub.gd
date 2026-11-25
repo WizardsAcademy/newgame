@@ -49,10 +49,13 @@ const FIREPLACE_POS := Vector2(214.0, 124.0)
 const SOFA_POS := Vector2(232.0, 156.0)
 const DUMMY_POS := Vector2(320.0, 338.0)
 const SANDBOX_DOOR_POS := Vector2(236.0, 426.0)
+const SANDBOX_HOLD_DURATION: float = 3.0
+const REAGENT_TEX_PATH := "res://assets/textures/witch_reagents.png"
 
 var player_ref: Node2D = null
 var interactions_enabled: bool = true
 var dummy_instance: Node2D = null
+var sandbox_hold_progress: float = 0.0
 
 var _wardrobe_sprite: Sprite2D = null
 var _wardrobe_frames: Array[AtlasTexture] = []
@@ -71,16 +74,77 @@ var _potion_frames: Array[AtlasTexture] = []
 var _fireplace_frames: Array[AtlasTexture] = []
 var _tree_frames: Array[AtlasTexture] = []
 var _fence_frames: Array[AtlasTexture] = []
+var _reagent_tex: Texture2D = null
 
 var _cauldron_prompt: Label = null
 var _cauldron_cooldown: float = 0.0
 var _witch_offer_timer: float = 0.0
+var _cauldron_fly_triggered_for_count: int = 0
+var _sandbox_ring_fx: SandboxDoorRingFX = null
 
 var _door_grace_timer: float = 0.45
 var _anim_time: float = 0.0
 
 
+class SandboxDoorRingFX extends Node2D:
+	var ratio: float = 0.0
+	var anim_t: float = 0.0
+
+	func _process(delta: float) -> void:
+		anim_t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var pulse := 0.5 + 0.5 * sin(anim_t * 4.5)
+		draw_arc(Vector2.ZERO, 18.0 + pulse * 1.2, 0.0, TAU, 24, Color(0.45, 0.92, 0.80, 0.25), 1.3)
+		if ratio <= 0.001:
+			return
+		draw_circle(Vector2.ZERO, 20.0, Color(0.03, 0.08, 0.14, 0.58))
+		draw_arc(Vector2.ZERO, 20.0, 0.0, TAU, 32, Color(0.18, 0.34, 0.44, 0.82), 3.2)
+		var end_ang := -PI * 0.5 + TAU * clampf(ratio, 0.0, 1.0)
+		draw_arc(Vector2.ZERO, 20.0, -PI * 0.5, end_ang, 36, Color(0.38, 1.0, 0.84, 0.98), 3.6)
+		var font := ThemeDB.fallback_font
+		if font != null:
+			var secs_left := maxf(SANDBOX_HOLD_DURATION * (1.0 - ratio), 0.0)
+			draw_string(font, Vector2(-18.0, 3.0), "%.1fs" % secs_left, HORIZONTAL_ALIGNMENT_CENTER, 36.0, 7, Color(0.94, 1.0, 0.96, 0.98))
+
+
+class FlyingCauldronItemFX extends Node2D:
+	var start_pos: Vector2 = Vector2.ZERO
+	var target_pos: Vector2 = Vector2.ZERO
+	var duration: float = 0.48
+	var delay: float = 0.0
+	var elapsed: float = 0.0
+	var on_landed: Callable = Callable()
+
+	func _ready() -> void:
+		add_to_group("cauldron_flying_items")
+		global_position = start_pos
+
+	func _process(delta: float) -> void:
+		if delay > 0.0:
+			delay -= delta
+			visible = false
+			return
+		visible = true
+		elapsed += delta
+		var t := clampf(elapsed / maxf(duration, 0.05), 0.0, 1.0)
+		var mid := (start_pos + target_pos) * 0.5 + Vector2(0.0, -48.0)
+		var p0 := start_pos.lerp(mid, t)
+		var p1 := mid.lerp(target_pos, t)
+		global_position = p0.lerp(p1, t)
+		rotation = t * TAU * 1.2
+		var sc := lerpf(0.95, 0.42, t * t)
+		scale = Vector2(sc, sc)
+		if t >= 1.0:
+			if on_landed.is_valid():
+				on_landed.call(target_pos)
+			queue_free()
+
+
 func _ready() -> void:
+	if ResourceLoader.exists(REAGENT_TEX_PATH):
+		_reagent_tex = load(REAGENT_TEX_PATH)
 	_load_cottage_frames()
 	_build_ground_and_rugs()
 	_build_collision_bounds()
@@ -88,6 +152,11 @@ func _ready() -> void:
 	_build_wardrobe()
 	_build_cauldron_and_witch()
 	_build_doors_and_yard_fence()
+	_sandbox_ring_fx = SandboxDoorRingFX.new()
+	_sandbox_ring_fx.name = "SandboxDoorRingFX"
+	_sandbox_ring_fx.position = SANDBOX_DOOR_POS + Vector2(0.0, 2.0)
+	_sandbox_ring_fx.z_index = 8
+	add_child(_sandbox_ring_fx)
 	_build_forest_trees()
 	_spawn_training_dummy()
 
@@ -97,6 +166,10 @@ func activate_lobby(p: Node2D) -> void:
 	player_ref = p
 	interactions_enabled = true
 	_door_grace_timer = 0.45
+	sandbox_hold_progress = 0.0
+	_cauldron_fly_triggered_for_count = 0
+	if _sandbox_ring_fx != null:
+		_sandbox_ring_fx.ratio = 0.0
 	_set_walls_enabled(true)
 	if dummy_instance == null or not is_instance_valid(dummy_instance):
 		_spawn_training_dummy()
@@ -571,6 +644,64 @@ func play_world_potion_handoff(hero: Node2D, is_purple: bool) -> void:
 	)
 
 
+func trigger_cauldron_item_fly_animation(from_world_pos: Vector2, visual_count: int = -1) -> int:
+	var held := WitchCauldronProgression.get_reagents()
+	var count := visual_count if visual_count > 0 else mini(held, 12)
+	if count <= 0:
+		return 0
+	var target := CAULDRON_POS + Vector2(0.0, -4.0)
+	for i in range(count):
+		var flyer := FlyingCauldronItemFX.new()
+		flyer.start_pos = from_world_pos + Vector2(randf_range(-5.0, 5.0), -10.0)
+		flyer.target_pos = target + Vector2(randf_range(-4.0, 4.0), 0.0)
+		flyer.delay = float(i) * 0.06
+		flyer.duration = 0.44
+		flyer.z_index = 26
+		if i == count - 1:
+			flyer.on_landed = Callable(self, "_on_last_reagent_landed_in_cauldron")
+		else:
+			flyer.on_landed = Callable(self, "_spawn_cauldron_splash")
+
+		var sp := Sprite2D.new()
+		sp.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sp.scale = Vector2(0.55, 0.55)
+		if _reagent_tex != null:
+			var at := AtlasTexture.new()
+			at.atlas = _reagent_tex
+			at.region = Rect2(float((i % 3) * 32), 0.0, 32.0, 32.0)
+			sp.texture = at
+		flyer.add_child(sp)
+		add_child(flyer)
+	return count
+
+
+func _spawn_cauldron_splash(at_pos: Vector2) -> void:
+	var ring := Line2D.new()
+	ring.width = 2.0
+	ring.default_color = Color(0.56, 1.0, 0.72, 0.92)
+	var pts := PackedVector2Array()
+	for i in range(13):
+		var a := TAU * float(i) / 12.0
+		pts.append(Vector2(cos(a) * 8.0, sin(a) * 4.5))
+	ring.points = pts
+	ring.z_index = 24
+	add_child(ring)
+	ring.global_position = at_pos
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector2(2.1, 2.1), 0.20)
+	tw.tween_property(ring, "modulate:a", 0.0, 0.20)
+	tw.chain().tween_callback(ring.queue_free)
+
+
+func _on_last_reagent_landed_in_cauldron(at_pos: Vector2) -> void:
+	_spawn_cauldron_splash(at_pos)
+	var brewed := WitchCauldronProgression.brew_all_potions_for_hero(CharacterRegistry.selected_id)
+	if brewed > 0 and player_ref != null and is_instance_valid(player_ref):
+		play_world_potion_handoff(player_ref, true)
+		potion_brewed_in_world.emit(brewed)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible or not interactions_enabled or player_ref == null or not is_instance_valid(player_ref):
 		return
@@ -659,6 +790,13 @@ func _process(delta: float) -> void:
 			_wardrobe_sprite.texture = _wardrobe_frames[1 if near_w else 0]
 
 		var dist_c := ppos.distance_to(CAULDRON_POS)
+		var cur_herbs := WitchCauldronProgression.get_reagents()
+		if dist_c > 76.0:
+			_cauldron_fly_triggered_for_count = 0
+		elif dist_c <= 54.0 and cur_herbs > 0 and _cauldron_fly_triggered_for_count != cur_herbs:
+			_cauldron_fly_triggered_for_count = cur_herbs
+			trigger_cauldron_item_fly_animation(ppos)
+
 		if _cauldron_prompt != null:
 			var near_c := (dist_c <= 46.0)
 			_cauldron_prompt.visible = near_c
@@ -682,12 +820,30 @@ func _process(delta: float) -> void:
 		if _door_grace_timer <= 0.0:
 			if ppos.distance_to(STAGES_DOOR_POS + Vector2(0.0, 10.0)) <= 20.0:
 				_door_grace_timer = 0.8
+				sandbox_hold_progress = 0.0
+				if _sandbox_ring_fx != null:
+					_sandbox_ring_fx.ratio = 0.0
 				enter_stages_requested.emit()
 				return
-			if ppos.distance_to(SANDBOX_DOOR_POS + Vector2(0.0, 2.0)) <= 22.0:
-				_door_grace_timer = 0.8
-				enter_sandbox_requested.emit()
-				return
+			if ppos.distance_to(SANDBOX_DOOR_POS + Vector2(0.0, 2.0)) <= 26.0:
+				sandbox_hold_progress = minf(sandbox_hold_progress + delta, SANDBOX_HOLD_DURATION)
+				if _sandbox_ring_fx != null:
+					_sandbox_ring_fx.ratio = sandbox_hold_progress / SANDBOX_HOLD_DURATION
+				if sandbox_hold_progress >= SANDBOX_HOLD_DURATION:
+					sandbox_hold_progress = 0.0
+					if _sandbox_ring_fx != null:
+						_sandbox_ring_fx.ratio = 0.0
+					_door_grace_timer = 0.8
+					enter_sandbox_requested.emit()
+					return
+			else:
+				sandbox_hold_progress = maxf(sandbox_hold_progress - delta * 2.2, 0.0)
+				if _sandbox_ring_fx != null:
+					_sandbox_ring_fx.ratio = sandbox_hold_progress / SANDBOX_HOLD_DURATION
+		else:
+			sandbox_hold_progress = 0.0
+			if _sandbox_ring_fx != null:
+				_sandbox_ring_fx.ratio = 0.0
 
 
 func _draw() -> void:

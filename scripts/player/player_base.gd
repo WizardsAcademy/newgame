@@ -1,18 +1,9 @@
 extends CharacterBody2D
 class_name PlayerBase
-## Shared base controller for all 4 playable 96x96 medieval heroes.
+## Shared base controller for all 4 playable 64x64 medieval heroes.
 ##
-## Owns universal movement, combat, Energy, Hurt animation, and Shift hooks:
-##  - Centralized `_read_input()` (multiplayer-ready rule #1),
-##  - Health + Green Energy bar signals (`health_changed`, `energy_changed`,
-##    `hurt_triggered`, `damage_mitigated`),
-##  - Dedicated `"hurt"` hit-reaction animation on every hero when taking damage,
-##  - Distinct per-hero `Shift` abilities (`"charge"` animation + subclass hooks).
-
-
-# =====================================================================
-# SIGNALS (HUD / Main listens to these - never touch UI directly)
-# =====================================================================
+## Owns universal movement, combat, Energy, Hurt animation, Shift mobility,
+## `[R]` Ultimate Ability hooks, and `wizard` Developer God-Mode Cheat hooks.
 
 signal attack_hit(enemy)
 signal health_changed(current_health: int, max_health: int)
@@ -22,11 +13,7 @@ signal player_died
 signal dash_cooldown_changed(remaining: float, duration: float)
 signal damage_mitigated(blocked_amount: int, final_amount: int)
 signal projectile_dodged(from_position: Vector2)
-
-
-# =====================================================================
-# EXPORTED SETTINGS
-# =====================================================================
+signal ultimate_state_changed(is_active: bool, cooldown_left: float, cooldown_total: float)
 
 @export var character_id: String = "behemoth"
 @export var character_name: String = "Behemoth"
@@ -46,7 +33,6 @@ signal projectile_dodged(from_position: Vector2)
 @export var knockback_speed: float = 180.0
 @export var footstep_interval: float = 0.25
 
-## --- Shift Ability (1.0s cooldown; distinct per hero!) -----------------
 @export var dash_speed: float = 350.0
 @export var dash_duration: float = 0.18
 @export var dash_cooldown: float = 1.0
@@ -58,9 +44,7 @@ signal projectile_dodged(from_position: Vector2)
 @export var dash_spawns_ghosts: bool = true
 @export var dash_tint: Color = Color(0.55, 0.9, 1.0, 0.72)
 
-## Local offset of AttackPoint + melee Hitbox when facing right.
 @export var attack_point_offset_x: float = 16.0
-
 
 # =====================================================================
 # STATE
@@ -76,7 +60,7 @@ var current_health: int = 120
 var current_energy: float = 100.0
 var facing: float = 1.0
 var facing_dir: Vector2 = Vector2.RIGHT
-var facing_cardinal: String = "side" # "side" | "up" | "down"
+var facing_cardinal: String = "side"
 
 var last_dealt_damage: int = 18
 var last_hit_was_dash: bool = false
@@ -84,11 +68,25 @@ var last_health_change_was_self_cost: bool = false
 var last_mitigation_label: String = "BLOCK"
 
 var dash_cooldown_left: float = 0.0
+## ONLY Sylvara sets `post_dash_dodge_duration = 1.0`!
 var post_dash_dodge_duration: float = 0.0
 var post_dash_dodge_left: float = 0.0
-var post_dash_full_immunity: bool = false
+## ONLY Behemoth sets `post_dash_invincible_duration = 1.0`!
+var post_dash_invincible_duration: float = 0.0
+var invincible_left: float = 0.0
+
+var external_slow_left: float = 0.0
+
+## `[R]` Ultimate Ability state (read by Bottom-Right Ability HUD)
+var ult_cooldown: float = 25.0
+var ult_cooldown_left: float = 0.0
+var ult_active: bool = false
+var ult_active_left: float = 0.0
+var ult_is_toggle: bool = false
+
 var reset_dash_on_kill: bool = false
 var kill_heal_ratio: float = 0.0
+var kill_heal_flat: int = 0
 var kill_explosion_damage: int = 0
 var kill_explosion_radius: float = 0.0
 var kill_explosion_color: Color = Color(1.0, 0.52, 0.18)
@@ -113,13 +111,8 @@ var _last_attack_used_mouse: bool = false
 
 const HIT_SPARK_SCENE := preload("res://scenes/fx/HitSpark.tscn")
 const _BODY_LAYER_NORMAL: int = 2
-const _BODY_MASK_NORMAL: int = 5   # layer 1 (walls) + layer 3 (enemy bodies)
-const _BODY_MASK_DASH: int = 1     # layer 1 (walls only) -> phase through enemies!
-
-
-# =====================================================================
-# NODE REFERENCES
-# =====================================================================
+const _BODY_MASK_NORMAL: int = 5
+const _BODY_MASK_DASH: int = 1
 
 @onready var visuals: Sprite2D = $Visuals
 @onready var anim_player: AnimationPlayer = $AnimPlayer
@@ -134,10 +127,6 @@ const _BODY_MASK_DASH: int = 1     # layer 1 (walls only) -> phase through enemi
 var _dash_hitbox: Area2D = null
 var _dash_sfx: AudioStreamPlayer = null
 
-
-# =====================================================================
-# SETUP
-# =====================================================================
 
 func _ready() -> void:
 	_ensure_input_actions()
@@ -173,15 +162,51 @@ func skill_rank(node_id: String) -> int:
 
 func apply_skill_tree_ranks(ranks: Dictionary) -> void:
 	skill_ranks = ranks.duplicate()
-	if skill_rank("solo_top") >= 1:
-		post_dash_dodge_duration = 1.0
-	else:
-		post_dash_dodge_duration = 0.0
+	# Reset universal Skill-1 timers so ONLY each hero's own `_on_skill_tree_ranks_applied` sets its unique Skill 1!
+	post_dash_dodge_duration = 0.0
+	post_dash_invincible_duration = 0.0
 	_on_skill_tree_ranks_applied()
+	ultimate_state_changed.emit(ult_active, ult_cooldown_left, ult_cooldown)
 
 
 func _on_skill_tree_ranks_applied() -> void:
 	pass
+
+
+func is_ultimate_unlocked() -> bool:
+	return skill_rank("solo_bottom") >= 1 or WitchCauldronProgression.wizard_cheat_active
+
+
+func try_activate_ultimate() -> bool:
+	if is_dead or not is_ultimate_unlocked():
+		return false
+	if not ult_is_toggle and ult_cooldown_left > 0.0 and not WitchCauldronProgression.wizard_cheat_active:
+		return false
+	var ok := _activate_ultimate()
+	if ok:
+		if WitchCauldronProgression.wizard_cheat_active and not ult_is_toggle:
+			ult_cooldown_left = 0.0
+		ultimate_state_changed.emit(ult_active, ult_cooldown_left, ult_cooldown)
+	return ok
+
+
+func _activate_ultimate() -> bool:
+	return false
+
+
+func get_ability_hud_info() -> Array[Dictionary]:
+	return [
+		{"key": "LMB", "title": "Attack", "icon_idx": 1, "cd_left": 0.0, "cd_max": 1.0, "unlocked": true, "active": is_attacking},
+		{"key": "RMB", "title": "Skill", "icon_idx": 7, "cd_left": 0.0, "cd_max": 1.0, "unlocked": true, "active": false},
+		{"key": "SHIFT", "title": "Dash", "icon_idx": 11, "cd_left": dash_cooldown_left, "cd_max": maxf(dash_cooldown, 0.1), "unlocked": true, "active": is_dashing or invincible_left > 0.0 or post_dash_dodge_left > 0.0},
+		{"key": "R", "title": "Ult", "icon_idx": 14, "cd_left": ult_cooldown_left, "cd_max": maxf(ult_cooldown, 0.1), "unlocked": is_ultimate_unlocked(), "active": ult_active},
+	]
+
+
+func apply_external_slow(duration: float) -> void:
+	if WitchCauldronProgression.wizard_cheat_active or invincible_left > 0.0:
+		return
+	external_slow_left = maxf(external_slow_left, duration)
 
 
 func is_dodging_projectiles() -> bool:
@@ -234,6 +259,19 @@ static func _ensure_input_actions() -> void:
 		key_f.keycode = KEY_F
 		InputMap.action_add_event("interact", key_f)
 
+	if not InputMap.has_action("ultimate"):
+		InputMap.add_action("ultimate")
+	var has_r := false
+	for ev_r in InputMap.action_get_events("ultimate"):
+		if ev_r is InputEventKey and ((ev_r as InputEventKey).keycode == KEY_R or (ev_r as InputEventKey).physical_keycode == KEY_R):
+			has_r = true
+			break
+	if not has_r:
+		var key_r := InputEventKey.new()
+		key_r.keycode = KEY_R
+		key_r.physical_keycode = KEY_R
+		InputMap.action_add_event("ultimate", key_r)
+
 
 func _setup_dash_nodes() -> void:
 	_dash_hitbox = get_node_or_null("DashHitbox") as Area2D
@@ -265,10 +303,6 @@ func _setup_dash_nodes() -> void:
 	_dash_sfx.stream = SFXGenerator.create_dash_sfx()
 
 
-# =====================================================================
-# CENTRALIZED INPUT (docs/ARCHITECTURE.md rule #1)
-# =====================================================================
-
 func _read_input() -> Dictionary:
 	if not input_enabled or is_dead:
 		return {
@@ -288,6 +322,10 @@ func _read_input() -> Dictionary:
 func _unhandled_input(event: InputEvent) -> void:
 	if is_dead or not input_enabled:
 		return
+	if event.is_action_pressed("ultimate"):
+		if try_activate_ultimate():
+			get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("dash"):
 		_try_start_dash()
 		return
@@ -306,16 +344,17 @@ func _on_attack_released(_event: InputEvent) -> void:
 	pass
 
 
-# =====================================================================
-# ENERGY HELPERS
-# =====================================================================
-
 func _can_regenerate_energy() -> bool:
 	return not is_dashing
 
 
 func _update_energy(delta: float) -> void:
 	if is_dead:
+		return
+	if WitchCauldronProgression.wizard_cheat_active:
+		if current_energy < max_energy:
+			current_energy = max_energy
+			energy_changed.emit(current_energy, max_energy)
 		return
 	if _can_regenerate_energy() and current_energy < max_energy:
 		var prev := current_energy
@@ -330,7 +369,7 @@ func _on_energy_regenerated() -> void:
 
 
 func consume_energy(amount: float) -> float:
-	if amount <= 0.0:
+	if WitchCauldronProgression.wizard_cheat_active or amount <= 0.0:
 		return 0.0
 	var prev := current_energy
 	current_energy = maxf(current_energy - amount, 0.0)
@@ -349,15 +388,26 @@ func restore_energy(amount: float) -> void:
 		_on_energy_regenerated()
 
 
-# =====================================================================
-# MAIN LOOP
-# =====================================================================
-
 func _physics_process(delta: float) -> void:
+	if WitchCauldronProgression.wizard_cheat_active and not is_dead:
+		dash_cooldown_left = 0.0
+		if not ult_is_toggle:
+			ult_cooldown_left = 0.0
+		if current_health < max_health:
+			current_health = max_health
+			health_changed.emit(current_health, max_health)
+
 	if _hurt_anim_left > 0.0:
 		_hurt_anim_left = maxf(_hurt_anim_left - delta, 0.0)
 	if post_dash_dodge_left > 0.0:
 		post_dash_dodge_left = maxf(post_dash_dodge_left - delta, 0.0)
+	if invincible_left > 0.0:
+		invincible_left = maxf(invincible_left - delta, 0.0)
+	if external_slow_left > 0.0:
+		external_slow_left = maxf(external_slow_left - delta, 0.0)
+	if ult_cooldown_left > 0.0:
+		ult_cooldown_left = maxf(ult_cooldown_left - delta, 0.0)
+
 	_update_dash_timers(delta)
 	if is_dashing:
 		_process_dash(delta)
@@ -382,12 +432,8 @@ func _get_stance_move_multiplier() -> float:
 
 
 func _get_bonus_speed_multiplier() -> float:
-	return 1.0
+	return 0.68 if external_slow_left > 0.0 else 1.0
 
-
-# =====================================================================
-# MOVEMENT
-# =====================================================================
 
 func _handle_movement() -> void:
 	if is_dead or not input_enabled:
@@ -423,7 +469,6 @@ func _handle_movement() -> void:
 	_sync_facing_nodes()
 
 
-## Updates 4-directional facing (`"up"`, `"down"`, `"side"` + `facing` + `facing_dir`).
 func set_move_facing(dir: Vector2) -> void:
 	if dir.length() <= 0.05:
 		return
@@ -447,11 +492,9 @@ func _sync_facing_nodes() -> void:
 	hitbox.rotation = aim_vec.angle() if facing_cardinal != "side" else 0.0
 
 
-# =====================================================================
-# DISTINCT HERO SHIFT ABILITY (1.0s cooldown)
-# =====================================================================
-
 func can_dash() -> bool:
+	if WitchCauldronProgression.wizard_cheat_active:
+		return input_enabled and (not is_dead) and (not is_dashing)
 	return input_enabled and (not is_dead) and (not is_dashing) and dash_cooldown_left <= 0.0 and current_energy >= dash_energy_cost
 
 
@@ -481,7 +524,7 @@ func _try_start_dash() -> bool:
 	is_dashing = true
 	_hurt_anim_left = 0.0
 	_dash_time_left = dash_duration
-	dash_cooldown_left = dash_cooldown
+	dash_cooldown_left = 0.0 if WitchCauldronProgression.wizard_cheat_active else dash_cooldown
 	_dash_ghost_timer = 0.0
 	_enemies_hit_this_dash.clear()
 	_knockback = Vector2.ZERO
@@ -551,6 +594,9 @@ func _end_dash() -> void:
 		if post_dash_dodge_duration > 0.0:
 			post_dash_dodge_left = post_dash_dodge_duration
 			_spawn_dash_ghost()
+		if post_dash_invincible_duration > 0.0:
+			invincible_left = post_dash_invincible_duration
+			_spawn_dash_ghost()
 	_on_dash_ended()
 
 
@@ -588,8 +634,12 @@ func _try_dash_hit(touched: Node) -> void:
 	if _enemies_hit_this_dash.has(enemy_id):
 		return
 	_enemies_hit_this_dash[enemy_id] = true
-	deal_combat_damage(enemy, dash_damage, true, dash_knockback_px)
+	deal_combat_damage(enemy, _compute_dash_damage(), true, dash_knockback_px)
 	_on_dash_hit_enemy(enemy)
+
+
+func _compute_dash_damage() -> int:
+	return dash_damage
 
 
 func _spawn_dash_ghost() -> void:
@@ -606,10 +656,6 @@ func _spawn_dash_ghost() -> void:
 	tween.tween_property(ghost, "modulate:a", 0.0, 0.18)
 	tween.tween_callback(ghost.queue_free)
 
-
-# =====================================================================
-# ANIMATION & FOOTSTEPS
-# =====================================================================
 
 func _exit_tree() -> void:
 	if is_dashing:
@@ -659,10 +705,6 @@ func _update_footsteps(delta: float) -> void:
 		_footstep_timer -= delta
 
 
-# =====================================================================
-# DEFAULT MELEE COMBAT
-# =====================================================================
-
 func _start_attack() -> void:
 	if is_attacking or is_dashing or is_dead:
 		return
@@ -677,7 +719,8 @@ func _start_attack() -> void:
 	anim_player.play("attack")
 	punch_sfx.play()
 
-	await get_tree().create_timer(attack_windup).timeout
+	var eff_windup := 0.03 if WitchCauldronProgression.wizard_cheat_active else attack_windup
+	await get_tree().create_timer(eff_windup).timeout
 	if my_token != _attack_token or is_dead:
 		return
 
@@ -693,13 +736,14 @@ func _start_attack() -> void:
 	for body in hitbox.get_overlapping_bodies():
 		_try_hit(body)
 
-	await get_tree().create_timer(hitbox_active_time).timeout
+	var eff_active := 0.08 if WitchCauldronProgression.wizard_cheat_active else hitbox_active_time
+	await get_tree().create_timer(eff_active).timeout
 	if my_token != _attack_token or is_dead:
 		return
 
 	_disable_hitbox()
 
-	var remaining := maxf(attack_duration - attack_windup - hitbox_active_time, 0.0)
+	var remaining := 0.02 if WitchCauldronProgression.wizard_cheat_active else maxf(attack_duration - attack_windup - hitbox_active_time, 0.0)
 	await get_tree().create_timer(remaining).timeout
 	if my_token != _attack_token or is_dead:
 		return
@@ -763,6 +807,8 @@ func deal_combat_damage(enemy: Node, amount: int, from_dash: bool = false, knock
 		return
 
 	var final_damage := maxi(amount, 1)
+	if WitchCauldronProgression.wizard_cheat_active:
+		final_damage = maxi(final_damage, 9999999)
 	last_dealt_damage = final_damage
 	last_hit_was_dash = from_dash
 
@@ -798,6 +844,8 @@ func _on_killed_enemy_with_combat(enemy: Node) -> void:
 		dash_cooldown_changed.emit(0.0, dash_cooldown)
 	if kill_heal_ratio > 0.0:
 		heal(maxi(int(roundf(float(max_health) * kill_heal_ratio)), 2))
+	if kill_heal_flat > 0:
+		heal(kill_heal_flat)
 	if kill_explosion_damage > 0 and kill_explosion_radius > 0.0 and enemy is Node2D:
 		var epos := (enemy as Node2D).global_position
 		var parent := get_parent()
@@ -864,10 +912,6 @@ func get_aim_direction() -> Vector2:
 	return Vector2(facing, 0.0)
 
 
-# =====================================================================
-# HEALTH, HEALING, MITIGATION & TAKING DAMAGE
-# =====================================================================
-
 func heal(amount: int) -> void:
 	if is_dead or amount <= 0:
 		return
@@ -889,7 +933,15 @@ func _get_incoming_knockback_multiplier() -> float:
 func take_damage(amount: int, from_position: Vector2 = Vector2.INF, is_projectile: bool = false) -> void:
 	if is_dead or _invulnerable or is_dashing:
 		return
-	if post_dash_dodge_left > 0.0 and (is_projectile or post_dash_full_immunity):
+	if WitchCauldronProgression.wizard_cheat_active:
+		current_health = max_health
+		damage_mitigated.emit(amount, 0)
+		return
+	if invincible_left > 0.0:
+		last_mitigation_label = "INVINCIBLE!"
+		damage_mitigated.emit(amount, 0)
+		return
+	if post_dash_dodge_left > 0.0 and is_projectile:
 		on_projectile_dodged(from_position if from_position != Vector2.INF else global_position)
 		return
 
@@ -901,8 +953,6 @@ func take_damage(amount: int, from_position: Vector2 = Vector2.INF, is_projectil
 
 	last_health_change_was_self_cost = false
 	current_health = clampi(current_health - final_amount, 0, max_health)
-	print("[", character_name, "] took ", final_amount, " damage  ->  HP ",
-		current_health, "/", max_health)
 
 	health_changed.emit(current_health, max_health)
 	hurt_triggered.emit(final_amount)
@@ -916,7 +966,6 @@ func take_damage(amount: int, from_position: Vector2 = Vector2.INF, is_projectil
 		if away.length() > 1.0:
 			_knockback = away.normalized() * (knockback_speed * _get_incoming_knockback_multiplier())
 
-	# Trigger hero body hurt animation!
 	_hurt_anim_left = 0.24
 	if not is_attacking and anim_player != null and anim_player.has_animation("hurt"):
 		anim_player.play("hurt")
@@ -948,7 +997,7 @@ func _start_invulnerability() -> void:
 	var blink_time := 0.1
 	var steps := maxi(int(invulnerability_time / (blink_time * 2.0)), 1)
 	var tween := create_tween()
-	for i in steps:
+	for _i in steps:
 		tween.tween_property(visuals, "modulate:a", 0.3, blink_time)
 		tween.tween_property(visuals, "modulate:a", 1.0, blink_time)
 	await tween.finished
@@ -962,10 +1011,10 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	ult_active = false
 	_attack_token += 1
 	if is_dashing:
 		_end_dash()
-	print("[", character_name, "] died - GAME OVER")
 
 	_disable_hitbox()
 	$Hurtbox.set_deferred("monitoring", false)
@@ -985,5 +1034,4 @@ func _die() -> void:
 		tween.set_parallel(true)
 		tween.tween_property(visuals, "rotation_degrees", 90.0 * facing, 0.5)\
 			.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-		tween.tween_property(visuals, "modulate",
-			Color(0.6, 0.6, 0.6, 0.9), 0.5)
+		tween.tween_property(visuals, "modulate", Color(0.6, 0.6, 0.6, 0.9), 0.5)

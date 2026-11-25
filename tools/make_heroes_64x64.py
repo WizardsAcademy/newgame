@@ -557,489 +557,137 @@ def make_knight_portraits() -> Image.Image:
 
 
 # ==============================================================================
-# 3. SYLVARA — CURVY MEDIEVAL-FANTASY HUNTRESS ELF (15 frames x 64x64)
-#    Green, White Blouse, Warm Leather, Hourglass Nice Body & Prominent Bust!
+# 3 & 4. SYLVARA & NOA — RESTORED CLASSIC 64x64 MASTER CONVERSIONS
 # ==============================================================================
 
-def draw_sylvara_frame(f: int) -> Image.Image:
-    im = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-
-    SKIN_SH = (212, 156, 130, 255)
-    SKIN_MD = (244, 196, 168, 255)
-    SKIN_HI = (255, 224, 202, 255)
-    HAIR_SH = (182, 132, 38, 255)
-    HAIR_MD = (234, 186, 66, 255)
-    HAIR_HI = (255, 228, 122, 255)
-    WHT_SH = (196, 206, 222, 255)
-    WHT_HI = (250, 252, 255, 255)
-    GRN_DK = (22, 80, 46, 255)
-    GRN_MD = (40, 134, 76, 255)
-    GRN_HI = (84, 192, 114, 255)
-    LTH_DK = (82, 46, 26, 255)
-    LTH_MD = (132, 76, 42, 255)
-    LTH_HI = (176, 112, 66, 255)
-    BOW_GD = (218, 166, 58, 255)
-    EM_GLOW = (96, 252, 154, 255)
-
-    cx = 31
-    bob = -3 if f == 6 else (1 if f in (1, 2, 8, 10, 11, 13, 14) else 0)
-
-    # --- FRONT (`9, 10, 11`) & BACK (`12, 13, 14`) ---
-    if f >= 9:
-        is_up = f >= 12
-        step = -2 if f in (10, 13) else (2 if f in (11, 14) else 0)
-        ly = 53 - (1 if step < 0 else 0)
-        ry = 53 - (1 if step > 0 else 0)
-
-        if not is_up:
-            d.polygon([(cx - 10, 11 + bob), (cx + 10, 11 + bob), (cx + 12, 32 + bob), (cx - 12, 32 + bob)],
-                      fill=HAIR_SH, outline=OUT)
-
-        # Shapely bare thighs + fitted thigh-high brown leather boots (`ground_y = 54`)
-        pill(d, cx - 6, 36 + bob, cx - 2, 44 + bob, 2, SKIN_HI)
-        pill(d, cx + 2, 36 + bob, cx + 6, 44 + bob, 2, SKIN_HI)
-        pill(d, cx - 6, 43 + bob, cx - 2, ly, 2, LTH_DK)
-        pill(d, cx + 2, 43 + bob, cx + 6, ry, 2, LTH_MD)
-        d.line([(cx - 6, 43 + bob), (cx - 2, 43 + bob)], fill=LTH_HI)
-        d.line([(cx + 2, 43 + bob), (cx + 6, 43 + bob)], fill=LTH_HI)
-
-        # Curvy Hourglass Hips + Emerald-Green Medieval-Fantasy Skirt with White Trim!
-        d.polygon([
-            (cx - 4, 29 + bob), (cx + 4, 29 + bob),
-            (cx + 10, 35 + bob), (cx + 9, 40 + bob),
-            (cx + 3, 40 + bob), (cx, 35 + bob),
-            (cx - 3, 40 + bob), (cx - 9, 40 + bob), (cx - 10, 35 + bob)
-        ], fill=GRN_MD, outline=OUT)
-        d.line([(cx - 8, 39 + bob), (cx - 3, 39 + bob)], fill=WHT_HI)
-        d.line([(cx + 3, 39 + bob), (cx + 8, 39 + bob)], fill=WHT_HI)
-        d.line([(cx - 7, 34 + bob), (cx - 4, 31 + bob)], fill=GRN_HI)
-
-        # Super-Cinched Narrow Brown Leather Corset Waist (`nice budy` hourglass!)
-        d.polygon([(cx - 6, 26 + bob), (cx + 6, 26 + bob), (cx + 4, 30 + bob), (cx - 4, 30 + bob)],
-                  fill=LTH_MD, outline=OUT)
-        put(im, cx, 28 + bob, BOW_GD)
-
-        # Slim White Fantasy Off-Shoulder Sleeves + Leather Bracers
-        pill(d, cx - 11, 21 + bob, cx - 7, 26 + bob, 2, WHT_HI)
-        pill(d, cx - 11, 25 + bob, cx - 8, 30 + bob, 1, LTH_MD)
-        pill(d, cx + 7, 21 + bob, cx + 11, 26 + bob, 2, WHT_HI)
-        pill(d, cx + 8, 25 + bob, cx + 11, 30 + bob, 1, LTH_MD)
-
-        if not is_up:
-            # Open Sweetheart Collarbone + Prominent Sculpted White-Blouse Bust (`sine hash bozorg`)!
-            d.ellipse([cx - 5, 18 + bob, cx + 5, 23 + bob], fill=SKIN_HI, outline=OUT)
-            # Full, rounded twin bust silhouette in crisp white blouse (soft shading, super readable!)
-            d.ellipse([cx - 9, 20 + bob, cx + 1, 28 + bob], fill=WHT_HI, outline=OUT)
-            d.ellipse([cx - 1, 20 + bob, cx + 9, 28 + bob], fill=WHT_HI, outline=OUT)
-            d.rectangle([cx - 7, 21 + bob, cx + 7, 26 + bob], fill=WHT_HI)
-            d.line([(cx - 7, 27 + bob), (cx - 2, 27 + bob)], fill=WHT_SH)
-            d.line([(cx + 2, 27 + bob), (cx + 7, 27 + bob)], fill=WHT_SH)
-            d.line([(cx, 21 + bob), (cx, 26 + bob)], fill=SKIN_SH)  # cleavage line!
-            put(im, cx - 1, 21 + bob, SKIN_HI)
-            put(im, cx + 1, 21 + bob, SKIN_HI)
-        else:
-            pill(d, cx - 7, 19 + bob, cx + 7, 27 + bob, 2, GRN_MD)
-            d.polygon([(cx + 3, 18 + bob), (cx + 8, 19 + bob), (cx + 5, 30 + bob), (cx + 1, 29 + bob)],
-                      fill=LTH_MD, outline=OUT)
-
-        d.arc([cx + 7, 17 + bob, cx + 19, 39 + bob], start=-80, end=80, fill=BOW_GD, width=2)
-
-        if not is_up:
-            # Pointed Elf Ears + Pretty Rounded Face + Golden Blonde Hair + Emerald Circlet
-            d.polygon([(cx - 11, 12 + bob), (cx - 5, 11 + bob), (cx - 5, 15 + bob)], fill=SKIN_HI, outline=OUT)
-            d.polygon([(cx + 11, 12 + bob), (cx + 5, 11 + bob), (cx + 5, 15 + bob)], fill=SKIN_HI, outline=OUT)
-            pill(d, cx - 6, 7 + bob, cx + 6, 18 + bob, 5, SKIN_HI)
-            d.polygon([(cx - 8, 14 + bob), (cx - 6, 6 + bob), (cx + 6, 6 + bob), (cx + 8, 14 + bob),
-                       (cx + 5, 10 + bob), (cx, 11 + bob), (cx - 5, 10 + bob)], fill=HAIR_HI, outline=OUT)
-            put(im, cx, 8 + bob, EM_GLOW)
-            put(im, cx - 3, 13 + bob, GRN_MD)
-            put(im, cx + 3, 13 + bob, GRN_MD)
-            put(im, cx, 16 + bob, SKIN_SH)
-        else:
-            d.polygon([(cx - 8, 6 + bob), (cx + 8, 6 + bob), (cx + 10, 28 + bob), (cx, 31 + bob), (cx - 10, 28 + bob)],
-                      fill=HAIR_MD, outline=OUT)
-            d.line([(cx - 3, 8 + bob), (cx - 4, 27 + bob)], fill=HAIR_HI, width=2)
-            d.line([(cx + 4, 8 + bob), (cx + 4, 27 + bob)], fill=HAIR_SH, width=2)
-
-        return im
-
-    # --- SIDE / ARCHERY FRAMES (`0..8`, facing RIGHT) ---
-    # Golden-blonde ponytail/locks flowing behind back (leaves hourglass waist visible!)
-    d.polygon([
-        (cx - 10, 7 + bob), (cx + 1, 7 + bob),
-        (cx - 4, 24 + bob), (cx - 12, 26 + bob), (cx - 13, 16 + bob)
-    ], fill=HAIR_MD, outline=OUT)
-    d.line([(cx - 8, 9 + bob), (cx - 10, 23 + bob)], fill=HAIR_HI, width=2)
-
-    # Shapely curved thighs + sleek brown leather boots (`ground_y = 54`, airborne in `f==6`)
-    l_off = -3 if f == 1 else (3 if f == 2 else (-3 if f == 6 else 0))
-    r_off = 3 if f == 1 else (-3 if f == 2 else (3 if f == 6 else 0))
-    boot_bot = 49 if f == 6 else 53
-    pill(d, cx - 5 + l_off, 36 + bob, cx - 1 + l_off, 43 + bob, 2, SKIN_SH)
-    pill(d, cx - 6 + l_off, 42 + bob, cx + l_off, boot_bot, 2, LTH_DK)
-    pill(d, cx + r_off, 36 + bob, cx + 5 + r_off, 43 + bob, 2, SKIN_HI)
-    pill(d, cx + r_off, 42 + bob, cx + 6 + r_off, boot_bot, 2, LTH_MD)
-    d.line([(cx + 1 + r_off, 42 + bob), (cx + 5 + r_off, 42 + bob)], fill=LTH_HI)
-
-    # Curvy Flared Hips in Emerald-Green Ranger Skirt + White Trim!
-    d.polygon([
-        (cx - 3, 29 + bob), (cx + 3, 29 + bob),
-        (cx + 8, 35 + bob), (cx + 8, 40 + bob),
-        (cx + 2, 40 + bob), (cx, 35 + bob),
-        (cx - 7, 40 + bob), (cx - 8, 35 + bob)
-    ], fill=GRN_MD, outline=OUT)
-    d.line([(cx - 6, 39 + bob), (cx + 7, 39 + bob)], fill=WHT_HI)
-    d.line([(cx - 6, 34 + bob), (cx - 3, 31 + bob)], fill=GRN_HI)
-
-    # Cinched Narrow Brown Leather Corset Waist (`6px` narrow hourglass!)
-    d.polygon([(cx - 4, 26 + bob), (cx + 4, 26 + bob), (cx + 3, 30 + bob), (cx - 3, 30 + bob)],
-              fill=LTH_MD, outline=OUT)
-    put(im, cx + 2, 28 + bob, BOW_GD)
-
-    # Rear arm holding Golden Recurve Bow (drawn BEFORE bust so bust curve stays 100% clear!)
-    if f in (3, 4, 5):
-        d.arc([cx + 9, 10 + bob, cx + 23, 34 + bob], start=-82, end=82, fill=BOW_GD, width=2)
-    else:
-        d.arc([cx + 7, 13 + bob, cx + 19, 36 + bob], start=-80, end=80, fill=BOW_GD, width=2)
-
-    # Upper Torso + Prominent Full Sculpted White-Blouse Bust (`sine hash bozorg`)!
-    pill(d, cx - 4, 19 + bob, cx + 5, 27 + bob, 3, WHT_HI)
-    # Generous rounded bust projecting forward (`cx + 1 .. cx + 10`) with cleavage & under-shadow!
-    d.ellipse([cx, 19 + bob, cx + 10, 27 + bob], fill=WHT_HI, outline=OUT)
-    d.rectangle([cx - 2, 20 + bob, cx + 6, 25 + bob], fill=WHT_HI)
-    d.line([(cx + 3, 26 + bob), (cx + 8, 26 + bob)], fill=WHT_SH)
-    put(im, cx + 4, 20 + bob, SKIN_HI)  # upper neckline skin!
-    put(im, cx + 5, 20 + bob, SKIN_SH)
-
-    # Pretty Rounded Elf Head + Pointed Ear + Emerald Eye
-    pill(d, cx - 4, 7 + bob, cx + 6, 18 + bob, 5, SKIN_HI)
-    d.polygon([(cx - 9, 12 + bob), (cx - 3, 11 + bob), (cx - 3, 15 + bob)], fill=SKIN_HI, outline=OUT)
-    d.polygon([(cx - 6, 12 + bob), (cx - 4, 6 + bob), (cx + 6, 7 + bob), (cx + 3, 10 + bob)],
-              fill=HAIR_HI, outline=OUT)
-    put(im, cx + 5, 8 + bob, EM_GLOW)
-    put(im, cx + 3, 13 + bob, GRN_MD)
-    put(im, cx + 4, 13 + bob, OUT)
-
-    # Slim shoulder/arm & archery string (positioned cleanly so bust silhouette shines!)
-    if f in (3, 4, 5):
-        pill(d, cx - 5, 19 + bob, cx + 2, 23 + bob, 2, WHT_HI)
-        pull_x = cx + 4 if f == 4 else (cx + 8 if f == 3 else cx + 15)
-        d.line([(cx + 16, 11 + bob), (pull_x, 22 + bob), (cx + 16, 33 + bob)], fill=WHT_SH)
-        if f in (3, 4):
-            d.line([(pull_x, 22 + bob), (cx + 25, 22 + bob)], fill=EM_GLOW if f == 4 else BOW_GD, width=2 if f == 4 else 1)
-            if f == 4:
-                d.polygon([(cx + 25, 19 + bob), (cx + 30, 22 + bob), (cx + 25, 25 + bob)], fill=EM_GLOW, outline=OUT)
-    else:
-        pill(d, cx - 5, 20 + bob, cx, 27 + bob, 2, WHT_HI)
-        pill(d, cx - 4, 25 + bob, cx + 1, 29 + bob, 1, LTH_MD)
-
-    return im
+MASTER_DIR = REPO_ROOT / "tools" / "masters_96"
+SRC_CELL = 96
+DST_CELL = 64
 
 
-def make_sylvara_portraits() -> Image.Image:
-    strip = Image.new("RGBA", (320, 64), (0, 0, 0, 0))
-    SKIN_SH = (212, 156, 130, 255)
-    SKIN_HI = (255, 224, 202, 255)
-    HAIR_MD = (234, 186, 66, 255)
-    HAIR_HI = (255, 228, 122, 255)
-    WHT_SH = (196, 206, 222, 255)
-    WHT_HI = (250, 252, 255, 255)
-    GRN_DK = (22, 80, 46, 255)
-    GRN_MD = (40, 134, 76, 255)
-    LTH_MD = (132, 76, 42, 255)
-    BOW_GD = (218, 166, 58, 255)
-    EM_GLOW = (96, 252, 154, 255)
-
-    for i in range(5):
-        fr = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-        d = ImageDraw.Draw(fr)
-        d.ellipse([4, 4, 59, 59], fill=GRN_DK, outline=OUT)
-        # Golden hair back
-        d.polygon([(11, 53), (13, 14), (32, 7), (51, 14), (53, 53)], fill=HAIR_MD, outline=OUT)
-        # Medieval-fantasy Emerald shoulders + Crisp White sweetheart blouse & cleavage + Leather strap!
-        d.polygon([(8, 58), (16, 43), (48, 43), (56, 58)], fill=GRN_MD, outline=OUT)
-        d.ellipse([17, 46, 33, 60], fill=WHT_HI, outline=OUT)
-        d.ellipse([31, 46, 47, 60], fill=WHT_HI, outline=OUT)
-        d.ellipse([24, 42, 40, 51], fill=SKIN_HI, outline=SKIN_SH)
-        d.line([(32, 48), (32, 58)], fill=SKIN_SH)
-        d.line([(18, 45), (26, 57)], fill=LTH_MD, width=3)
-
-        # Long pointed elf ears + rounded feminine face
-        d.polygon([(4, 26), (16, 23), (15, 33)], fill=SKIN_HI, outline=OUT)
-        d.polygon([(60, 26), (48, 23), (49, 33)], fill=SKIN_HI, outline=OUT)
-        d.rounded_rectangle([18, 16, 46, 43], radius=10, fill=SKIN_HI, outline=OUT)
-        d.polygon([(16, 26), (20, 11), (32, 14), (44, 11), (48, 26), (41, 18), (32, 19), (23, 18)],
-                  fill=HAIR_HI, outline=OUT)
-        d.line([(21, 16), (43, 16)], fill=BOW_GD, width=2)
-        d.ellipse([29, 13, 35, 19], fill=EM_GLOW, outline=OUT)
-
-        if i == 2:
-            d.line([(22, 28), (28, 28)], fill=OUT, width=2)
-            d.line([(36, 28), (42, 28)], fill=OUT, width=2)
-        elif i == 4:
-            d.line([(22, 26), (28, 30)], fill=OUT, width=2)
-            d.line([(28, 26), (22, 30)], fill=OUT, width=2)
-            d.line([(36, 26), (42, 30)], fill=OUT, width=2)
-            d.line([(42, 26), (36, 30)], fill=OUT, width=2)
-        else:
-            off = 1 if i == 1 else 0
-            pill(d, 22, 25, 28, 31, 2, WHT_HI)
-            pill(d, 36, 25, 42, 31, 2, WHT_HI)
-            d.rectangle([23 + off, 26, 27 + off, 30], fill=GRN_MD)
-            d.rectangle([37 + off, 26, 41 + off, 30], fill=GRN_MD)
-            put(fr, 24 + off, 27, WHT_HI)
-            put(fr, 38 + off, 27, WHT_HI)
-        d.line([(29, 37), (35, 37)], fill=SKIN_SH)
-        strip.alpha_composite(fr, (i * 64, 0))
-    return strip
+def _iter_px(im: Image.Image):
+    if hasattr(im, "get_flattened_data"):
+        return im.get_flattened_data()
+    return im.getdata()
 
 
-# ==============================================================================
-# 4. NOA — ROYAL ARISTOCRAT VAMPIRE (16 frames x 64x64)
-#    Mostly Pure-White Victorian Noble Gown + Gold/Ruby Crown Tiara + Ruby Necklace!
-# ==============================================================================
-
-def draw_noa_frame(f: int) -> Image.Image:
-    im = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-
-    SKIN_PALE = (255, 236, 242, 255)
-    SKIN_SH = (222, 194, 208, 255)
-    # Moonlit icy silver-lavender hair so Pure-White Royal Gown pops with crisp contrast!
-    HAIR_HI = (232, 238, 255, 255)
-    HAIR_MD = (198, 208, 238, 255)
-    HAIR_SH = (158, 170, 208, 255)
-    GOWN_W = (252, 250, 255, 255)     # Dominant Pure Pearl-White Aristocratic Gown!
-    GOWN_IV = (224, 220, 236, 255)
-    CRIM_DK = (118, 14, 34, 255)
-    CRIM_MD = (196, 24, 54, 255)
-    CRIM_HI = (252, 58, 92, 255)
-    GOLD_MD = (218, 170, 54, 255)
-    GOLD_HI = (255, 224, 108, 255)
-
-    if f == 5:
-        d.ellipse([20, 16, 44, 52], fill=CRIM_DK, outline=OUT)
-        d.ellipse([23, 20, 41, 49], fill=CRIM_MD)
-        d.ellipse([27, 25, 37, 43], fill=CRIM_HI)
-        return im
-
-    if f == 9:
-        d.ellipse([10, 46, 54, 54], fill=CRIM_DK, outline=OUT)
-        d.ellipse([15, 48, 49, 53], fill=CRIM_MD)
-        d.ellipse([23, 49, 41, 52], fill=CRIM_HI)
-        return im
-
-    cx = 32
-    bob = 1 if f in (1, 2, 7, 11, 12, 14, 15) else 0
-
-    # --- FRONT (`10..12`) & BACK (`13..15`) ---
-    if f >= 10:
-        is_up = f >= 13
-        step = -1 if f in (11, 14) else (1 if f in (12, 15) else 0)
-
-        if not is_up:
-            d.polygon([(cx - 11, 12 + bob), (cx + 11, 12 + bob), (cx + 13, 39 + bob), (cx - 13, 39 + bob)],
-                      fill=HAIR_SH, outline=OUT)
-
-        # Dainty white aristocratic heels (`ground_y = 54`)
-        pill(d, cx - 5, 49, cx - 2, 53 - (1 if step < 0 else 0), 1, GOWN_IV)
-        pill(d, cx + 2, 49, cx + 5, 53 - (1 if step > 0 else 0), 1, GOWN_W)
-
-        # Voluminous Bell-Shaped Pure-White Royal Ballgown Skirt + Gold Scallops & Crimson Ribbon!
-        d.polygon([
-            (cx - 5, 29 + bob), (cx + 5, 29 + bob),
-            (cx + 12, 37 + bob), (cx + 15, 50),
-            (cx - 15, 50), (cx - 12, 37 + bob)
-        ], fill=GOWN_W, outline=OUT)
-        d.line([(cx - 4, 31 + bob), (cx - 9, 48)], fill=GOWN_IV)
-        d.line([(cx + 4, 31 + bob), (cx + 9, 48)], fill=GOWN_IV)
-        d.polygon([(cx - 3, 30 + bob), (cx + 3, 30 + bob), (cx + 5, 50), (cx - 5, 50)],
-                  fill=GOWN_W, outline=GOLD_MD)
-        d.line([(cx - 13, 48), (cx + 13, 48)], fill=CRIM_MD, width=2)
-        d.line([(cx - 13, 46), (cx + 13, 46)], fill=GOLD_HI)
-
-        # Hourglass White Royal Corset Bodice + Puffed Aristocratic Sleeves!
-        d.polygon([(cx - 7, 20 + bob), (cx + 7, 20 + bob), (cx + 5, 30 + bob), (cx - 5, 30 + bob)],
-                  fill=GOWN_W, outline=OUT)
-        d.ellipse([cx - 12, 20 + bob, cx - 6, 27 + bob], fill=GOWN_W, outline=OUT)
-        d.ellipse([cx + 6, 20 + bob, cx + 12, 27 + bob], fill=GOWN_W, outline=OUT)
-        d.line([(cx - 11, 26 + bob), (cx - 7, 26 + bob)], fill=GOLD_HI)
-        d.line([(cx + 7, 26 + bob), (cx + 11, 26 + bob)], fill=GOLD_HI)
-
-        if not is_up:
-            # Open Noble Décolletage + Jeweled Ruby Necklace (`gardan band`)!
-            d.ellipse([cx - 5, 18 + bob, cx + 5, 24 + bob], fill=SKIN_PALE, outline=OUT)
-            d.line([(cx - 4, 21 + bob), (cx + 4, 21 + bob)], fill=GOLD_HI)
-            put(im, cx, 22 + bob, CRIM_HI)      # gleaming ruby pendant!
-            put(im, cx - 2, 21 + bob, CRIM_MD)
-            put(im, cx + 2, 21 + bob, CRIM_MD)
-            # Gold & crimson corset waist lacing
-            d.line([(cx - 3, 25 + bob), (cx - 2, 29 + bob)], fill=GOLD_MD)
-            d.line([(cx + 3, 25 + bob), (cx + 2, 29 + bob)], fill=GOLD_MD)
-            put(im, cx, 27 + bob, CRIM_HI)
-
-            # Rounded Porcelain Aristocrat Face + Crimson Eyes
-            pill(d, cx - 6, 8 + bob, cx + 6, 19 + bob, 5, SKIN_PALE)
-            d.polygon([(cx - 8, 15 + bob), (cx - 6, 7 + bob), (cx + 6, 7 + bob), (cx + 8, 15 + bob),
-                       (cx + 4, 11 + bob), (cx - 4, 11 + bob)], fill=HAIR_MD, outline=OUT)
-            d.line([(cx - 4, 9 + bob), (cx + 4, 9 + bob)], fill=HAIR_HI)
-            put(im, cx - 3, 14 + bob, CRIM_HI)
-            put(im, cx + 3, 14 + bob, CRIM_HI)
-        else:
-            # Back view: Cascading silver-lavender hair + royal white collar
-            d.polygon([(cx - 9, 8 + bob), (cx + 9, 8 + bob), (cx + 12, 36 + bob), (cx, 40 + bob), (cx - 12, 36 + bob)],
-                      fill=HAIR_MD, outline=OUT)
-            d.line([(cx - 4, 10 + bob), (cx - 5, 35 + bob)], fill=HAIR_HI, width=2)
-            d.line([(cx + 4, 10 + bob), (cx + 5, 35 + bob)], fill=HAIR_SH, width=2)
-
-        # Ornate Royal Gold & Ruby Crown / Tiara (`taj ro saresh`)!
-        d.polygon([
-            (cx - 6, 8 + bob), (cx - 5, 4 + bob), (cx - 2, 7 + bob),
-            (cx, 2 + bob), (cx + 2, 7 + bob), (cx + 5, 4 + bob), (cx + 6, 8 + bob)
-        ], fill=GOLD_HI, outline=OUT)
-        put(im, cx, 5 + bob, CRIM_HI)
-        return im
-
-    # --- SIDE / BLOOD-MAGIC FRAMES (`0, 1, 2, 3, 4, 6, 7, 8`, facing RIGHT) ---
-    if f == 6:
-        cx = 29
-
-    # Cascading moonlit silver-lavender hair behind back (contrasts cleanly with Pure-White Gown!)
-    d.polygon([
-        (cx - 10, 8 + bob), (cx + 1, 8 + bob),
-        (cx - 3, 36 + bob), (cx - 13, 34 + bob), (cx - 12, 20 + bob)
-    ], fill=HAIR_MD, outline=OUT)
-    d.line([(cx - 8, 11 + bob), (cx - 10, 32 + bob)], fill=HAIR_HI, width=2)
-
-    s_off = 2 if f == 1 else (-2 if f == 2 else 0)
-    pill(d, cx - 3 - s_off, 49, cx - s_off, 53, 1, GOWN_IV)
-    pill(d, cx + 1 + s_off, 49, cx + 5 + s_off, 53, 1, GOWN_W)
-
-    # Voluminous Bell-Shaped Pure-White Aristocratic Gown Skirt + Gold & Crimson Trim!
-    flare = 3 if f in (3, 4) else 0
-    d.polygon([
-        (cx - 4, 29 + bob), (cx + 4, 29 + bob),
-        (cx + 10 + flare, 37 + bob), (cx + 13 + flare, 50),
-        (cx - 12, 50), (cx - 10, 37 + bob)
-    ], fill=GOWN_W, outline=OUT)
-    d.line([(cx - 3, 32 + bob), (cx - 7, 48)], fill=GOWN_IV)
-    d.line([(cx + 2, 32 + bob), (cx + 7 + flare, 48)], fill=GOWN_IV)
-    d.line([(cx - 10, 48), (cx + 11 + flare, 48)], fill=CRIM_MD, width=2)
-    d.line([(cx - 10, 46), (cx + 11 + flare, 46)], fill=GOLD_HI)
-
-    # Curvy White Royal Corset Bodice + Gold Brocade + Ruby Necklace (`gardan band`)!
-    d.polygon([(cx - 4, 19 + bob), (cx + 6, 19 + bob), (cx + 4, 30 + bob), (cx - 4, 30 + bob)],
-              fill=GOWN_W, outline=OUT)
-    d.ellipse([cx + 1, 20 + bob, cx + 8, 26 + bob], fill=GOWN_W, outline=OUT)
-    d.line([(cx - 3, 29 + bob), (cx + 4, 29 + bob)], fill=GOLD_HI)
-    # Porcelain neck + Gold & Ruby Necklace!
-    d.rectangle([cx + 1, 18 + bob, cx + 5, 21 + bob], fill=SKIN_PALE)
-    d.line([(cx, 20 + bob), (cx + 6, 20 + bob)], fill=GOLD_HI)
-    put(im, cx + 5, 21 + bob, CRIM_HI)
-    put(im, cx + 4, 21 + bob, CRIM_MD)
-
-    # Rounded Porcelain Aristocrat Head + Crimson Eye + Ornate Gold/Ruby Crown (`taj`)!
-    pill(d, cx - 4, 8 + bob, cx + 6, 18 + bob, 5, SKIN_PALE)
-    d.polygon([(cx - 7, 14 + bob), (cx - 4, 7 + bob), (cx + 6, 8 + bob), (cx + 3, 11 + bob)],
-              fill=HAIR_HI, outline=OUT)
-    put(im, cx + 3, 13 + bob, CRIM_HI)
-    put(im, cx + 4, 13 + bob, OUT)
-
-    d.polygon([
-        (cx - 4, 8 + bob), (cx - 3, 4 + bob), (cx, 7 + bob),
-        (cx + 2, 2 + bob), (cx + 4, 7 + bob), (cx + 6, 4 + bob), (cx + 5, 8 + bob)
-    ], fill=GOLD_HI, outline=OUT)
-    put(im, cx + 2, 5 + bob, CRIM_HI)
-
-    # Puffed White Royal Bell-Sleeve + Crimson Blood-Magic Slash!
-    d.ellipse([cx - 5, 20 + bob, cx + 2, 26 + bob], fill=GOWN_W, outline=OUT)
-    if f == 3:
-        pill(d, cx + 1, 21, cx + 13, 25, 2, GOWN_W)
-        put(im, cx + 14, 22, CRIM_HI)
-    elif f == 4:
-        pill(d, cx + 1, 20, cx + 15, 24, 2, GOWN_W)
-        d.arc([cx + 10, 12, cx + 26, 34], start=-70, end=70, fill=CRIM_HI, width=2)
-    else:
-        pill(d, cx - 3, 24 + bob, cx + 4, 28 + bob, 2, GOWN_IV)
-        if f == 8:
-            put(im, cx + 7, 24 + bob, CRIM_HI)
-
-    return im
+def _lum(c: tuple[int, int, int, int]) -> float:
+    return 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
 
 
-def make_noa_portraits() -> Image.Image:
-    strip = Image.new("RGBA", (320, 64), (0, 0, 0, 0))
-    SKIN_PALE = (255, 236, 242, 255)
-    SKIN_SH = (222, 194, 208, 255)
-    HAIR_HI = (232, 238, 255, 255)
-    HAIR_MD = (198, 208, 238, 255)
-    HAIR_SH = (158, 170, 208, 255)
-    GOWN_W = (252, 250, 255, 255)
-    CRIM_DK = (96, 12, 30, 255)
-    CRIM_MD = (196, 24, 54, 255)
-    CRIM_HI = (252, 58, 92, 255)
-    GOLD_MD = (218, 170, 54, 255)
-    GOLD_HI = (255, 224, 108, 255)
+def downsample_cell_96_to_64(
+    cell96: Image.Image, darkest_selout: tuple[int, int, int, int]
+) -> Image.Image:
+    sp = cell96.load()
+    out = Image.new("RGBA", (DST_CELL, DST_CELL), (0, 0, 0, 0))
+    dp = out.load()
 
-    for i in range(5):
-        fr = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-        d = ImageDraw.Draw(fr)
-        d.ellipse([4, 4, 59, 59], fill=CRIM_DK, outline=OUT)
-        # Moonlit silver-lavender hair back
-        d.polygon([(11, 54), (13, 15), (32, 9), (51, 15), (53, 54)], fill=HAIR_MD, outline=OUT)
-        d.line([(15, 22), (15, 50)], fill=HAIR_SH, width=2)
-        d.line([(49, 22), (49, 50)], fill=HAIR_SH, width=2)
+    for by in range(32):
+        sy0 = by * 3
+        dy0 = by * 2
+        for bx in range(32):
+            sx0 = bx * 3
+            dx0 = bx * 2
+            center_c = sp[sx0 + 1, sy0 + 1]
+            for oy, sy_pair in ((0, (sy0, sy0 + 1)), (1, (sy0 + 1, sy0 + 2))):
+                for ox, sx_pair in ((0, (sx0, sx0 + 1)), (1, (sx0 + 1, sx0 + 2))):
+                    ax = sx_pair[ox]
+                    ay = sy_pair[oy]
+                    samples = (
+                        sp[ax, ay],
+                        sp[sx_pair[1 - ox], ay],
+                        sp[ax, sy_pair[1 - oy]],
+                        sp[sx_pair[1 - ox], sy_pair[1 - oy]],
+                    )
+                    opaque = [c for c in samples if c[3] >= 128]
+                    if not opaque:
+                        if samples[0][3] > 0:
+                            dp[dx0 + ox, dy0 + oy] = samples[0]
+                        continue
 
-        # Puffed Royal White Aristocratic Gown Shoulders & Collar + Gold Filigree!
-        d.polygon([(7, 58), (14, 42), (50, 42), (57, 58)], fill=GOWN_W, outline=OUT)
-        d.ellipse([7, 44, 21, 57], fill=GOWN_W, outline=OUT)
-        d.ellipse([43, 44, 57, 57], fill=GOWN_W, outline=OUT)
-        d.line([(18, 44), (24, 57)], fill=GOLD_MD, width=2)
-        d.line([(46, 44), (40, 57)], fill=GOLD_MD, width=2)
+                    if samples[0][3] >= 128:
+                        chosen = samples[0]
+                        for cand in (center_c, samples[1], samples[2]):
+                            if cand[3] >= 128 and cand != chosen:
+                                sat_c = max(cand[:3]) - min(cand[:3])
+                                sat_a = max(chosen[:3]) - min(chosen[:3])
+                                if (_lum(cand) > _lum(chosen) + 55) or (sat_c > sat_a + 65):
+                                    chosen = cand
+                                    break
+                                if _lum(chosen) > 180 and cand[1] > cand[0] + 28 and cand[1] > cand[2] + 18:
+                                    chosen = cand
+                                    break
+                        dp[dx0 + ox, dy0 + oy] = (chosen[0], chosen[1], chosen[2], 255)
+                    elif len(opaque) >= 2:
+                        c0 = opaque[0]
+                        dp[dx0 + ox, dy0 + oy] = (c0[0], c0[1], c0[2], 255)
 
-        # Porcelain Neck + Jeweled Ruby Necklace (`gardan band`)!
-        d.ellipse([23, 41, 41, 53], fill=SKIN_PALE, outline=SKIN_SH)
-        d.line([(24, 46), (40, 46)], fill=GOLD_HI, width=2)
-        d.polygon([(32, 45), (35, 49), (32, 53), (29, 49)], fill=CRIM_HI, outline=OUT)
-        put(fr, 27, 46, CRIM_MD)
-        put(fr, 37, 46, CRIM_MD)
+    snap = out.copy()
+    qp = snap.load()
+    for y in range(DST_CELL):
+        for x in range(DST_CELL):
+            c = qp[x, y]
+            if c[3] < 255:
+                continue
+            on_edge = (
+                x == 0
+                or x == DST_CELL - 1
+                or y == 0
+                or y == DST_CELL - 1
+                or qp[x - 1, y][3] == 0
+                or qp[x + 1, y][3] == 0
+                or qp[x, y - 1][3] == 0
+                or qp[x, y + 1][3] == 0
+            )
+            if on_edge and _lum(c) > 78:
+                op_n = sum(
+                    1
+                    for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))
+                    if 0 <= nx < DST_CELL and 0 <= ny < DST_CELL and qp[nx, ny][3] == 255
+                )
+                if op_n >= 3:
+                    dp[x, y] = darkest_selout
 
-        # Rounded Porcelain Aristocrat Face
-        d.rounded_rectangle([18, 17, 46, 43], radius=10, fill=SKIN_PALE, outline=OUT)
-        d.polygon([(16, 26), (20, 13), (32, 16), (44, 13), (48, 26), (40, 19), (32, 21), (24, 19)],
-                  fill=HAIR_HI, outline=OUT)
+    return out
 
-        # Ornate Royal Gold & Ruby Crown / Tiara (`taj ro saresh`)!
-        d.polygon([
-            (18, 15), (20, 7), (26, 13), (32, 3),
-            (38, 13), (44, 7), (46, 15)
-        ], fill=GOLD_HI, outline=OUT)
-        d.line([(19, 15), (45, 15)], fill=GOLD_MD, width=2)
-        d.ellipse([29, 7, 35, 13], fill=CRIM_HI, outline=OUT)
-        put(fr, 22, 11, CRIM_MD)
-        put(fr, 42, 11, CRIM_MD)
 
-        if i == 2:
-            d.line([(22, 29), (28, 29)], fill=OUT, width=2)
-            d.line([(36, 29), (42, 29)], fill=OUT, width=2)
-        elif i == 4:
-            d.line([(22, 27), (28, 31)], fill=OUT, width=2)
-            d.line([(28, 27), (22, 31)], fill=OUT, width=2)
-            d.line([(36, 27), (42, 31)], fill=OUT, width=2)
-            d.line([(42, 27), (36, 31)], fill=OUT, width=2)
-        else:
-            off = 1 if i == 1 else 0
-            pill(d, 22, 26, 28, 32, 2, GOWN_W)
-            pill(d, 36, 26, 42, 32, 2, GOWN_W)
-            d.rectangle([23 + off, 27, 27 + off, 31], fill=CRIM_HI)
-            d.rectangle([37 + off, 27, 41 + off, 31], fill=CRIM_HI)
-            put(fr, 24 + off, 28, GOWN_W)
-            put(fr, 38 + off, 28, GOWN_W)
-        d.line([(29, 38), (35, 38)], fill=CRIM_MD)
-        put(fr, 30, 39, GOWN_W)
-        strip.alpha_composite(fr, (i * 64, 0))
-    return strip
+def convert_hero_sheet(src_path: Path, dst_path: Path) -> tuple[int, int, int]:
+    src = Image.open(src_path).convert("RGBA")
+    if src.height == DST_CELL:
+        return src.width, src.height, src.width // DST_CELL
+
+    frames = src.width // SRC_CELL
+    cols = {
+        (r, g, b, 255)
+        for (r, g, b, a) in _iter_px(src)
+        if a == 255 and (r, g, b) != (0, 0, 0)
+    }
+    darkest = min(cols, key=_lum)
+
+    out_sheet = Image.new("RGBA", (frames * DST_CELL, DST_CELL), (0, 0, 0, 0))
+    for f in range(frames):
+        c96 = src.crop((f * SRC_CELL, 0, (f + 1) * SRC_CELL, SRC_CELL))
+        c64 = downsample_cell_96_to_64(c96, darkest)
+        out_sheet.alpha_composite(c64, (f * DST_CELL, 0))
+
+    f0_bb = out_sheet.crop((0, 0, DST_CELL, DST_CELL)).getbbox()
+    if f0_bb is not None:
+        target_gy = 53
+        dy = target_gy - f0_bb[3]
+        if dy != 0 and abs(dy) <= 4:
+            shifted_sheet = Image.new("RGBA", out_sheet.size, (0, 0, 0, 0))
+            for f in range(frames):
+                cell = out_sheet.crop((f * DST_CELL, 0, (f + 1) * DST_CELL, DST_CELL))
+                bb = cell.getbbox()
+                if bb is None:
+                    continue
+                crop = cell.crop(bb)
+                ny = max(0, min(DST_CELL - (bb[3] - bb[1]), bb[1] + dy))
+                shifted_sheet.alpha_composite(crop, (f * DST_CELL + bb[0], ny))
+            out_sheet = shifted_sheet
+
+    out_sheet.save(dst_path)
+    return out_sheet.width, out_sheet.height, frames
 
 
 def build_sheet(draw_fn, frame_count: int, out_path: Path) -> None:
@@ -1052,21 +700,26 @@ def build_sheet(draw_fn, frame_count: int, out_path: Path) -> None:
 
 def main() -> None:
     TEX_DIR.mkdir(parents=True, exist_ok=True)
+    # Keep redesigned Behemoth & Knight (64x64 sheets + portraits)
     build_sheet(draw_behemoth_frame, 16, TEX_DIR / "player_behemoth.png")
     build_sheet(draw_knight_frame, 16, TEX_DIR / "player_knight.png")
-    build_sheet(draw_sylvara_frame, 15, TEX_DIR / "player_sylvara.png")
-    build_sheet(draw_noa_frame, 16, TEX_DIR / "player_noa.png")
 
     for name, fn in (
         ("portrait_behemoth.png", make_behemoth_portraits),
         ("portrait_knight.png", make_knight_portraits),
-        ("portrait_sylvara.png", make_sylvara_portraits),
-        ("portrait_noa.png", make_noa_portraits),
     ):
         p = TEX_DIR / name
         im = fn()
         im.save(p)
         print(f"wrote {p.relative_to(REPO_ROOT)} ({im.width}x{im.height})")
+
+    # Restore classic Sylvara & Noa 64x64 sheets from 96x96 masters
+    for fname in ("player_sylvara.png", "player_noa.png"):
+        dst = TEX_DIR / fname
+        master = MASTER_DIR / fname
+        src_p = master if master.exists() else dst
+        w, h, fcount = convert_hero_sheet(src_p, dst)
+        print(f"wrote {dst.relative_to(REPO_ROOT)} ({w}x{h}, {fcount} frames of 64x64)")
 
 
 if __name__ == "__main__":

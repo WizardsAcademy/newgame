@@ -1,22 +1,28 @@
 extends RefCounted
 class_name WitchCauldronProgression
-## Persistent profile, hero memory, Witch Alchemy Reagents, & Scrollable Exclusive-Pillar OP Skill Tree!
+## Persistent profile, 3-Region Stage Unlocks, Witch Alchemy Reagents, Developer Cheats,
+## and Distinct Per-Hero Scrollable OP Skill Trees!
 ##
-## Topology (`1 -> 3 Exclusive 4-Tier Pillars -> 1 Converged Ultimate Solo Node`):
-##   - Row 0 (`solo_top`)    : 1 Solo Keystone OP Skill (`max_level = 1`)
-##   - Rows 1..4 (`p0..p2`)  : 3 Pillars x 4 Tiers (`max_level = 5`). Choosing ANY node in
-##                             1 Pillar locks out the other 2 Pillars until Reset!
-##   - Row 5 (`solo_bottom`) : All 3 Pillars converge into 1 Ultimate OP Solo Node (`max_level = 1`)!
-##
-## Economy & Console Cheats:
-##   - Slaying monsters & clearing waves drops Alchemy Reagents (`REAGENTS_PER_POTION = 3` per Potion).
-##   - Giving Reagents to the Witch at the Cauldron brews Potions (`Majon` = Skill Points).
-##   - Backtick `` ` `` Console: `wizard` -> `+10000` Skill Points; `canoheil` -> resets ALL heroes!
+## Skill Tree Topology (`1 -> 3 Exclusive 4-Tier Pillars -> 1 Converged [R] Ultimate`):
+##   - `solo_top`    : Unique Hero Skill 1 (`max_level = 1`):
+##                       * Behemoth -> 1.0s Full Invincibility after Shift
+##                       * Knight   -> Radiant Aegis Shield Dome on Knight
+##                       * Sylvara  -> 1.0s 100% Projectile Dodge after Shift
+##                       * Noa      -> 1% Enemy HP Lifesteal on Attacks
+##   - `p0..p2`      : 3 Distinct Hero Playstyle Pillars (`max_level = 5`, mutually exclusive
+##                     until `Reset Points` is pressed!)
+##   - `solo_bottom` : Unlocks Hero's Signature `[R]` Ultimate Ability (`max_level = 1`):
+##                       * Behemoth `[R]` -> Infernal Rage (Fire VFX + 2x Damage!)
+##                       * Knight   `[R]` -> Royal War Banner (+1 Allied Knight, 7s dur, 60s CD!)
+##                       * Sylvara  `[R]` -> Hunter's Rapid Lock-On (Select 1 enemy -> auto arrow spam!)
+##                       * Noa      `[R]` -> Sanguine Rain Toggle (Medium Blood Circle: 1% self drain,
+##                                           1% enemy HP DPS, 1% Lifesteal on hit!)
 
 const DEFAULT_SAVE_PATH := "user://witch_cottage_save.cfg"
 const STARTING_BREW_POINTS: int = 0
 const REAGENTS_PER_POTION: int = 3
 const MAX_NODE_LEVEL: int = 5
+const INFINITE_CHEAT_POINTS: int = 999999
 
 const ALL_NODE_IDS: Array[String] = [
 	"solo_top",
@@ -27,16 +33,76 @@ const ALL_NODE_IDS: Array[String] = [
 	"solo_bottom",
 ]
 
+const REGIONS: Array[Dictionary] = [
+	{
+		"id": 1,
+		"name": "Whispering Jungle",
+		"boss_name": "Forest Colossus",
+		"subtitle": "Slimes, Skeleton Archers, Stone Golems & Forest Colossus",
+		"accent": Color(0.28, 0.92, 0.52),
+	},
+	{
+		"id": 2,
+		"name": "Cursed Bone Crypt",
+		"boss_name": "Malakor, Arch-Lich",
+		"subtitle": "Blink-Stalkers, Hex-Weavers, Bone Phalanx & Arch-Lich",
+		"accent": Color(0.62, 0.48, 1.0),
+	},
+	{
+		"id": 3,
+		"name": "Infernal Citadel",
+		"boss_name": "Igniszar, Dreadlord",
+		"subtitle": "Hellfire Imps, Void Snipers, Magma Brutes & Dreadlord",
+		"accent": Color(1.0, 0.42, 0.22),
+	},
+]
+
 static var save_path: String = DEFAULT_SAVE_PATH
 static var _loaded: bool = false
 static var _reagents: int = 0
+static var _max_unlocked_region: int = 1
 static var _hero_points: Dictionary = {}
 static var _hero_nodes: Dictionary = {}
+
+## Developer Console Cheat State (`wizard` enables, `canoheil` disables ALL cheats!)
+static var wizard_cheat_active: bool = false
+static var _pre_wizard_snapshot_taken: bool = false
+static var _pre_wizard_points: Dictionary = {}
+static var _pre_wizard_nodes: Dictionary = {}
 
 static var master_volume: float = 1.0
 static var sfx_volume: float = 1.0
 static var screen_shake_enabled: bool = true
 static var fullscreen_enabled: bool = false
+
+
+static func get_region_info(region_id: int) -> Dictionary:
+	var idx := clampi(region_id - 1, 0, REGIONS.size() - 1)
+	return REGIONS[idx]
+
+
+static func get_max_unlocked_region() -> int:
+	ensure_loaded()
+	if wizard_cheat_active:
+		return REGIONS.size()
+	return clampi(_max_unlocked_region, 1, REGIONS.size())
+
+
+static func is_region_unlocked(region_id: int) -> bool:
+	ensure_loaded()
+	if wizard_cheat_active:
+		return true
+	return region_id >= 1 and region_id <= _max_unlocked_region
+
+
+static func unlock_region(region_id: int) -> bool:
+	ensure_loaded()
+	var clamped := clampi(region_id, 1, REGIONS.size())
+	if clamped > _max_unlocked_region:
+		_max_unlocked_region = clamped
+		save_to_disk()
+		return true
+	return false
 
 
 static func get_hero_theme(hero_id: String) -> Dictionary:
@@ -127,13 +193,13 @@ static func get_hero_theme(hero_id: String) -> Dictionary:
 static func get_pillar_names(hero_id: String) -> Array[String]:
 	match CharacterRegistry.normalize_id(hero_id):
 		"sylvara":
-			return ["I. Emerald Storm", "II. Gale Phantom", "III. Sun Executioner"]
+			return ["I. Tempest Volley", "II. Trap & Venom", "III. Storm Sniper"]
 		"knight":
-			return ["I. Swordmaster", "II. Lion Bastion", "III. Sky Vanguard"]
+			return ["I. Greatsword Cleave", "II. Lion Bastion", "III. Sky Crusader"]
 		"noa":
-			return ["I. Blood Empress", "II. Night Swarm", "III. White Sovereign"]
+			return ["I. Hemomancer", "II. Bat Empress", "III. Blood Reaper"]
 		_:
-			return ["I. Earthshaker", "II. Blood Frenzy", "III. Volcanic Lord"]
+			return ["I. Earthshaker", "II. Blood Berserker", "III. Volcanic Lord"]
 
 
 static func get_skill_nodes_for_hero(hero_id: String) -> Array[Dictionary]:
@@ -165,154 +231,154 @@ static func _make_node(id_str: String, row: int, col: int, pillar: int, icon_idx
 	}
 
 
-static func _nodes_sylvara() -> Array[Dictionary]:
-	return [
-		_make_node("solo_top", 0, 1, -1, 5, 1, "Windveil Mirage (OP)",
-			"After Shift ends, dodge 100% of ALL enemy projectiles for 1.0 full second!", [], false),
-		# Pillar 0: Emerald Storm (Multi-arrow & Starburst)
-		_make_node("p0_t1", 1, 0, 0, 1, 5, "Split-Tempest Volley",
-			"EVERY shot fires a multi-arrow fan (+2 arrows, +5 DMG/lv)!", ["solo_top"], true),
-		_make_node("p0_t2", 2, 0, 0, 10, 5, "Piercing Thorn-Flight",
-			"All quick & fan arrows PIERCE through every enemy (+4 DMG/lv)!", ["p0_t1"], false),
-		_make_node("p0_t3", 3, 0, 0, 8, 5, "Emerald Starburst",
-			"Arrows detonate on impact in a 56px AoE blast for +55% (+12%/lv) DMG!", ["p0_t2"], true),
-		_make_node("p0_t4", 4, 0, 0, 14, 5, "Zero-Draw Stormbow",
-			"Cut bow charge & fire cooldown by 55% and gain +10 Attack DMG/lv!", ["p0_t3"], true),
-		# Pillar 1: Gale Phantom (Mobility, Poison Snare & Twin Shadow)
-		_make_node("p1_t1", 1, 1, 1, 11, 5, "Zephyr Vault",
-			"-12% Shift cooldown/lv, +18 Move Speed/lv, & Shift restores 12 HP!", ["solo_top"], false),
-		_make_node("p1_t2", 2, 1, 1, 2, 5, "Briar Root-Venom",
-			"Arrows snare foes by 55% and inflict 12 (+5/lv) Venom burst damage!", ["p1_t1"], false),
-		_make_node("p1_t3", 3, 1, 1, 3, 5, "Twin Phantom Bow",
-			"Every bow shot fires a second Shadow Great-Arrow for 60% (+10%/lv) DMG!", ["p1_t2"], true),
-		_make_node("p1_t4", 4, 1, 1, 12, 5, "Immortal Windrunner",
-			"+22 Max HP/lv, +20% Energy Regen/lv, and kills instantly reset Shift!", ["p1_t3"], false),
-		# Pillar 2: Sun Executioner (Crit & Instant Execute)
-		_make_node("p2_t1", 1, 2, 2, 4, 5, "Heartseeker Critical",
-			"Arrows gain 35% (+10%/lv) Crit Chance to strike for 2.5x DAMAGE!", ["solo_top"], true),
-		_make_node("p2_t2", 2, 2, 2, 0, 5, "Solar Great-Arrow",
-			"Charged Great-Arrows deal +14 DMG/lv and stun enemies for 0.8s!", ["p2_t1"], true),
-		_make_node("p2_t3", 3, 2, 2, 9, 5, "Verdant Executioner",
-			"Instantly EXECUTE non-boss enemies below 30% (+4%/lv) HP on hit!", ["p2_t2"], true),
-		_make_node("p2_t4", 4, 2, 2, 15, 5, "Avatar of the Sunwood",
-			"+12 Attack DMG/lv & +25% total bow damage multiplier!", ["p2_t3"], true),
-		# Converged Bottom Solo Ultimate (`dovomin taki`)
-		_make_node("solo_bottom", 5, 1, -1, 14, 1, "Starlight Auto-Barrage (OP)",
-			"ULTIMATE: Auto-aims at nearby foes and fires at blazing speed for 30% Attack DMG per arrow!",
-			["p0_t4", "p1_t4", "p2_t4"], true),
-	]
-
-
 static func _nodes_behemoth() -> Array[Dictionary]:
 	return [
-		_make_node("solo_top", 0, 1, -1, 0, 1, "Unstoppable Savage (OP)",
-			"After Shift ends, dodge 100% of projectiles & attacks for 1.0s + ground-slam!", [], false),
-		# Pillar 0: Earthshaker
-		_make_node("p0_t1", 1, 0, 0, 1, 5, "Seismic Bare-Knuckles",
-			"Every punch unleashes a 72px Earth Shockwave (+6 Attack DMG/lv)!", ["solo_top"], true),
-		_make_node("p0_t2", 2, 0, 0, 9, 5, "Skullcrusher Concussion",
-			"Punches & Charge stun +0.35s longer/lv and deal +35% bonus stun DMG!", ["p0_t1"], true),
-		_make_node("p0_t3", 3, 0, 0, 8, 5, "Meteor Shoulder-Slam",
-			"Shift Charge detonates a 96px molten crater for 40 (+15/lv) AoE DMG!", ["p0_t2"], true),
-		_make_node("p0_t4", 4, 0, 0, 13, 5, "Titan Worldbreaker",
-			"+14 Attack DMG/lv, +25 Max HP/lv, and 2x Uppercut shockwave size!", ["p0_t3"], true),
-		# Pillar 1: Blood Frenzy
-		_make_node("p1_t1", 1, 1, 1, 5, 5, "Primal Berserk Speed",
-			"+12% faster Punch Speed/lv and +14 Move Speed/lv!", ["solo_top"], false),
-		_make_node("p1_t2", 2, 1, 1, 6, 5, "Savage Feast",
-			"Every punch heals +4 (+2/lv) HP and kills restore 18% Max HP!", ["p1_t1"], false),
-		_make_node("p1_t3", 3, 1, 1, 10, 5, "Deathless Rampage",
-			"Deal +60% (+15%/lv) bonus DMG when below 60% HP & halve Shift cooldown!", ["p1_t2"], true),
-		_make_node("p1_t4", 4, 1, 1, 15, 5, "Chieftain's Bloodbath",
-			"+30 Max HP/lv, +10 Attack DMG/lv, & kills reset Shift cooldown!", ["p1_t3"], true),
-		# Pillar 2: Volcanic Lord
-		_make_node("p2_t1", 1, 2, 2, 3, 5, "Magma Fists",
-			"Punches hurl a piercing FireWave forward for 22 (+8/lv) DMG!", ["solo_top"], true),
-		_make_node("p2_t2", 2, 2, 2, 7, 5, "Obsidian Muscle Hide",
-			"+24 Max HP/lv & attackers suffer 20 (+8/lv) volcanic thorns DMG!", ["p2_t1"], false),
-		_make_node("p2_t3", 3, 2, 2, 14, 5, "Inferno Eruption",
-			"Every 3rd combo hit calls down a Volcanic Pillar for 45 (+12/lv) DMG!", ["p2_t2"], true),
+		_make_node("solo_top", 0, 1, -1, 0, 1, "Unstoppable Invincibility",
+			"After Shift ends, Behemoth becomes 100% INVINCIBLE to all damage for 1.0s!", [], false),
+		# Pillar 0: Earthshaker Titan (Ground Fissures, Pull & Concussion)
+		_make_node("p0_t1", 1, 0, 0, 1, 5, "Seismic Knuckles",
+			"Every punch unleashes a 76px Earth Shockwave & +14 Attack DMG/lv!", ["solo_top"], true),
+		_make_node("p0_t2", 2, 0, 0, 9, 5, "Skullcrusher Stun",
+			"Stuns last +0.4s/lv longer & deal +40% (+12%/lv) bonus DMG to stunned foes!", ["p0_t1"], true),
+		_make_node("p0_t3", 3, 0, 0, 8, 5, "Tectonic Crater Pull",
+			"Shift & Uppercut pull nearby foes inward and erupt a 96px Rock Crater (+25 DMG/lv)!", ["p0_t2"], true),
+		_make_node("p0_t4", 4, 0, 0, 13, 5, "Worldbreaker Colossus",
+			"+55 Max HP/lv, +26 Attack DMG/lv, & 2x Shockwave radius!", ["p0_t3"], true),
+		# Pillar 1: Blood Berserker (360 Whirlwind, Missing-HP Frenzy & Rampage)
+		_make_node("p1_t1", 1, 1, 1, 5, 5, "Primal Savagery",
+			"+16% Attack Speed/lv & +16 Move Speed/lv!", ["solo_top"], false),
+		_make_node("p1_t2", 2, 1, 1, 6, 5, "Whirlwind Cleave",
+			"Every 2nd swing spins a 360° Barbarian Cleave & heals +6 (+4/lv) HP!", ["p1_t1"], false),
+		_make_node("p1_t3", 3, 1, 1, 10, 5, "Undying Blood-Frenzy",
+			"Gain up to +90% (+22%/lv) bonus DMG as HP drops & halve Shift cooldown!", ["p1_t2"], true),
+		_make_node("p1_t4", 4, 1, 1, 15, 5, "Chieftain's Rampage",
+			"+60 Max HP/lv, +24 Attack DMG/lv, & kills reset Shift + heal 20% Max HP!", ["p1_t3"], true),
+		# Pillar 2: Volcanic Lord (Ignite Burn DoT, Thorns & Lava Eruptions — NO arrows!)
+		_make_node("p2_t1", 1, 2, 2, 3, 5, "Molten Knuckles",
+			"Punches IGNITE foes with stacking Burn DoT (18 + 14/lv DPS) & +12 DMG/lv!", ["solo_top"], true),
+		_make_node("p2_t2", 2, 2, 2, 7, 5, "Magma Carapace",
+			"+50 Max HP/lv & attackers suffer 30 (+18/lv) Volcanic Thorns + Ignite!", ["p2_t1"], false),
+		_make_node("p2_t3", 3, 2, 2, 14, 5, "Volcanic Eruption",
+			"Every 3rd combo hit calls down a Magma Pillar for 65 (+28/lv) AoE DMG!", ["p2_t2"], true),
 		_make_node("p2_t4", 4, 2, 2, 4, 5, "Avatar of Ragnarok",
-			"+15 Attack DMG/lv & slain enemies explode in a 80px Fireball!", ["p2_t3"], true),
-		# Converged Bottom Solo Ultimate
-		_make_node("solo_bottom", 5, 1, -1, 14, 1, "Cataclysmic Tremor Aura (OP)",
-			"ULTIMATE: Auto-slams nearby enemies at blistering speed for 40% Attack DMG per tremor!",
+			"+30 Attack DMG/lv & slain enemies explode in an 88px Lava Fireball!", ["p2_t3"], true),
+		# Converged [R] Ultimate
+		_make_node("solo_bottom", 5, 1, -1, 14, 1, "[R] Infernal Rage",
+			"UNLOCKS [R]: Engulfs Behemoth in roaring flames & DOUBLES (2x) ALL DAMAGE for 8s!",
 			["p0_t4", "p1_t4", "p2_t4"], true),
 	]
 
 
 static func _nodes_knight() -> Array[Dictionary]:
 	return [
-		_make_node("solo_top", 0, 1, -1, 7, 1, "Crusader's Holy Aegis (OP)",
-			"After Shift ends, reflect & dodge 100% of projectiles for 1.0s in golden light!", [], false),
-		# Pillar 0: Swordmaster
-		_make_node("p0_t1", 1, 0, 0, 4, 5, "Sacred Sword-Beam",
-			"Every Greatsword swing fires a piercing Holy Crescent Beam (+6 DMG/lv)!", ["solo_top"], true),
-		_make_node("p0_t2", 2, 0, 0, 1, 5, "Grandmaster Cleave",
-			"+45% Spin Slash AoE radius & +7 Attack DMG/lv!", ["p0_t1"], true),
+		_make_node("solo_top", 0, 1, -1, 7, 1, "Sacred Aegis Shield",
+			"Surrounds Knight with a glowing Sacred Shield Barrier that absorbs hits & surges on Shift!", [], false),
+		# Pillar 0: Greatsword Cleave (Pure Melee Mastery, Sunder & 360 Spin — ZERO arrows!)
+		_make_node("p0_t1", 1, 0, 0, 1, 5, "Sweeping Greatsword",
+			"+45% wider Greatsword Cleave arc & +15 Attack DMG/lv!", ["solo_top"], true),
+		_make_node("p0_t2", 2, 0, 0, 4, 5, "Armor-Sundering Steel",
+			"Consecutive hits crack enemy armor (+14%/lv bonus DMG taken) & +12 DMG/lv!", ["p0_t1"], true),
 		_make_node("p0_t3", 3, 0, 0, 8, 5, "Templar Verdict Crit",
 			"40% (+10%/lv) Crit Chance for 2.5x Holy Greatsword Damage!", ["p0_t2"], true),
-		_make_node("p0_t4", 4, 0, 0, 10, 5, "Excalibur Awakened",
-			"-35% attack cooldown & +14 Attack DMG/lv!", ["p0_t3"], true),
-		# Pillar 1: Lion Bastion
+		_make_node("p0_t4", 4, 0, 0, 10, 5, "Excalibur Whirlwind",
+			"+35% Attack Speed, +28 DMG/lv, & every 3rd slash spins a 360° Golden Cleave!", ["p0_t3"], true),
+		# Pillar 1: Lion Bastion (Fortress Shield, Counter-Shockwave & Consecrated Ground)
 		_make_node("p1_t1", 1, 1, 1, 6, 5, "Golden Lion Plate",
-			"+30 Max HP/lv, +2 Flat Armor/lv, & -50% Shield Energy drain!", ["solo_top"], false),
-		_make_node("p1_t2", 2, 1, 1, 13, 5, "Roar of Retribution",
-			"Blocking any hit blasts nearby foes for 35 (+12/lv) Holy Lion DMG!", ["p1_t1"], false),
-		_make_node("p1_t3", 3, 1, 1, 12, 5, "Consecrated Crusader",
-			"Regenerate 6 (+3/lv) HP every second & burn nearby enemies!", ["p1_t2"], false),
-		_make_node("p1_t4", 4, 1, 1, 7, 5, "Unbreakable Citadel",
-			"Shield NEVER exhausts, +35 Max HP/lv, & +8 Attack DMG/lv!", ["p1_t3"], false),
-		# Pillar 2: Sky Vanguard
+			"+60 Max HP/lv, +4 Flat Armor/lv, & -50% Shield Energy drain!", ["solo_top"], false),
+		_make_node("p1_t2", 2, 1, 1, 13, 5, "Lion's Roar Counter",
+			"Blocking any hit blasts nearby foes (115px) for 50 (+24/lv) Holy Shockwave DMG!", ["p1_t1"], false),
+		_make_node("p1_t3", 3, 1, 1, 12, 5, "Consecrated Sanctuary",
+			"Holy ground aura heals +10 (+6/lv) HP/sec & burns nearby monsters!", ["p1_t2"], false),
+		_make_node("p1_t4", 4, 1, 1, 7, 5, "Unbreakable Phalanx",
+			"Shield NEVER exhausts, +70 Max HP/lv, & +20 Attack DMG/lv!", ["p1_t3"], false),
+		# Pillar 2: Sky Crusader (Shield-Ram, Sky Lightning Pillar & Execute)
 		_make_node("p2_t1", 1, 2, 2, 11, 5, "Thunder Shield-Ram",
-			"+14 Move Speed/lv, -12% Shift cooldown/lv, & +12 Shift Ram DMG/lv!", ["solo_top"], false),
-		_make_node("p2_t2", 2, 2, 2, 3, 5, "Heavensfall Smite",
-			"Shift arrival strikes foes with Celestial Lightning for 42 (+14/lv) DMG!", ["p2_t1"], true),
-		_make_node("p2_t3", 3, 2, 2, 9, 5, "Crusader's Judgment",
-			"Stun hit foes during Shift for 1.5s & execute foes under 28% HP!", ["p2_t2"], true),
+			"+16 Move Speed/lv, -12% Shift CD/lv, & +24 Shift Ram DMG/lv!", ["solo_top"], false),
+		_make_node("p2_t2", 2, 2, 2, 3, 5, "Heavensfall Lightning",
+			"Shift landing calls down a Sky Lightning Pillar for 65 (+28/lv) AoE DMG!", ["p2_t1"], true),
+		_make_node("p2_t3", 3, 2, 2, 9, 5, "Chains of Judgment",
+			"Shift stuns foes for 1.6s & executes non-boss enemies under 28% HP!", ["p2_t2"], true),
 		_make_node("p2_t4", 4, 2, 2, 14, 5, "Solaris Grand Paladin",
-			"+12 Attack DMG/lv, +100% Energy Regen, & kills reset Shift!", ["p2_t3"], true),
-		# Converged Bottom Solo Ultimate
-		_make_node("solo_bottom", 5, 1, -1, 14, 1, "Storm of Sacred Blades (OP)",
-			"ULTIMATE: Auto-fires radiant judgment blades at nearby foes at high speed for 35% Attack DMG!",
+			"+26 Attack DMG/lv, +100% Energy Regen, & kills reset Shift!", ["p2_t3"], true),
+		# Converged [R] Ultimate (`banner + 1 allied knight, 7s dur, 1min CD`!)
+		_make_node("solo_bottom", 5, 1, -1, 15, 1, "[R] Royal War Banner",
+			"UNLOCKS [R]: Plants a Lion Banner & summons 1 Allied Knight to fight for 7s (60s CD)!",
+			["p0_t4", "p1_t4", "p2_t4"], true),
+	]
+
+
+static func _nodes_sylvara() -> Array[Dictionary]:
+	return [
+		_make_node("solo_top", 0, 1, -1, 5, 1, "Windveil Mirage",
+			"After Shift ends, Sylvara dodges 100% of ALL enemy projectiles for 1.0s!", [], false),
+		# Pillar 0: Tempest Volley (Multishot Fan, Piercing & Starburst AoE)
+		_make_node("p0_t1", 1, 0, 0, 1, 5, "Split-Tempest Volley",
+			"EVERY shot fires a multi-arrow fan (+2 arrows, +10 DMG/lv)!", ["solo_top"], true),
+		_make_node("p0_t2", 2, 0, 0, 10, 5, "Thorn-Pierce Flight",
+			"All arrows PIERCE through enemies & gain +9 Attack DMG/lv!", ["p0_t1"], false),
+		_make_node("p0_t3", 3, 0, 0, 8, 5, "Emerald Starburst",
+			"Arrows detonate on hit in a 58px AoE blast for +65% (+15%/lv) DMG!", ["p0_t2"], true),
+		_make_node("p0_t4", 4, 0, 0, 14, 5, "Zero-Draw Stormbow",
+			"Cut bow charge & fire cooldown by 55% and gain +22 Attack DMG/lv!", ["p0_t3"], true),
+		# Pillar 1: Trap & Venom Warden (Bramble Traps, Venom Snare & Ricochet)
+		_make_node("p1_t1", 1, 1, 1, 11, 5, "Bramble Snare Vault",
+			"+18 Move Speed/lv, -12% Shift CD/lv, & Shift drops a Thorny Bramble Trap!", ["solo_top"], false),
+		_make_node("p1_t2", 2, 1, 1, 2, 5, "Venomvine Arrows",
+			"Arrows slow foes by 55% & inject 16 (+12/lv) Venom burst damage!", ["p1_t1"], false),
+		_make_node("p1_t3", 3, 1, 1, 3, 5, "Ricochet Wind-Shot",
+			"Arrows BOUNCE to a 2nd nearby enemy for 80% (+10%/lv) DMG!", ["p1_t2"], true),
+		_make_node("p1_t4", 4, 1, 1, 12, 5, "Warden of the Wilds",
+			"+42 Max HP/lv, +25% Energy Regen/lv, & kills reset Shift + heal 10 HP!", ["p1_t3"], false),
+		# Pillar 2: Storm Sniper (2.5x Crits, Chain Lightning & Longshot Execute)
+		_make_node("p2_t1", 1, 2, 2, 4, 5, "Eagle-Eye Critical",
+			"Arrows gain 35% (+10%/lv) Crit Chance to strike for 2.5x DAMAGE!", ["solo_top"], true),
+		_make_node("p2_t2", 2, 2, 2, 0, 5, "Chain-Lightning Arrows",
+			"Arrows arc Lightning to 2 nearby foes (60% +12%/lv DMG) & stun on charge!", ["p2_t1"], true),
+		_make_node("p2_t3", 3, 2, 2, 9, 5, "Heartseeker Execute",
+			"+Up to 45% Longshot DMG & instantly EXECUTE creeps below 30% (+4%/lv) HP!", ["p2_t2"], true),
+		_make_node("p2_t4", 4, 2, 2, 15, 5, "Avatar of the Hunt",
+			"+24 Attack DMG/lv & +30% total bow damage multiplier!", ["p2_t3"], true),
+		# Converged [R] Ultimate (`Press R -> lock onto 1 enemy & rapid-spam arrows!`)
+		_make_node("solo_bottom", 5, 1, -1, 14, 1, "[R] Hunter's Rapid Lock-On",
+			"UNLOCKS [R]: Selects 1 enemy & auto-spams rapid homing arrows onto them!",
 			["p0_t4", "p1_t4", "p2_t4"], true),
 	]
 
 
 static func _nodes_noa() -> Array[Dictionary]:
 	return [
-		_make_node("solo_top", 0, 1, -1, 2, 1, "Aristocrat's Mist Veil (OP)",
-			"After Bat-Swarm Shift ends, dodge 100% of projectiles & hits for 1.0s!", [], false),
-		# Pillar 0: Blood Empress
-		_make_node("p0_t1", 1, 0, 0, 6, 5, "Royal Blood-Pact",
-			"Blood-Splash costs ZERO self-HP and heals +3 (+2/lv) extra HP per hit!", ["solo_top"], true),
-		_make_node("p0_t2", 2, 0, 0, 3, 5, "Crimson Fountain Mastery",
-			"30% Max-HP Blood Fountain erupts in HALF the hits (every 2nd hit)!", ["p0_t1"], true),
-		_make_node("p0_t3", 3, 0, 0, 1, 5, "Tidal Scarlet Arc",
-			"+22px Blood-Splash reach/lv & +7 Attack DMG/lv!", ["p0_t2"], true),
-		_make_node("p0_t4", 4, 0, 0, 12, 5, "Empress of Eternal Vitae",
-			"+24 Max HP/lv & +14 Attack DMG/lv!", ["p0_t3"], true),
-		# Pillar 1: Night Swarm
-		_make_node("p1_t1", 1, 1, 1, 5, 5, "Ravenous Nightwings",
-			"Bat-Swarm Shift bites enemies along your path for 26 (+10/lv) DMG + heals!", ["solo_top"], true),
-		_make_node("p1_t2", 2, 1, 1, 11, 5, "Velvet Gale Steps",
-			"+16 Move Speed/lv & -12% Bat-Swarm Shift cooldown/lv!", ["p1_t1"], false),
-		_make_node("p1_t3", 3, 1, 1, 10, 5, "Seeker Bat Familiars",
-			"Every attack unleashes homing Vampire Bats dealing +50% (+12%/lv) DMG!", ["p1_t2"], true),
-		_make_node("p1_t4", 4, 1, 1, 15, 5, "Sovereign of Midnight",
-			"Kills instantly reset Bat-Swarm Shift & +12 Attack DMG/lv!", ["p1_t3"], true),
-		# Pillar 2: White Sovereign
-		_make_node("p2_t1", 1, 2, 2, 13, 5, "Ruby Tiara Decree",
-			"+35% faster Blood-Splash speed & +6 Attack DMG/lv!", ["solo_top"], true),
-		_make_node("p2_t2", 2, 2, 2, 8, 5, "White-Rose Blood Crit",
-			"40% (+10%/lv) Crit Chance for 2.5x Crimson Damage!", ["p2_t1"], true),
-		_make_node("p2_t3", 3, 2, 2, 9, 5, "Noble Execution",
-			"Slain enemies explode in a 85px Crimson Rose Nova for 42 (+12/lv) DMG!", ["p2_t2"], true),
-		_make_node("p2_t4", 4, 2, 2, 14, 5, "Immortal Royal Vampire",
-			"+25 Max HP/lv, +14 Attack DMG/lv, & +4 Drain Heal/hit!", ["p2_t3"], true),
-		# Converged Bottom Solo Ultimate
-		_make_node("solo_bottom", 5, 1, -1, 14, 1, "Royal Crimson Cataclysm (OP)",
-			"ULTIMATE: Ruby Crown auto-fires rapid Blood Lances at nearby foes for 30% Attack DMG + Life Drain!",
+		_make_node("solo_top", 0, 1, -1, 6, 1, "Sanguine 1% HP Bite",
+			"Attacks gain Vampiric Lifesteal equal to 1% of the hit enemy's Max HP!", [], true),
+		# Pillar 0: Crimson Hemomancer (8-Hit Blood Fountain Mastery & Contagion)
+		_make_node("p0_t1", 1, 0, 0, 2, 5, "Accelerated Fangs",
+			"Every 2nd hit inflicts +1 bonus Fang Stack toward the 8-hit burst & +12 DMG/lv!", ["solo_top"], true),
+		_make_node("p0_t2", 2, 0, 0, 3, 5, "Gushing Artery",
+			"8-Hit Blood Fountain deals +6%/lv extra Enemy Max HP & +4%/lv Lifesteal!", ["p0_t1"], true),
+		_make_node("p0_t3", 3, 0, 0, 1, 5, "Scarlet Contagion",
+			"+22px Blood-Splash reach/lv, +15 DMG/lv, & kills spread 4 Fang Stacks!", ["p0_t2"], true),
+		_make_node("p0_t4", 4, 0, 0, 12, 5, "Empress of Vitae",
+			"+48 Max HP/lv & +26 Attack DMG/lv!", ["p0_t3"], true),
+		# Pillar 1: Bat Empress (Damaging Mist-Shift & Orbiting Bat Familiars)
+		_make_node("p1_t1", 1, 1, 1, 5, 5, "Ravenous Bat-Shift",
+			"Bat-Swarm Shift bites foes for 32 (+18/lv) DMG & applies 2 Fang Stacks!", ["solo_top"], true),
+		_make_node("p1_t2", 2, 1, 1, 11, 5, "Midnight Haste",
+			"+18 Move Speed/lv & -12% Bat-Swarm Shift cooldown/lv!", ["p1_t1"], false),
+		_make_node("p1_t3", 3, 1, 1, 10, 5, "Orbiting Bat Familiars",
+			"Summons 3 Crimson Bats around Noa that bite nearby foes (+16 DMG/lv + Stacks)!", ["p1_t2"], true),
+		_make_node("p1_t4", 4, 1, 1, 15, 5, "Queen of Midnight",
+			"+42 Max HP/lv, +22 DMG/lv, & kills instantly reset Bat-Swarm Shift!", ["p1_t3"], true),
+		# Pillar 2: Phantom Blood-Reaper (Attack Speed, 2.5x Crits & Corpse Blood-Novas)
+		_make_node("p2_t1", 1, 2, 2, 13, 5, "Frenzied Claws",
+			"+16% faster Blood-Splash speed/lv & +12 Attack DMG/lv!", ["solo_top"], true),
+		_make_node("p2_t2", 2, 2, 2, 8, 5, "Crimson Rose Crit",
+			"38% (+10%/lv) Crit Chance for 2.5x Crimson Slash Damage!", ["p2_t1"], true),
+		_make_node("p2_t3", 3, 2, 2, 9, 5, "Corpse Exsanguination",
+			"Slain foes explode in an 88px Blood Mist Nova for 52 (+24/lv) AoE DMG!", ["p2_t2"], true),
+		_make_node("p2_t4", 4, 2, 2, 14, 5, "Immortal Reaper",
+			"+50 Max HP/lv, +26 DMG/lv, & +50% DMG to enemies below 40% HP!", ["p2_t3"], true),
+		# Converged [R] Ultimate (`Toggle ON/OFF Blood Circle: 1% self drain, 1% enemy DPS, 1% lifesteal!`)
+		_make_node("solo_bottom", 5, 1, -1, 14, 1, "[R] Sanguine Rain (Toggle)",
+			"UNLOCKS [R] TOGGLE: Pours blood in a circle (1% self HP/s, 1% foe HP DPS, +1% Lifesteal/hit)!",
 			["p0_t4", "p1_t4", "p2_t4"], true),
 	]
 
@@ -335,6 +401,11 @@ static func load_from_disk(custom_path: String = "") -> void:
 		save_path = custom_path
 	_loaded = true
 	_reagents = 0
+	_max_unlocked_region = 1
+	wizard_cheat_active = false
+	_pre_wizard_snapshot_taken = false
+	_pre_wizard_points.clear()
+	_pre_wizard_nodes.clear()
 	_hero_points.clear()
 	_hero_nodes.clear()
 
@@ -351,6 +422,7 @@ static func load_from_disk(custom_path: String = "") -> void:
 	var saved_hero := String(cfg.get_value("profile", "selected_hero", CharacterRegistry.selected_id))
 	CharacterRegistry.selected_id = String(CharacterRegistry.get_entry(saved_hero)["id"])
 	_reagents = maxi(int(cfg.get_value("profile", "reagents", 0)), 0)
+	_max_unlocked_region = clampi(int(cfg.get_value("profile", "max_unlocked_region", 1)), 1, REGIONS.size())
 
 	master_volume = clampf(float(cfg.get_value("settings", "master_volume", 1.0)), 0.0, 1.0)
 	sfx_volume = clampf(float(cfg.get_value("settings", "sfx_volume", 1.0)), 0.0, 1.0)
@@ -373,9 +445,12 @@ static func load_from_disk(custom_path: String = "") -> void:
 
 static func save_to_disk() -> void:
 	ensure_loaded()
+	if wizard_cheat_active:
+		return
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "selected_hero", CharacterRegistry.selected_id)
 	cfg.set_value("profile", "reagents", _reagents)
+	cfg.set_value("profile", "max_unlocked_region", _max_unlocked_region)
 
 	cfg.set_value("settings", "master_volume", master_volume)
 	cfg.set_value("settings", "sfx_volume", sfx_volume)
@@ -453,6 +528,8 @@ static func brew_all_potions_for_hero(hero_id: String) -> int:
 
 static func get_brew_points(hero_id: String) -> int:
 	ensure_loaded()
+	if wizard_cheat_active:
+		return INFINITE_CHEAT_POINTS
 	var hid := String(CharacterRegistry.get_entry(hero_id)["id"])
 	return int(_hero_points.get(hid, STARTING_BREW_POINTS))
 
@@ -464,19 +541,43 @@ static func add_brew_points(hero_id: String, amount: int = 1) -> int:
 	var hid := String(CharacterRegistry.get_entry(hero_id)["id"])
 	_hero_points[hid] = int(_hero_points.get(hid, STARTING_BREW_POINTS)) + amount
 	save_to_disk()
-	return int(_hero_points[hid])
+	return get_brew_points(hid)
 
 
-static func grant_wizard_points(amount: int = 10000) -> void:
+static func enable_wizard_cheat() -> void:
 	ensure_loaded()
+	if not _pre_wizard_snapshot_taken:
+		_pre_wizard_points = _hero_points.duplicate(true)
+		_pre_wizard_nodes = _hero_nodes.duplicate(true)
+		_pre_wizard_snapshot_taken = true
+	wizard_cheat_active = true
 	for entry in CharacterRegistry.CHARACTERS:
 		var hid := String(entry["id"])
-		_hero_points[hid] = int(_hero_points.get(hid, 0)) + maxi(amount, 0)
+		_hero_points[hid] = INFINITE_CHEAT_POINTS
+
+
+static func grant_wizard_points(_amount: int = 10000) -> void:
+	enable_wizard_cheat()
+
+
+static func disable_all_cheats() -> void:
+	ensure_loaded()
+	wizard_cheat_active = false
+	if _pre_wizard_snapshot_taken:
+		_hero_points = _pre_wizard_points.duplicate(true)
+		_hero_nodes = _pre_wizard_nodes.duplicate(true)
+		_pre_wizard_snapshot_taken = false
+		_pre_wizard_points.clear()
+		_pre_wizard_nodes.clear()
 	save_to_disk()
 
 
 static func reset_all_heroes() -> void:
 	ensure_loaded()
+	wizard_cheat_active = false
+	_pre_wizard_snapshot_taken = false
+	_pre_wizard_points.clear()
+	_pre_wizard_nodes.clear()
 	_reagents = 0
 	for entry in CharacterRegistry.CHARACTERS:
 		var hid := String(entry["id"])
@@ -501,7 +602,8 @@ static func reset_hero_tree(hero_id: String) -> int:
 	var refund := get_spent_points(hid)
 	if refund <= 0:
 		return 0
-	_hero_points[hid] = int(_hero_points.get(hid, 0)) + refund
+	if not wizard_cheat_active:
+		_hero_points[hid] = int(_hero_points.get(hid, 0)) + refund
 	_hero_nodes[hid] = _make_empty_node_map()
 	save_to_disk()
 	return refund
@@ -528,7 +630,6 @@ static func get_node_max_level(hero_id: String, node_id: String) -> int:
 	return int(meta.get("max_level", MAX_NODE_LEVEL))
 
 
-## Returns `0`, `1`, or `2` once the hero has invested in one of the 3 Pillars, or `-1` if none chosen yet.
 static func get_chosen_pillar(hero_id: String) -> int:
 	ensure_loaded()
 	for p in range(3):
@@ -579,7 +680,8 @@ static func upgrade_node(hero_id: String, node_id: String) -> bool:
 	if not can_upgrade_node(hero_id, node_id):
 		return false
 	var hid := String(CharacterRegistry.get_entry(hero_id)["id"])
-	_hero_points[hid] = maxi(int(_hero_points.get(hid, 0)) - 1, 0)
+	if not wizard_cheat_active:
+		_hero_points[hid] = maxi(int(_hero_points.get(hid, 0)) - 1, 0)
 	var map: Dictionary = _hero_nodes.get(hid, _make_empty_node_map())
 	var max_lv := get_node_max_level(hid, node_id)
 	map[node_id] = clampi(int(map.get(node_id, 0)) + 1, 0, max_lv)
@@ -587,10 +689,6 @@ static func upgrade_node(hero_id: String, node_id: String) -> bool:
 	save_to_disk()
 	return true
 
-
-# =====================================================================
-# APPLY OP SKILLS & STAT MODIFIERS TO LIVE HERO INSTANCE
-# =====================================================================
 
 static func apply_to_hero_instance(hero: Node) -> void:
 	if hero == null or not is_instance_valid(hero):

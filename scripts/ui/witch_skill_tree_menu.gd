@@ -621,10 +621,13 @@ func _refresh_nodes() -> void:
 	_close_btn.add_theme_stylebox_override("normal", _make_bevel_box(stone_mid, stone_rim, 4, 2))
 	_close_btn.add_theme_stylebox_override("hover", _make_bevel_box(pri.darkened(0.45), sec, 4, 2))
 
-	var has_spent := WitchCauldronProgression.get_spent_points(_hero_id) > 0
+	var spent_pts := WitchCauldronProgression.get_spent_points(_hero_id)
+	var has_spent := spent_pts > 0
 	_reset_btn.disabled = not has_spent
-	_reset_btn.add_theme_stylebox_override("normal", _make_bevel_box(stone_mid, stone_rim, 5, 2))
-	_reset_btn.add_theme_stylebox_override("hover", _make_bevel_box(pri.darkened(0.45), sec, 5, 2))
+	_reset_btn.text = ("↺ Reset Points (+%d)" % spent_pts) if has_spent else "↺ Reset Points"
+	_reset_btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.55) if has_spent else Color(0.58, 0.60, 0.68))
+	_reset_btn.add_theme_stylebox_override("normal", _make_bevel_box(Color(0.34, 0.16, 0.12) if has_spent else stone_mid, Color(1.0, 0.80, 0.34) if has_spent else stone_rim, 5, 2))
+	_reset_btn.add_theme_stylebox_override("hover", _make_bevel_box(Color(0.52, 0.22, 0.14), Color.WHITE, 5, 2))
 	_reset_btn.add_theme_stylebox_override("disabled", _make_bevel_box(stone_dark, Color(0.24, 0.24, 0.30), 5, 2))
 
 	_inspector_panel.add_theme_stylebox_override("panel", _make_bevel_box(stone_dark, stone_rim, 5, 2))

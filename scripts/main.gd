@@ -1,29 +1,30 @@
 extends Node2D
-## Root World Orchestrator (`Main`) — Medieval Guild Hub Lobby, Stage Progression, & Sandbox Arena.
+## Root World Orchestrator (`Main`) — Witch's Cottage Lobby, 3 Named Stage Regions, & Sandbox Arena!
 ##
 ## World Modes:
 ##   1. `LOBBY`:
-##      - Game starts in the playable Medieval Castle Guild Hall (`LobbyHub`)!
-##      - Walk up to the Oak Wardrobe (`Komod`) on the left to swap heroes.
-##      - Walk into the East Training Room to test combos, stuns, bow charges,
-##        and Noa's 2-Fang 30% Curse on the `TrainingDummy`.
-##      - Walk through the `"STAGES"` Gate to start Dungeon Stage progression.
-##      - Walk through the corner `"SANDBOX"` Door in the Training Room to enter
-##        the `1280x720` Arena Sandbox Map!
+##      - Witch's Cottage + Outdoor Woodland Yard (`LobbyHub`).
+##      - Approaching the Cauldron animates held items flying into the Cauldron & brews Majon.
+##      - Walking up to the `STAGES` Door opens `StageSelectMenu` showing the 3 Named Stage Maps!
+##      - Standing at the `SANDBOX` Gate fills a `3.0s` circular progress ring before entering Sandbox!
 ##   2. `STAGES`:
-##      - Progressive medieval dungeon stages (`Stage 1`, `Stage 2`, ...).
-##      - Clearing a stage awards an Upgrade AND spawns a physical `"NEXT STAGE"`
-##        Gate + `"LOBBY"` Return Door so you advance stage-by-stage at your pace.
+##      - Uses `StageMap` (`StageMapManager`) exclusively (`$Level` is strictly disabled!).
+##      - 3 Distinct Named Regions:
+##          * `1`: **Whispering Jungle** (Slimes, Archers, Golems & Forest Colossus)
+##          * `2`: **Cursed Bone Crypt** (Blink-Stalkers, Hex-Weavers, Phalanx & Malakor, Arch-Lich)
+##          * `3`: **Infernal Citadel**  (Hellfire Imps, Void Snipers, Juggernauts & Igniszar, Dreadlord)
+##      - Defeating a Region's Boss unlocks the next Region AND spawns a direct Next-Region Gate!
+##      - Spawned round-end doors register in `"stage_portals"` so `MiniMap` + `HeroHUD` point right to them!
 ##   3. `SANDBOX`:
-##      - Uses the classic `1280x720` Stone Arena Map (`Level`) with faded Mini-Map
-##        (`alpha = 0.42`), free wave combat, and a `"LOBBY"` Return Door (`Esc` also
-##        returns to the Guild Lobby anytime!).
+##      - Uses `$Level` exclusively (`map feli stage baray sand box bashe faqat`) with `full_map_aggro = true`.
 
 enum WorldMode { LOBBY, STAGES, SANDBOX }
 
 const DOOR_TEX_PATH := "res://assets/textures/lobby_door.png"
 const RevivalRitualFXScript := preload("res://scripts/fx/revival_ritual_fx.gd")
 const ReagentDropScript := preload("res://scripts/world/reagent_drop.gd")
+const StageMapManagerScript := preload("res://scripts/world/stage_map_manager.gd")
+const StageSelectMenuScript := preload("res://scripts/ui/stage_select_menu.gd")
 
 @onready var level_root: Node2D = $Level
 @onready var lobby_hub: Node2D = $LobbyHub
@@ -41,6 +42,10 @@ const ReagentDropScript := preload("res://scripts/world/reagent_drop.gd")
 @onready var pause_menu: PauseMenu = $UI/PauseMenu
 @onready var dev_console: DevConsole = $UI/DevConsole
 
+var stage_map: StageMapManager = null
+var stage_select_menu: StageSelectMenu = null
+var current_stage_region: int = 1
+
 var world_mode: int = WorldMode.LOBBY
 var total_damage_dealt: int = 0
 var last_hit_damage: int = 0
@@ -51,18 +56,32 @@ var _hurt_tween: Tween
 var game_is_over: bool = false
 
 var _arena_gates_root: Node2D = null
-var _next_stage_gate_pos: Vector2 = Vector2(640.0, 56.0)
-var _lobby_return_gate_pos: Vector2 = Vector2(64.0, 360.0)
+var _next_stage_gate_pos: Vector2 = Vector2(640.0, 62.0)
+var _next_region_gate_pos: Vector2 = Vector2(1208.0, 360.0)
+var _lobby_return_gate_pos: Vector2 = Vector2(72.0, 360.0)
 var _next_stage_gate_active: bool = false
+var _next_region_gate_active: bool = false
 var _lobby_return_gate_active: bool = false
+var _boss_killed_this_wave: bool = false
 var _portal_grace_left: float = 0.0
 var _retry_mode: int = WorldMode.LOBBY
 var _is_reviving: bool = false
 
 
 func _ready() -> void:
-	# Load persistent profile (last chosen Hero, per-hero Cauldron Skill Tree, & Settings)!
 	WitchCauldronProgression.load_from_disk()
+
+	stage_map = StageMapManagerScript.new()
+	stage_map.name = "StageMap"
+	stage_map.visible = false
+	add_child(stage_map)
+	move_child(stage_map, level_root.get_index() + 1)
+
+	stage_select_menu = StageSelectMenuScript.new()
+	stage_select_menu.name = "StageSelectMenu"
+	$UI.add_child(stage_select_menu)
+	stage_select_menu.region_chosen.connect(_on_stage_region_chosen)
+	stage_select_menu.menu_closed.connect(_on_stage_select_closed)
 
 	_arena_gates_root = Node2D.new()
 	_arena_gates_root.name = "ArenaGates"
@@ -107,7 +126,7 @@ func _ready() -> void:
 			lobby_hub.cauldron_opened.connect(open_cauldron_skill_tree)
 		if lobby_hub.has_signal("potion_brewed_in_world"):
 			lobby_hub.potion_brewed_in_world.connect(_on_world_potion_brewed)
-		lobby_hub.enter_stages_requested.connect(enter_stages)
+		lobby_hub.enter_stages_requested.connect(_on_lobby_stages_door_triggered)
 		lobby_hub.enter_sandbox_requested.connect(enter_sandbox)
 
 	if minimap != null:
@@ -120,19 +139,40 @@ func _ready() -> void:
 		if _retry_mode == WorldMode.SANDBOX:
 			enter_sandbox()
 		else:
-			enter_stages()
+			enter_stages(current_stage_region)
 	else:
 		enter_lobby(CharacterRegistry.selected_id)
 
 
 # =====================================================================
-# WORLD TRANSITIONS: LOBBY / STAGES / SANDBOX
+# WORLD TRANSITIONS: LOBBY / STAGES (3 NAMED MAPS) / SANDBOX (`$Level` ONLY)
 # =====================================================================
 
 func _get_lobby_bounds() -> Rect2:
 	if lobby_hub != null and "LOBBY_BOUNDS" in lobby_hub:
 		return lobby_hub.LOBBY_BOUNDS
 	return Rect2(0.0, 0.0, 480.0, 280.0)
+
+
+func _on_lobby_stages_door_triggered() -> void:
+	if game_is_over or stage_select_menu == null or stage_select_menu.is_open():
+		return
+	if player != null and "input_enabled" in player:
+		player.input_enabled = false
+	if lobby_hub != null:
+		lobby_hub.interactions_enabled = false
+	stage_select_menu.open_menu()
+
+
+func _on_stage_region_chosen(region_id: int) -> void:
+	enter_stages(region_id)
+
+
+func _on_stage_select_closed() -> void:
+	if player != null and is_instance_valid(player) and "input_enabled" in player and not game_is_over:
+		player.input_enabled = true
+	if lobby_hub != null and world_mode == WorldMode.LOBBY:
+		lobby_hub.interactions_enabled = true
 
 
 func enter_lobby(char_id: String = "") -> void:
@@ -145,13 +185,17 @@ func enter_lobby(char_id: String = "") -> void:
 		character_select_menu.hide_menu()
 	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
 		witch_skill_tree_menu.hide_menu()
+	if stage_select_menu != null and stage_select_menu.is_open():
+		stage_select_menu.close_menu()
 	if pause_menu != null and pause_menu.is_open():
 		pause_menu.close_menu()
 
 	wave_spawner.stop_spawning()
 	_clear_combat_enemies()
 	_clear_arena_gates()
-	_set_arena_level_active(false)
+	_set_sandbox_level_active(false)
+	if stage_map != null:
+		stage_map.deactivate_map()
 
 	var spawn_at := Vector2(214.0, 204.0)
 	if lobby_hub != null and "SPAWN_POINT" in lobby_hub:
@@ -172,9 +216,15 @@ func enter_lobby(char_id: String = "") -> void:
 	_sync_hero_hud(entry)
 
 
-func enter_stages() -> void:
+func enter_stages(region_id: int = 1) -> void:
+	var target_region := clampi(region_id, 1, 3)
+	if not WitchCauldronProgression.is_region_unlocked(target_region):
+		target_region = WitchCauldronProgression.get_max_unlocked_region()
+	current_stage_region = target_region
+
 	world_mode = WorldMode.STAGES
 	_retry_mode = WorldMode.STAGES
+	_boss_killed_this_wave = false
 	game_is_over = false
 	game_over_screen.visible = false
 	upgrade_menu.hide_menu()
@@ -182,6 +232,8 @@ func enter_stages() -> void:
 		character_select_menu.hide_menu()
 	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
 		witch_skill_tree_menu.hide_menu()
+	if stage_select_menu != null and stage_select_menu.is_open():
+		stage_select_menu.close_menu()
 	if pause_menu != null and pause_menu.is_open():
 		pause_menu.close_menu()
 
@@ -189,7 +241,11 @@ func enter_stages() -> void:
 		lobby_hub.deactivate_lobby()
 	_clear_combat_enemies()
 	_clear_arena_gates()
-	_set_arena_level_active(true)
+
+	# `$Level` is strictly disabled in `STAGES` (`map feli stage baray sand box bashe faqat`)!
+	_set_sandbox_level_active(false)
+	if stage_map != null:
+		stage_map.build_region(current_stage_region)
 
 	var entry := _replace_player_instance(CharacterRegistry.selected_id, true, Vector2(220.0, 360.0))
 	_apply_camera_bounds(Rect2(0.0, 0.0, 1280.0, 720.0))
@@ -198,11 +254,12 @@ func enter_stages() -> void:
 		minimap.visible = true
 		minimap.is_in_menu = false
 		minimap.modulate.a = minimap.faded_alpha
-		minimap.set_arena_refs(level_root, player)
+		minimap.set_arena_refs(stage_map, player)
 		minimap.set_player_accent(entry["accent"])
 
 	wave_label.visible = true
 	_sync_hero_hud(entry)
+	wave_spawner.stage_region_id = current_stage_region
 	wave_spawner.full_map_aggro = false
 	wave_spawner.wait_for_upgrades_between_waves = true
 	wave_spawner.start_spawning(true)
@@ -218,6 +275,8 @@ func enter_sandbox() -> void:
 		character_select_menu.hide_menu()
 	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
 		witch_skill_tree_menu.hide_menu()
+	if stage_select_menu != null and stage_select_menu.is_open():
+		stage_select_menu.close_menu()
 	if pause_menu != null and pause_menu.is_open():
 		pause_menu.close_menu()
 
@@ -225,7 +284,10 @@ func enter_sandbox() -> void:
 		lobby_hub.deactivate_lobby()
 	_clear_combat_enemies()
 	_clear_arena_gates()
-	_set_arena_level_active(true)
+
+	if stage_map != null:
+		stage_map.deactivate_map()
+	_set_sandbox_level_active(true)
 
 	var entry := _replace_player_instance(CharacterRegistry.selected_id, true, Vector2(320.0, 360.0))
 	_apply_camera_bounds(Rect2(0.0, 0.0, 1280.0, 720.0))
@@ -237,14 +299,16 @@ func enter_sandbox() -> void:
 		minimap.set_arena_refs(level_root, player)
 		minimap.set_player_accent(entry["accent"])
 
-	# Spawn a permanent LOBBY Return Door on the west side of the Sandbox Arena!
-	_spawn_arena_gate(_lobby_return_gate_pos, "LOBBY", 1, Color(0.52, 1.0, 0.88))
+	var sb_gate := _spawn_arena_gate(_lobby_return_gate_pos, "LOBBY", 1, Color(0.52, 1.0, 0.88), false)
+	if sb_gate != null:
+		sb_gate.set("is_sandbox_return_only", true)
 	_lobby_return_gate_active = true
 	_portal_grace_left = 0.65
 
 	wave_label.visible = true
 	_sync_hero_hud(entry)
 	_pop_wave_label("SANDBOX ARENA", Color(0.55, 1.0, 0.88, 0.95))
+	wave_spawner.stage_region_id = 1
 	wave_spawner.full_map_aggro = true
 	wave_spawner.wait_for_upgrades_between_waves = false
 	wave_spawner.start_spawning(true)
@@ -329,23 +393,28 @@ func _on_console_toggled(is_open_now: bool) -> void:
 			game_is_over
 			or (character_select_menu != null and bool(character_select_menu.is_open()))
 			or (witch_skill_tree_menu != null and witch_skill_tree_menu.is_open())
+			or (stage_select_menu != null and stage_select_menu.is_open())
 			or (pause_menu != null and pause_menu.is_open())
 		)
 		player.input_enabled = not menu_blocking
 
 
 func _on_console_wizard() -> void:
-	WitchCauldronProgression.grant_wizard_points(10000)
+	WitchCauldronProgression.enable_wizard_cheat()
+	if player != null and is_instance_valid(player):
+		player.current_health = player.max_health
+		WitchCauldronProgression.apply_to_hero_instance(player)
 	if witch_skill_tree_menu != null:
 		witch_skill_tree_menu.refresh_if_open()
-	if hero_hud != null:
+	if stage_select_menu != null and stage_select_menu.is_open():
+		stage_select_menu.open_menu()
+	if hero_hud != null and player != null:
+		hero_hud.set_health_values(int(player.current_health), int(player.max_health))
 		hero_hud.queue_redraw()
-	if player != null and is_instance_valid(player):
-		_spawn_status_popup(player.global_position + Vector2(-24.0, -18.0), "+10000 SKILL PTS!", Color(1.0, 0.88, 0.34))
 
 
 func _on_console_canoheil() -> void:
-	WitchCauldronProgression.reset_all_heroes()
+	WitchCauldronProgression.disable_all_cheats()
 	if player != null and is_instance_valid(player):
 		var cur_pos := player.position
 		var blocking: bool = (
@@ -362,9 +431,10 @@ func _on_console_canoheil() -> void:
 		else:
 			_apply_camera_bounds(Rect2(0.0, 0.0, 1280.0, 720.0))
 		_sync_hero_hud(entry)
-		_spawn_status_popup(player.global_position + Vector2(-20.0, -18.0), "HEROES RESET!", Color(0.58, 0.96, 1.0))
 	if witch_skill_tree_menu != null:
 		witch_skill_tree_menu.refresh_if_open()
+	if stage_select_menu != null and stage_select_menu.is_open():
+		stage_select_menu.open_menu()
 
 
 func _on_cauldron_tree_reset(hero_id: String) -> void:
@@ -385,9 +455,6 @@ func _on_pause_lobby_requested() -> void:
 	enter_lobby()
 
 
-## Backwards-compatible helper (used by tests & direct character swap):
-## equips `char_id` AND persists `selected_hero` so reopening the game launches
-## straight into the Witch's Cottage as this exact hero!
 func select_character(char_id: String, start_arena_immediately: bool = false) -> void:
 	if character_select_menu != null and character_select_menu.is_open():
 		character_select_menu.hide_menu()
@@ -415,7 +482,7 @@ func select_character(char_id: String, start_arena_immediately: bool = false) ->
 	elif world_mode == WorldMode.SANDBOX:
 		enter_sandbox()
 	else:
-		enter_stages()
+		enter_stages(current_stage_region)
 
 
 func _on_character_highlighted(char_id: String) -> void:
@@ -438,18 +505,23 @@ func _on_character_selected(char_id: String) -> void:
 
 
 # =====================================================================
-# PLAYER & WORLD HELPERS
+# PLAYER & WORLD HELPERS (`$Level` strictly disabled outside `SANDBOX`!)
 # =====================================================================
 
-func _set_arena_level_active(active: bool) -> void:
+func _set_sandbox_level_active(active: bool) -> void:
 	if level_root == null:
 		return
 	level_root.visible = active
 	for child in level_root.get_children():
 		if child is StaticBody2D:
-			var col := child.get_node_or_null("CollisionShape2D") as CollisionShape2D
-			if col != null:
-				col.set_deferred("disabled", not active)
+			(child as StaticBody2D).collision_layer = 1 if active else 0
+			for sub in child.get_children():
+				if sub is CollisionShape2D:
+					(sub as CollisionShape2D).set_deferred("disabled", not active)
+
+
+func _set_arena_level_active(active: bool) -> void:
+	_set_sandbox_level_active(active)
 
 
 func _clear_combat_enemies() -> void:
@@ -457,23 +529,30 @@ func _clear_combat_enemies() -> void:
 		child.queue_free()
 	for node in get_tree().get_nodes_in_group("player_arrows"):
 		node.queue_free()
+	for banner in get_tree().get_nodes_in_group("knight_war_banners"):
+		banner.queue_free()
 	for rdrop in get_tree().get_nodes_in_group("reagent_drops"):
 		rdrop.queue_free()
 
 
 func _clear_arena_gates() -> void:
 	_next_stage_gate_active = false
+	_next_region_gate_active = false
 	_lobby_return_gate_active = false
 	if _arena_gates_root != null:
 		for child in _arena_gates_root.get_children():
 			child.queue_free()
 
 
-func _spawn_arena_gate(at: Vector2, label_txt: String, frame_idx: int, sign_col: Color) -> void:
+func _spawn_arena_gate(at: Vector2, label_txt: String, frame_idx: int, sign_col: Color, show_beacon_pointer: bool = true) -> Node2D:
 	if _arena_gates_root == null:
-		return
+		return null
 	var holder := Node2D.new()
 	holder.position = at
+	if show_beacon_pointer:
+		holder.add_to_group("stage_portals")
+		holder.set_meta("gate_tag", label_txt)
+		holder.set_meta("gate_color", sign_col)
 
 	if ResourceLoader.exists(DOOR_TEX_PATH):
 		var dtex: Texture2D = load(DOOR_TEX_PATH)
@@ -494,11 +573,12 @@ func _spawn_arena_gate(at: Vector2, label_txt: String, frame_idx: int, sign_col:
 	lbl.add_theme_color_override("font_color", sign_col)
 	lbl.add_theme_color_override("font_outline_color", Color(0.03, 0.02, 0.05, 0.95))
 	lbl.add_theme_constant_override("outline_size", 2)
-	lbl.position = Vector2(-52.0, -44.0)
-	lbl.size = Vector2(104.0, 16.0)
+	lbl.position = Vector2(-72.0, -44.0)
+	lbl.size = Vector2(144.0, 16.0)
 	holder.add_child(lbl)
 
 	_arena_gates_root.add_child(holder)
+	return holder
 
 
 func _apply_camera_bounds(bounds: Rect2) -> void:
@@ -548,6 +628,8 @@ func _sync_hero_hud(entry: Dictionary) -> void:
 		return
 	hero_hud.visible = true
 	hero_hud.bind_hero_entry(entry)
+	if hero_hud.has_method("bind_hero_node"):
+		hero_hud.bind_hero_node(player)
 	hero_hud.set_health_values(int(player.current_health), int(player.max_health))
 	var cur_en := float(player.current_energy) if "current_energy" in player else 100.0
 	var max_en := float(player.max_energy) if "max_energy" in player else 100.0
@@ -571,6 +653,12 @@ func _process(delta: float) -> void:
 		enter_lobby()
 		return
 
+	if _next_region_gate_active and ppos.distance_to(_next_region_gate_pos + Vector2(0.0, 8.0)) <= 32.0:
+		_portal_grace_left = 0.8
+		var next_reg := mini(current_stage_region + 1, 3)
+		enter_stages(next_reg)
+		return
+
 	if _next_stage_gate_active and ppos.distance_to(_next_stage_gate_pos + Vector2(0.0, 10.0)) <= 30.0:
 		_portal_grace_left = 0.8
 		_clear_arena_gates()
@@ -580,7 +668,7 @@ func _process(delta: float) -> void:
 
 
 # =====================================================================
-# SIGNAL HANDLERS
+# SIGNAL HANDLERS & REGION BOSS UNLOCKS
 # =====================================================================
 
 func _watch_enemy(enemy: Node) -> void:
@@ -627,7 +715,16 @@ func _on_enemy_died(enemy: Node = null) -> void:
 	if enemy != null and is_instance_valid(enemy) and enemy is Node2D:
 		var epos := (enemy as Node2D).global_position
 		var max_hp := int(enemy.get("max_health")) if "max_health" in enemy else 30
-		if max_hp >= 70:
+		if enemy.is_in_group("boss"):
+			_spawn_reagent_drop(epos, 6, 2, "Boss Essence")
+			if world_mode == WorldMode.STAGES:
+				_boss_killed_this_wave = true
+				if current_stage_region < 3:
+					var next_r := current_stage_region + 1
+					WitchCauldronProgression.unlock_region(next_r)
+					var rname := String(WitchCauldronProgression.get_region_info(next_r)["name"])
+					_spawn_status_popup(epos + Vector2(-36.0, -24.0), "UNLOCKED: %s!" % rname.to_upper(), Color(1.0, 0.88, 0.32))
+		elif max_hp >= 70:
 			_spawn_reagent_drop(epos, 2, 1, "Essence")
 		else:
 			_spawn_reagent_drop(epos, 1, 0, "Herb")
@@ -637,16 +734,17 @@ func _on_enemy_died(enemy: Node = null) -> void:
 
 func _on_wave_started(number: int, _enemy_count: int) -> void:
 	wave_number = number
-	var prefix := "Sandbox Wave %d" if world_mode == WorldMode.SANDBOX else "Stage %d" % number
+	_boss_killed_this_wave = false
 	if world_mode == WorldMode.SANDBOX:
-		prefix = "Sandbox Wave %d" % number
-	_pop_wave_label(prefix)
+		_pop_wave_label("Sandbox Wave %d" % number)
+	else:
+		var rinfo := WitchCauldronProgression.get_region_info(current_stage_region)
+		_pop_wave_label("%s • Stage %d" % [String(rinfo["name"]), number], rinfo["accent"])
 
 
 func _on_wave_cleared(number: int) -> void:
 	if game_is_over:
 		return
-	# Finishing a Wave/Stage drops a glowing Arcane Wave Crystal (+3 Reagents = 1 Witch Majon!)
 	var drop_pos := Vector2(320.0, 340.0)
 	if player != null and is_instance_valid(player):
 		drop_pos = player.global_position + Vector2(22.0, 0.0)
@@ -683,14 +781,24 @@ func _after_stage_reward() -> void:
 	if world_mode == WorldMode.SANDBOX:
 		wave_spawner.continue_next_wave()
 	else:
-		# Spawn physical NEXT STAGE + LOBBY doors so Stages play room-by-room!
 		_clear_arena_gates()
-		_spawn_arena_gate(_next_stage_gate_pos, "NEXT STAGE", 0, Color(1.0, 0.88, 0.44))
-		_spawn_arena_gate(_lobby_return_gate_pos, "LOBBY", 1, Color(0.52, 1.0, 0.88))
+		_spawn_arena_gate(_next_stage_gate_pos, "NEXT STAGE", 0, Color(1.0, 0.88, 0.44), true)
+		_spawn_arena_gate(_lobby_return_gate_pos, "LOBBY", 1, Color(0.52, 1.0, 0.88), true)
 		_next_stage_gate_active = true
 		_lobby_return_gate_active = true
+
+		# If this Region's Boss was defeated (or next Region is already unlocked on Boss clear),
+		# ALSO spawn a direct Next-Region Portal inside the Stage!
+		if _boss_killed_this_wave and current_stage_region < 3:
+			var next_info := WitchCauldronProgression.get_region_info(current_stage_region + 1)
+			var next_lbl := "MAP %d: %s" % [current_stage_region + 1, String(next_info["name"]).to_upper()]
+			var ngate := _spawn_arena_gate(_next_region_gate_pos, next_lbl, 0, Color(1.0, 0.72, 0.24), true)
+			if ngate != null:
+				ngate.set("is_next_region_gate", true)
+			_next_region_gate_active = true
+
 		_portal_grace_left = 0.55
-		_pop_wave_label("Enter NEXT STAGE Gate", Color(1.0, 0.90, 0.52))
+		_pop_wave_label("Gate Spawned! Follow Beacon ->", Color(1.0, 0.90, 0.52))
 
 
 func _pop_wave_label(new_text: String, color := Color(1, 0.95, 0.75, 0.95)) -> void:
@@ -716,7 +824,8 @@ func _on_enemy_spawned(enemy: Node) -> void:
 
 func _on_player_damage_mitigated(blocked_amount: int, final_amount: int) -> void:
 	if player != null and is_instance_valid(player) and blocked_amount > 0:
-		var label_str := "BLOCKED!" if final_amount == 0 else "ARMOR -%d" % blocked_amount
+		var custom_lbl: String = String(player.get("last_mitigation_label")) if "last_mitigation_label" in player else ""
+		var label_str := custom_lbl if (final_amount == 0 and custom_lbl != "") else ("BLOCKED!" if final_amount == 0 else "ARMOR -%d" % blocked_amount)
 		var col := Color(0.45, 0.96, 0.68) if final_amount == 0 else Color(0.68, 0.84, 1.0)
 		_spawn_status_popup(player.global_position + Vector2(0.0, -10.0), label_str, col)
 
@@ -766,9 +875,6 @@ func _on_player_died() -> void:
 			game_over_screen.visible = true
 
 
-## Triggered when the player clicks `[ NOT YET ]` on the `DEAD AGAIN?` screen:
-## opens an Arcane Magic Circle beneath the fallen hero, strikes down a Pillar
-## of Celestial Light to lift them back up, and teleports them into the Lobby!
 func _on_not_yet_pressed() -> void:
 	if _is_reviving:
 		return
@@ -794,7 +900,6 @@ func _on_not_yet_pressed() -> void:
 	if not is_inside_tree():
 		return
 
-	# Radiant golden-white arrival flash into the Guild Hub Lobby!
 	if hurt_flash != null:
 		if _hurt_tween and _hurt_tween.is_valid():
 			_hurt_tween.kill()
@@ -813,6 +918,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if character_select_menu != null and character_select_menu.is_open():
 		return
 	if witch_skill_tree_menu != null and witch_skill_tree_menu.is_open():
+		return
+	if stage_select_menu != null and stage_select_menu.is_open():
 		return
 	if pause_menu != null and pause_menu.is_open():
 		return
