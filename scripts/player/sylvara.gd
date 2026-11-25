@@ -254,7 +254,7 @@ func _character_physics_process(delta: float) -> void:
 	# `[R]` Hunter's Rapid Lock-On: auto-spams homing arrows at the 1 selected target!
 	if ult_active:
 		ult_active_left = maxf(ult_active_left - delta, 0.0)
-		var valid_target := (
+		var valid_target: bool = (
 			locked_ult_target != null
 			and is_instance_valid(locked_ult_target)
 			and locked_ult_target.get("is_dead") != true
