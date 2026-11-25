@@ -572,12 +572,14 @@ func _run() -> void:
 	noa.apply_skill_tree_ranks({}) # disable solo_top heal to isolate exact 10% 8-hit burst lifesteal!
 	noa.current_health = 40
 	for _i in range(5):
+		splash_foe.global_position = Vector2(560, 480)
 		noa._start_attack()
 		await _wait(0.38)
 		await _tick(2)
 	_check_eq("After 7 total Blood-Splash hits: enemy has NOT burst yet (200 - 7*14 = 102 HP)",
 		splash_foe.current_health, 102)
 
+	splash_foe.global_position = Vector2(560, 480)
 	noa._start_attack()
 	await _wait(0.38)
 	await _tick(2)
