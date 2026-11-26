@@ -1,0 +1,20 @@
+{
+  "name": "knight-gothic-v1",
+  "note": "24 colours = 6 ramps x 4 steps (step0 shadow/selout, step1 base, step2 light, step3 highlight). No #000000. Light from top-left. Steel/obsidian/crimson/leather reuse the game's master ramp values; sapphire + bone are new for this design.",
+  "ramps": {
+    "steel":    ["#1A2030", "#46546E", "#8296B5", "#C7D9F0"],
+    "obsidian": ["#161224", "#2E2647", "#524678", "#8072AB"],
+    "crimson":  ["#380C1C", "#821832", "#CC2B4C", "#FA6E86"],
+    "sapphire": ["#0E1E3C", "#1E4E8C", "#3D7EC4", "#7EB8E8"],
+    "leather":  ["#2B1A14", "#5C3828", "#946043", "#C79066"],
+    "bone":     ["#6E6A5E", "#C4BEB0", "#E8E2D4", "#F8F4EA"]
+  },
+  "assignment": {
+    "great helm, plate armor, gauntlets, sword blade edge, shield steel border": "steel",
+    "tattered dark cape outer side, under-dress, boot shadows": "obsidian",
+    "red scarf, cape crimson lining, tattered hem accents": "crimson",
+    "shield blue cross, blue blade sheen, pommel gem": "sapphire",
+    "brown belt, straps, sword grip, scabbard": "leather",
+    "silver cross pendant, rivets, brightest steel highlights": "bone"
+  }
+}
