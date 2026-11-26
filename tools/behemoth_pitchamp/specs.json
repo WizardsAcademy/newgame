@@ -1,0 +1,18 @@
+{
+  "f00_idle":       {"body": [47, 51], "ground": 54, "cx": 30, "air": false},
+  "f01_walk_a":     {"body": [46, 50], "ground": 54, "cx": 30, "air": false},
+  "f02_walk_b":     {"body": [46, 50], "ground": 54, "cx": 30, "air": false},
+  "f03_windup":     {"body": [47, 51], "ground": 54, "cx": 28, "air": false},
+  "f04_jab":        {"body": [47, 51], "ground": 54, "cx": 37, "air": false},
+  "f05_cross":      {"body": [47, 51], "ground": 54, "cx": 38, "air": false},
+  "f06_uppercut":   {"body": [49, 53], "ground": 54, "cx": 35, "air": false},
+  "f07_charge":     {"body": [47, 51], "ground": 54, "cx": 38, "air": false},
+  "f08_hurt":       {"body": [47, 51], "ground": 54, "cx": 30, "air": false},
+  "f09_blink":      {"body": [46, 50], "ground": 54, "cx": 30, "air": false},
+  "f10_idle_down":  {"body": [47, 51], "ground": 54, "cx": 32, "air": false},
+  "f11_walk_down_a":{"body": [46, 50], "ground": 54, "cx": 32, "air": false},
+  "f12_walk_down_b":{"body": [46, 50], "ground": 54, "cx": 32, "air": false},
+  "f13_idle_up":    {"body": [47, 51], "ground": 54, "cx": 32, "air": false},
+  "f14_walk_up_a":  {"body": [46, 50], "ground": 54, "cx": 32, "air": false},
+  "f15_walk_up_b":  {"body": [46, 50], "ground": 54, "cx": 32, "air": false}
+}

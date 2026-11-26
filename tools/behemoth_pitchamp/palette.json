@@ -1,0 +1,20 @@
+{
+  "name": "behemoth-pitchamp-v1",
+  "note": "24 colours = 6 ramps x 4 steps (step0 shadow/selout, step1 base, step2 light, step3 highlight). No #000000. Light from top-left. Skin/leather/gold reuse the game's master ramp values; tawny + obsidian wraps are tuned to this reference.",
+  "ramps": {
+    "skin":     ["#40262A", "#9E6258", "#D99B84", "#F4CDB8"],
+    "tawny":    ["#38221A", "#7A4A34", "#A8704C", "#C9946A"],
+    "obsidian": ["#161224", "#2E2647", "#524678", "#8072AB"],
+    "leather":  ["#2B1A14", "#5C3828", "#946043", "#C79066"],
+    "gold":     ["#4A2F12", "#9C6820", "#DEB03C", "#FAE38C"],
+    "bone":     ["#6E6A5E", "#C4BEB0", "#E8E2D4", "#F8F4EA"]
+  },
+  "assignment": {
+    "wild hair + big beard + eyebrows": "tawny",
+    "skin, chest, abs, arms, fists, bare feet, face": "skin",
+    "hand wraps": "obsidian",
+    "tattered pants, belt, straps": "leather",
+    "waist sash tie, belt buckle accents": "gold",
+    "teeth, eye whites, knuckle scars highlights": "bone"
+  }
+}
