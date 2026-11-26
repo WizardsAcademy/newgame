@@ -1,0 +1,20 @@
+{
+  "name": "sylvara-autumn-v1",
+  "note": "24 colours = 6 material ramps x 4 steps (step0 shadow/selout, step1 base, step2 light, step3 highlight). No #000000. Light from top-left.",
+  "ramps": {
+    "autumn_hair": ["#4A1512", "#B03420", "#E06A34", "#F5A75C"],
+    "skin":       ["#6E3F38", "#D99B84", "#F4CDB8", "#FCE4D4"],
+    "leather":    ["#3A2317", "#6E442C", "#A86A44", "#D09468"],
+    "gold":       ["#5A3810", "#9C6820", "#E8B84C", "#FAE38C"],
+    "emerald":    ["#17342A", "#2E6E48", "#4E9860", "#82C88C"],
+    "cream":      ["#8A7A62", "#D8C8A8", "#F4E8D4", "#FDF8EA"]
+  },
+  "assignment": {
+    "hair + autumn flowers/leaves in hair": "autumn_hair",
+    "skin, face, arms": "skin",
+    "corset, belts, boots, quiver, gloves": "leather",
+    "recurve bow, earrings, buckles, arrowheads": "gold",
+    "cape, tights, eyes": "emerald",
+    "off-shoulder tunic, arrow fletching, flower centers": "cream"
+  }
+}
