@@ -25,3 +25,9 @@ tools/__pycache__/
 
 # Local tooling venv used to run the sprite generators
 .venv/
+
+# Agent Sprite Forge (vendored under tools/agent-sprite-forge)
+__pycache__/
+.pytest_cache/
+.forge/
+tools/agent-sprite-forge/outputs/

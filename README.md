@@ -35,6 +35,14 @@ Inspect and choose from **4 distinct heroes** in the Guild Hub / Character Selec
 - **Between-Wave Roguelike Upgrades** (`UpgradePool` + `UpgradeMenu`): Pick 1 of 3 stacking run upgrades after every cleared wave.
 - **Procedural Combat Juice**: `ScreenShake`, `HitStop`, and procedural 16-bit PCM synth SFX (`SFXGenerator` on the `"SFX"` bus — zero external audio files).
 
+## AI Sprite Pipeline (Agent Sprite Forge)
+
+**Agent Sprite Forge v0.6.0** (`tools/agent-sprite-forge/`) is vendored alongside the hand-rolled
+`tools/make_*.py` generators: five agent skills (`generate2dsprite`, `video2dsprite`,
+`generate2dmap`, `generate2dmedia`, `codeart2d`) that take characters from one approved master
+still through keyed, QA-gated, registered animation sets to Godot `SpriteFrames` exports.
+See `docs/SPRITE_FORGE.md` for capability status, usage and update instructions.
+
 ## Automated Headless Tests
 
 ```bash

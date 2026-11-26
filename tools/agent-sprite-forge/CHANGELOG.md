@@ -1,0 +1,218 @@
+# Changelog
+
+## 0.6.0 — 2026-11-13 — pixel looks and the host API
+
+Plugin version `0.6.0`; QA envelopes record `tool.version` 0.6.0. Everything from 0.5.0 carries over. One behaviour changes for whoever reads exit codes: a tool that publishes a result whose QA failed now exits 4 instead of 1 (the host API, below).
+
+### Pixel looks (opt-in)
+
+A new, opt-in route for characters as classic small pixel sprites that follow a reference picture. Nothing else changes: the HD, pixel and hibit finishes, their defaults and their outputs are untouched (no existing script was edited), and nothing here runs unless it is asked for.
+
+The look is never described in words: one sprite the user likes is the reference of the whole cast, and the prompts fix only the format. A figure is drawn alone and large, read on its own grid, and its outline is closed by rule (the master); every pose and view is then made from that master on the master's own lattice, so the build cannot change between an idle and an attack.
+
+#### Added
+
+- **`shared/forge_pixelgrid.py`** (numpy only, vendored into generate2dsprite and video2dsprite): the grid of a generated "pixel art" picture is found and followed (`snap_picture`: an elastic walk along the picture's own edges for cells of 8 px and more, one regular lattice that bends for smaller cells), one colour per cell; the small mechanical fixes of a sprite (`lock_palette`, `close_outline`, `drop_key_mixed`, `drop_key_tinted`, `drop_key_near`, `drop_key_holes`, `ink_key_mixed`, `drop_key_spill`, `remove_islands`, `fill_single_holes`); a master and what is made from it (`rule_outline`, `fewer_colours`, `feet_runs`, `boots`, `fit_lattice`, `read_lattice`, `lattice_phase`, `to_palette`: the outline closed by rule with the line drawn outside a bare lit cell, colours brought down by k-means in OKLab so that every hue keeps a place, the feet of a figure whatever it holds, a known sprite found again in a picture that shows it enlarged, a second figure read on its own lattice); and video frames read on a known lattice (`lattice_shift`, `snap_frame`, `unmix_edge`), loops and actions found from the frames (`moving_span`, `find_cycle`, `pick_cycle`, `pick_motion`) and the `head_lock`.
+- **`generate2dsprite/scripts/pixel_look.py`** (`ask-master`, `master`, `ask-cast`, `cast`, `ask-pose`, `pose`, `ask-view`, `view`, `lineup`): `ask-master` writes the prompt that draws the liked figure again, once and large, on a key colour it does not have; `master` turns the picture into the 1x sprite with a review picture, the sprite on three grounds and the sprite on an exact grid; `ask-cast` and `cast` make every further character beside the first master in one picture, so that it keeps the pixel size and stands as tall (drawn alone it comes back a tenth to a quarter taller); `ask-pose` and `pose` make a weapon or a pose as "the master reproduced with one change" and take only the changed cells; `ask-view` and `view` draw a side or back view beside the master in one picture and read it with the master as the ruler; `lineup` puts the master, the sprites and every drawing of the motion sets on one ground line and reports the heights. `master` keeps the proportions the figure has in the picture: an image model's blocks are often a tenth to a fifth taller than wide, and one pixel a block gave a figure that much flatter than its picture, so the rows that show least are doubled (`forge_pixelgrid.add_rows`, `add_columns`, `doubling_cost`: nothing is redrawn and the outline stays one cell thick; `--proportions blocks` gives one pixel a block as it comes). `--outline drawn` on `master` and on the ask commands is for a look without an outline: the edge is kept as the picture has it. With `--colors` of 16 or fewer, hue counts more than lightness and every colour is one the picture had (a very small look with a few flat colours). No hand pixel; a take that misses is generated again.
+- **`video2dsprite/scripts/pixel_motion.py`** (`prepare`, `frames`, `finish`, `measure`, `breath`): `prepare` wraps `prepare_i2v_input.py --pixel-art` with the feet as the root, takes the key colour the sprite's own edge leans to least, and adds the paragraph that tells the model to keep the pixels (`--outline drawn` for a look without an outline); `frames` reads every frame back on the sprite's lattice (the first frame's, kept for the whole clip: a picture that comes back a few px beside the job's place, to either side, is found, and the first frame decides on which cells the sprite lies) and palette; `finish` picks one cycle, an action or named frames, cleans them (the sprite's own head put back where it fits, islands, single holes, the closed outline), trims them, and writes the drawings, a strip, a forge-frame-selection v2 and an `animation.json` 3.0 package with nearest sampling; `measure` reads a walk before it is picked (footfalls or, when a blade drags in front, toe-offs; a staff on the ground left out; the step checked against the lags at which the clip is like itself; frames that only repeat; the ground speed; the pair of steps to take; and the legs enlarged to look at); `breath` makes an idle from the sprite itself by one cell.
+- `references/pixel-looks.md` in generate2dsprite: the route, the commands, what the user accepts and when, and its limits. SKILL.md of generate2dsprite and video2dsprite name the route as an option on request.
+- The pixel-looks section in the five READMEs and its showcase in `src/pixel-looks/`: our own cast (a swordsman, a mage, a skeleton knight and a frost dragon), made with these commands on 2026-11-12. `battle.gif` is a fight of 14 sets and 168 drawings, rendered at 1x and shown at 2x, on a plate that is a generated painting brought down to 384x216 and 40 colours (not a pixel-looks output); `cast.gif` and `sets.gif` show the sprites and their sets at 2x; `kael-picture.png`, `kael-plain-resize.png`, `kael-master.png` and `closeup.png` put the picture an image model painted beside a plain resize of it and the 1x sprite read from it.
+
+#### Measured (2026-11-12 run)
+
+- The swordsman's generated picture: 1254x1254, 88,410 colours in the figure, blocks of 15 to 30 px. Resized plainly to 33x55 it keeps 1,033 colours (nearest) or 1,275 colours and 413 soft pixels (bilinear); `pixel_look.py master` gives 33x55, 48 colours and no soft pixel (2.5 KB).
+- The cast drawn beside it: a mage 45x56, a skeleton knight 50x55 and a frost dragon 87x86, 48 colours each. The sword pose changes 217 cells and keeps 91% of the master. The attack set is 21 drawings picked from 145 video frames; every drawing of the 14 sets has only its sprite's own colours and no soft pixel.
+
+### Host API
+
+What a host such as Agent Game Forge needs to drive the skills without reading their internals. A host can detect these features by their presence (`forge_index.py`, `--progress-file` in `--help`, exit 4) or by the version number.
+
+#### Added
+
+- **Progress files.** `--progress-file <jsonl>` (or `FORGE_PROGRESS_FILE`) on `master_still.py generate` and `edit`, `sprite_set.py run`, `finish_frames.py hd|pixel|hibit` and `engine_export.py package|verify`: one JSON line per stage change, `{t, tool, stage, done, total, message}`, appended and flushed while the tool runs (`progress_line_v1` in the new `shared/schemas/host.schema.json`; `forge_core.Progress`). The last line is `done` when the tool got to the end of its work, whatever its exit code says about the result (0, 3, 4, or 1 for a sprite set that packaged nothing), or `error` when it stopped on an error (exit 1). Stdout keeps its one summary line; an unwritable file prints one warning and never fails a run; child tools never inherit the variable, so one file holds one tool's stream.
+- **Asset index.** `forge_index.py scan <dir> [--output <new file>]` (canonical `shared/forge_index.py`, stdlib only, read-only, vendored into generate2dmedia, generate2dsprite, video2dsprite and generate2dmap) prints one `forge.asset_index.v1` JSON line: masters (`master.json`), sprite sets (`set_plan.json` + `set_state.json`: per action its status, takes, chosen take or window, the agent's accept, and the package of the chosen take with `packageTake`, `packageTag`, `animation.json`, poster, `reviewStatus` and verify result), FX (`fx.json`, route A pixelfx or route B image), plates (`plate.json`) and map bundles. A package recorded for another take or window than the chosen one (after a retake, or an accept of another take or window) is never reported as the action's package: it is `previousPackage`, and package, manifest, poster, `reviewStatus` and verify are null. A set is read holding its `set_state.lock` when the file exists (waiting up to 10 s, never creating it). Paths are relative to the scanned folder and never leave it (a document path with `..` or a link that leads outside is left out with a warning; `indexPath` in the contract); staging, orphan and set-aside folders are skipped; unreadable documents become warnings.
+- **`engine_export.py review --package <dir> --review <verdict.json>`** records a review verdict in an existing package without re-encoding: the verdict must bind to the package's inputDigest or its selection (stale and `fail_regenerate` verdicts are refused, as in `package --review`), every media file must still match its manifest sha256, and `animation.json` (`reviewStatus`, the QA `review_verdict` check and status), `animation-qa.json` and `provenance.json` (`review`, `reviewHistory`) are rewritten together; `verify-qa.json` is re-bound to the new manifest and says so in `manifestUpdates`. `validate_animation.py --require-review --require-verify` passes on the result. The writes are ordered (`animation.json` before `verify-qa.json`) so that recording the same verdict again after an interruption finishes the job: a lagging `verify-qa.json` is re-bound when the media it judged are unchanged, and the review is not recorded twice.
+- **Contracts** for the documents a host reads: `master_v1`, `pixelfx_v1` (fx.json route A) and `hibit_fx_v1` (route B) in `sprite.schema.json`; `finish_v1`, `sprite_set_plan_v1` and `sprite_set_state_v1` in `video.schema.json`; `hibit_plate_v1` in `map.schema.json`; `asset_index_v1` and `progress_line_v1` in the new `host.schema.json` (vendored like the others). Each has valid and invalid fixtures, and the tests validate real producer output against them.
+- `forge_core.EXIT_PUBLISHED_FAIL` (4), `forge_core.file_lock` (an exclusive lock on a sidecar file across threads and processes, re-entrant per thread, with a timeout), `forge_core.child_env_without_progress`, `forge_core.replace_file` and `forge_core.json_bytes`.
+
+#### Changed
+
+- **Exit 4 = published with status fail.** A tool that publishes its output for inspection although its QA status is `fail` now exits 4 instead of 1 (D26), so a host can tell "look at the published report" from "nothing usable was written". Exit 1 always means an error or a refusal that published nothing (`--strict` / `--strict-qc` included); validators that only print a verdict, without writing a report, still exit 1; `forge_doctor.py` keeps exit 1 for a FAIL check. The tools: generate2dsprite `master_still.py generate|edit` (every take failed), `sheet_qc.py`, `fx_pixelfx.py render`, `hibit_fx.py pixelize`; video2dsprite `finish_frames.py lineup` and `sprite_set.py run` (some actions packaged, others failed; a run that packaged nothing still exits 1); generate2dmap `validate_stage.py`, `extract_scene_lights.py`, `edit_locality_check.py`, `scene_layout_guide.py`, `scene_motion.py` (`build --allow-seam-fail`, `qa`), `extract_terrain_tiles.py`, `extract_platform_strip.py`, `conform_background.py`, `validate_layout.py` and `validate_chunks.py` (with `--output-dir`), `map_nav.py check --publish-on-fail`, `validate_parallax.py` and `map_bundle.py validate` (with `--report`), `build_scene_preview.py --verify`, `hibit_plate.py`; codeart2d `render_pixelspec.py`, `svg_render.py render`, `rig_animate.py`, `fx_build.py`, `autotile_build.py`, `layout_build.py`, `parallax_build.py`, `ambient_bake.py` and `pixel_qa.py` (when its report or review sheet was written). The SKILL.md command sections and the references say so.
+- **`sprite_set.py accept` writes the verdict into the package.** An accepted take that is already packaged gets a `review_verdict.v1` (bound to the package's inputDigest, the reviewed sheet as evidence) recorded in place by `engine_export.py review`, so its `animation.json` says `reviewStatus: "accepted"` at once; a take packaged later gets a verdict bound to its selection, passed to `engine_export.py package --review`. The accept summary carries `reviewStatus` and `package`; `set_state.json` records the verdict file.
+- **`set_state.json` is locked.** `run`, `review`, `accept`, `retake` and `report` read, change and write it under `set_state.lock` (every read too, so no verb holds the file open while another replaces it; `forge_index.py scan` takes the same lock); `accept` and `retake` bump the action's `agentRevision`, and a run that read the state earlier adopts their decisions (accepted, round, chosen, status, fixes, per-take verdicts, the latest review) before every save. An accept or retake made while a run works is no longer overwritten by the run's next save. The run summary's `package` is the chosen take's only (null after a retake).
+- **Atomic JSON replaces wait for Windows readers.** `forge_core.write_json(no_clobber=False)` (set_state.json, the package documents `engine_export.py review` rewrites) retries a rename that a reader holding the file open makes fail with WinError 5, for up to 2 s, instead of failing the run: a host that indexes a folder while a run works (for example on file-system events) can no longer abort the run's save.
+- **Grok children are isolated from the user's home.** Every `grok` child (`cli_media.py` headless image and edit, ACP video, the doctor's `--version`) runs with `HOME` and `USERPROFILE` on an empty folder the Forge owns (`%LOCALAPPDATA%\agent-sprite-forge\grok-home`, `$XDG_STATE_HOME/agent-sprite-forge/grok-home` elsewhere, `FORGE_GROK_ISOLATED_HOME` to override), `GROK_HOME` on the real `~/.grok` (sign-in, sessions, skills) and `GIT_CONFIG_GLOBAL` on the real `~/.gitconfig` when it exists. Grok loaded the user's Claude Code plugins from `~/.claude` despite `GROK_CLAUDE_*_ENABLED=false` (a real Telegram bot plugin was started); it no longer sees them.
+
+#### Fixed
+
+- The spend ledger (and a route proof's `jobDir`) recorded the `.<name>.stage-XXXX` staging folder a caller such as `master_still.py generate` ran the job in, a folder that is gone once the caller publishes; it now records the published folder (`media_ledger.published_dir`).
+- `fx_pixelfx.py` (colours, alpha levels) and `hibit_plate.py` (lone pixels) wrote QA checks with status `info`, which the common `qaCheck` contract does not allow; those measurements are now `skipped` checks with their value and a null threshold, as the contract describes. The `fx.json` and `plate.json` documents 0.5.0 wrote carry `info`; `pixelfx_v1` and `hibit_plate_v1` accept it as a legacy check status (fixtures `*.legacy-0.5.0.json`), so a host can validate existing projects.
+
+## 0.5.0 — 2026-11-07 — the hibit style
+
+Plugin version `0.5.0`; QA envelopes record `tool.version` 0.5.0. Everything from 0.4.0 carries over unchanged.
+
+### Added
+
+- **Hibit finish: real pixel art from flat AI art.** `shared/forge_hibit.py` (vendored into generate2dsprite, video2dsprite and generate2dmap): k-means++ palettes on luminance-weighted RGB, majority-vote downsampling with temporal hysteresis, lone-pixel cleanup that keeps contrasting features, an outline colour taken from the image (the dominant saturated hue at OKLab L 0.22), shade maps, plate pixelization.
+- `master_still.py --finish hibit`: flat lineless cel-shaded masters (at most 3 tones per material, no outlines), the input the finish wants.
+- `finish_frames.py hibit`: one palette per character learned from the SOURCE pixels (16 colours by default), 8x8 supersampled majority vote (`--coverage 0.45`), hysteresis (the previous colour kept while it holds 80% of the winner), `--outline auto|#RRGGBB|selective|dark|none`; `palette.json` names the outline colour so a character's other clips reuse palette and outline with `--palette`. finish.json records a `hibit` block; flicker is measured against the same majority without hysteresis.
+- `sprite_set.py plan --finish hibit`: 80 px heroes, 12 fps, the "clean flat lineless cel-shaded" motion style, no colour lock, nearest-sampled packages.
+- `generate2dmap/scripts/hibit_plate.py`: 480x270 hibit backgrounds with a 14-colour palette (or a shared `--palette`), a paper-cut smoothing pass, `palette.json` and `shade-maps.json`.
+- Hibit FX on two routes, picked by `fx_pixelfx.py check`: **A**, `generate2dsprite/scripts/fx_pixelfx.py` (`check`, `list`, `render`) renders effects from the user's own clone of [pixelfx](https://github.com/patch-gg/pixelfx) (Patch, MIT; never vendored) with `--ramp` recolouring, `--snap` to a palette, binary alpha by default (pixelfx's additive glow exports as near-black translucent pixels), `fx.json` provenance and `CREDITS.txt` with pixelfx's license and notice; **B**, `generate2dsprite/scripts/hibit_fx.py pixelize` turns an image-generated 2x2 FX sheet, registered by `process --scale-strategy registered`, into hibit pixel art.
+- `THIRD_PARTY_NOTICES.md` and third-party credits in the five READMEs; `references/hibit.md`; the hibit showcase in `src/hibit/` (Pip's Star Grove demo, both FX routes, gameplay recordings).
+
+### Measured (2026-11-06 live run)
+
+- Pip (fox mage, 80 px; idle, walk, cast, hurt) and a magma slime (48 px; idle, crawl, attack) from Grok image-to-video clips: 16 learned colours plus the outline; the hysteresis removes 32-40% of the noise flicker on Pip's clips and 10-24% on the slime's; auto outline #380500 for both, #002131 for Forge Bot.
+- The same game with both FX routes: route B keeps the whole scene on 65 colours with 4 frames per effect; route A brings 16-91 frames per effect and about 6,700 colours (pixelfx light blending, effects not snapped).
+
+## 0.4.0 — 2026-10-06 — the big upgrade
+
+One integrated release of the five skills (plugin version `0.4.0`). Not yet tagged; tagging and publishing are the owner's. Measured numbers come from the repository's fixtures and the 2026-10-06 live runs ([docs/validation-2026-10-06.md](./docs/validation-2026-10-06.md)); what the measurements do not prove is in [docs/known-limitations.md](./docs/known-limitations.md).
+
+### Highlights
+
+- **Image generation first, code art last.** Every generated image and clip goes through one command, `generate2dmedia/scripts/route_media.py`. It tries a configured API key first (OpenAI, Google Gemini, xAI, BytePlus ModelArk, fal.ai; a configured key is the owner's consent, so there is no per-call question), then the user's own signed-in CLI (the Codex CLI's `image_gen`; the Grok CLI's one-shot image or edit; Grok image-to-video in ACP mode), and only then answers `{"status":"no-route","fallback":"codeart2d"}` (exit 3). `codeart2d` draws only when the user asks for code-drawn art or no route exists, and the art is always disclosed as code-drawn.
+- **One approved master still per character.** `generate2dsprite/scripts/master_still.py` (`prompt`, `generate --takes N`, `edit`, `pad`, `approve`) writes the prompt, generates takes through `route_media.py`, fixes a near-miss by edit ("THE ONLY CHANGE: ..."), pads the chosen still to the class framing (a hero is 788 px tall on 1024x1024) and writes `master.json`, which every motion step reads.
+- **A whole sprite set from that still.** `video2dsprite/scripts/sprite_set.py` (`plan`, `run`, `review`, `accept`, `retake`, `report`) makes one image-to-video clip per action (idle, walk, run, attack, jump, hurt; cast, guard, victory, defeat on request), with per-action canvases (jump 3:4 with headroom, attack 16:9), numeric gates on every take, up to 3 automatic takes with fix clauses, soft-matte keying (one matte profile per character), registration, loop selection or one-shot retiming, the finish and verified packages. `run` resumes and never generates a clip twice; the agent looks at every review sheet before it accepts an action.
+- **Finish: HD by default, pixel on request.** `finish_frames.py hd` keeps one scale per character from the master's rest pose (premultiplied area downscale on a grid pinned to the feet, clean alpha; never nearest, never an upscale). `finish_frames.py pixel` is bold pixel art: a crisp 4x4-cluster downscale, a light contrast and saturation lift, at most 32 colours from a spaced palette (no near-duplicate shades), lone-pixel cleanup that keeps eyes, a 1 px selective outline and binary alpha. The 48x64 fox run of the 2026-10-05 cold test, redone as master still → Grok clip → pixel finish: 594–709 colours per frame become 16–19, 199 alpha levels become 2, 732 lone pixels per frame become 75.
+- **HD colour lock.** `colour_lock.py` and `finish_frames.py --colour-lock MASTER` hold every design colour on the master's in OKLab (chroma only, lightness kept, still pixels smoothed over time); `sprite_set.py` turns it on for every action. On Aria's run loop: hue flips 352 → 170 per frame pair, region chroma spread 0.0059 → 0.0012, boot chroma step 0.024 → 0.003.
+- **One-shots retimed to game length.** Image-to-video plays a short action in slow motion. `retime.py --auto-oneshot` finds the motion's onset, holds and settle, cuts the frozen holds, pins the keys (the hit with a hit-stop, takeoff, land) and compresses the rest; `sprite_set.py` does it by default (attack 0.7 s with the hit at 40%, jump 0.9 s, hurt 0.5 s, cast 0.9 s). Aria: attack 4.1 s → 0.7 s (hit at 292 ms), jump 5.3 s → 0.9 s, hurt 3.9 s → 0.5 s.
+- **QC recalibrated on real takes.** The gates were re-fitted on 42 labelled takes from the live run: identity only warns unless the design is lost, a colour-bleed gate, a timing gate for one-shots, the run's feet gate on a half-second median. Good takes wrongly rejected: 18 of 24 → 0 of 24 (precision 0.42 → 1.00; recall 0.72 → 0.50).
+- **Five API providers behind one adapter layer.** `media_providers.py` with one capability record per model (`references/capabilities.json`): OpenAI GPT Image, Google Gemini, xAI Grok Imagine (image and video), BytePlus Seedream and Seedance, and fal.ai (Kling v3, Veo 3.1, Luma Ray, MiniMax, Wan, Vidu, LTX for video; four reference-edit image models).
+- **Soft-matte keying, no purple fringe.** On the same Grok clip, old keyer vs 0.4.0: outer-ring fringe 0.704 → 0, opaque key pixels leaked 7,780 → 0, keying 271 s → 44 s for 145 frames.
+- **Windows fixes.** Codex edits work on Windows (run folders the Codex sandbox can read), locked partial files are cleaned up with a retry, a CRLF checkout reads the prompt library, and every CLI runs under cp1252/cp950 consoles (details under Fixed).
+- **No CI.** The repository ships no CI workflow; the suites run locally (`python -m pytest -q`, `node --test "tests/js/*.test.mjs"`, `python tools/vendor_sync.py --check --strict`, `python tools/check_links.py`).
+- **Hosts.** Claude Code plugin (`.claude-plugin/`), plus the Codex and Grok folder installs with a backup and a drift check.
+
+### Added
+
+**Repository and contracts**
+- Frozen JSON Schema 2020-12 contracts for all five skills in `shared/schemas/` (common, sprite, video, map, codeart, media), vendored into each skill's `references/schemas/` and validated by the standard-library evaluator `forge_schema`.
+- Shared libraries with one canonical copy in `shared/`, vendored into the skills and kept byte-identical by `tools/vendor_sync.py` (sha256 test): `forge_core` (publication, image loading, components, alpha hygiene, anchors, premultiplied resampling, frame timing, seam reports), `forge_matte` (keyers), `forge_av` (ffmpeg probes and encoders), `forge_palette` (OKLab palettes), `forge_nav` (collision rules).
+- Claude Code plugin: `.claude-plugin/plugin.json` and `marketplace.json`; `claude plugin validate --strict .` passes.
+- `tools/install_skills.py` (backup, sha256 manifest, `--check` drift report, never ships bytecode) and `tools/check_links.py`.
+- Real regression fixtures with `tests/fixtures/real/PROVENANCE.json`; pytest markers `perf`, `bench` (opt-in), `ffmpeg`, `node`, `resvg`, `e2e`; an end-to-end smoke over five pipelines and a JS/Python collision parity test.
+
+**generate2dmedia**
+- `route_media.py`: `image`, `video` and `resolve` over the route order above; `--route auto|api|local|<one route>|fal:<endpoint>`, `--model`, `--tier draft|standard|hero`, `--provider-option`, `--keyframe`, `--last-frame`, `--transparent`; a route that cannot take the request is skipped with the reason, and a request is adapted with a note (a video length snapped to one the model renders, a last frame the route cannot pin); account-level refusals pass to the next route, while a moderation refusal or an outcome that may have cost money stops at once. One ASCII JSON line (`status`, `route`, `artifact`, `sha256`, `estimateUsd`); `no-route` exits 3. `FORGE_ROUTE_MEDIA_FAKE` is the test seam.
+- `media_providers.py` and `references/capabilities.json` (verified 2026-10-06 against the vendors' documentation): OpenAI (`gpt-image-2.5-sunburst` default, native transparent background, 16 references; `gpt-image-1` refused), Gemini (`gemini-3.1-flash-image`, `gemini-3-pro-image` for hero masters, 14 references), xAI (image edits with 5 references; `grok-imagine-video-1.5` with a last frame and up to 4 keyframes, the 1.5 Lite draft tier, actual cost from usage), BytePlus ModelArk (`ARK_API_KEY`: Seedream 5.0, Seedance 2.x with first and last frames), fal.ai (`FAL_KEY`: CDN uploads before the paid request, curated parameter maps for Kling v3, Veo 3.1 padded to 16:9 with the crop recorded, Luma Ray 3.2, MiniMax H3, Wan 3.0, Vidu Q3, LTX-2.5, and four reference-edit image models). Keys come from the vendors' variables or one user config file (`%APPDATA%\agent-sprite-forge\config.json`, `~/.config/agent-sprite-forge/config.json`) with an optional `providers.order` and per-tier `models`; they are read in-process only and never printed, logged, written or passed to a child process.
+- `media_mp4.py`: every clip loses its audio locally before it is published; the download is kept as `provider-download.mp4`.
+- `forge_doctor.py`: capability check with the Codex/Grok CLI readiness ladder (PRESENT, AUTH_MODE, TOOL_EXPOSED, VERIFIED) and a ROUTES block (each provider configured yes or no, local readiness, the resolved order); reads no credentials.
+- `cli_media.py`: local routes `codex-cli` (image, up to 8 references), `grok-cli` (image, edit), `grok-acp` (image-to-video, 6 or 10 s), provenance checks, `resume --adopt`, `adopt --codex-thread` (supersedes draft PR #5; thanks to its author), `batch`.
+- Spend ledger `.forge/ledger.jsonl` and `media_ledger.py`; opt-in caps `--budget-usd`, `--max-calls`, `FORGE_MAX_PAID_REQUESTS`, `FORGE_SESSION_IMAGES` / `FORGE_SESSION_VIDEOS` (no default caps); estimates from `references/prices.json`; job.json receipts; `batch` for paid jobs; `--base-url` with `--allow-custom-base-url`; `--upload-url` for xAI zero data retention (field name unverified).
+
+**generate2dsprite**
+- `master_still.py` (see Highlights): class framings for hero, mob, boss and prop; FIRST identity reference and SECOND style reference; fakes recorded and warned so a fake take is never mistaken for a real generation; `references/master-still.md`, `references/prompt-rules.md` rewritten around the recipe.
+- `process`: `--scale-strategy registered`, `--pixel-scale` / `--logical-pixel`, `--grid-rounding nearest`, `--pad-to-grid`, `--anchor-mode`, `--alpha-hygiene`, `--key-quality auto|soft|hard|dominance`, `--key magenta|green|blue`, `--direction-order`, `--profile-override`; pipeline-meta `qa`, `provenance` and a `key_ring_spill` warning.
+- `sheet_qc.py` (`spill` before slicing; `frames`: identity, NEAR/FAR alternation, drift), `scale_frames.py` (one scale and root, never clamps), `plan_guide.py`, `references/action-recipes.md`.
+- `build_animation_clips.py` v2: 60 Hz ticks with drift-free integer ms, events, keys, entry frame, stride, transition hints, hit-stop, review sheets (filmstrips, onion skins, turn test, dissolves) and lints. `assemble_frames.py`: chroma keying, one crop-box schema, spill check and `--slice ownership`, `--loop-overlap K --ambient`.
+- `palette_tool.py` (`build`, `apply`, `lock`, `luts`, `variants`, `quantize-seq` with temporal hysteresis: -46.4% noise flips on a real game clip) and `pixel_reduce.py`.
+- `export_engine.py`: Aseprite JSON, Godot SpriteFrames and AnimatedSprite3D with an engine mapping table.
+
+**video2dsprite**
+- `sprite_set.py` (see Highlights) and `references/motion-prompts.md` (per-action prompt templates and a failure-to-fix clause library); `plan --matte-profile` keys every clip of a character the same way; a pixel character shares the scale-reference action's palette; `--fps` fractions and `--frame-ms` (12.5 fps gives exact 80 ms frames), `--colors`, `--outline`, `--canvas`, `--canvas-anchor`, `--no-colour-lock`, `--oneshot-timing auto|source`, `--oneshot-ms`.
+- `finish_frames.py` (`hd`, `pixel`, `palette build`, `lineup`; see Highlights): `--scale-ref` for the other actions of a character (clamped to ±3%), `--display-sizes`, `--canvas WxH [--canvas-anchor X,Y]` fixed cells, `--indexed-sheet`, cast line-up sheets with size rules (hero, mob, boss, spirit), QA with flips per frame pair, specks removed and binary alpha. `--downscale box --contrast 1 --saturation 1 --outline none` gives the plain pixel finish; `--shade-gap 0` turns off the palette spacing.
+- `colour_lock.py` (`measure` reports hue flips and region spread) and `finish_frames.py --colour-lock MASTER|rest`.
+- `retime.py --auto-oneshot` with `--key NAME=SRC@F[+HOLDms]`, `--event-source` and fractional `--output-fps` (`25/2` gives exact 80 ms frames).
+- Soft matte keying (`--matte soft|dominance|binary`), `--key auto`, pocket removal, `--despill-mode auto`, `--protect-color`, `--reference`, `--temporal-stability`, `--workers`, `matte-report.json`; `triage` and `key-plan` verbs; `--matte-profile`.
+- `prepare_i2v_input.py` and `register_clip.py` (`apply`, `qc`, `profile`, `palette-repair`): registration by construction, padding contract, feet/x/hip locks, actor and fx profiles. `prepare_i2v_input prepare --master-key` keys an opaque master on a flat magenta, green or blue backdrop (recorded as `masterKeying`); `video2dsprite.py clean` also accepts `raw_*.png`.
+- `gait_loop.py` (`select` with half-period guard, idle/hover loops; `measure-stride`), `retime.py` (spans, impact/hold, three-key map, ticks, loop-policy rules), `animation_review.py select`.
+- `engine_export.py` CLI (`package`, `verify`, `doctor`): animation.json 3.0, mobile packed tiers, loop-aligned closed GOPs, hash-bound `verify-qa.json`. `validate_animation.py` with 27 rules.
+- `references/runtime/forge-runtime.mjs` (distance-driven walk, hit-stop, transitions, fixed-step loop) and `packed-alpha-webgl.mjs` (WebGL compositor with CPU fallback).
+
+**generate2dmap**
+- `extract_prop_pack.py` v2 (anchors, footprints, auto boxes, keep-canvas, world scale, despill), terrain overlays, iso and hex tiles, Wang rows, border check; platform middle variants and surface QC.
+- `compose_layered_preview.py` debug overlay, placement audit and plate pan; `validate_parallax.py` pivot, aspect sweep, pixel grid and seam verdicts; `conform_background.py`.
+- `map_bundle.py` (`validate`, `hash`), `map_nav.py` (`check`, `query`), `export_tiled.py` (re-render verified at 0 px), `export_godot.py` (Godot 4.3+), `export_ldtk.py` (LDtk 1.5.3), `validate_chunks.py`, `validate_layout.py`, `references/map-presets.md`, `references/engine-maps.md`.
+- `build_scene_preview.py` (single-file walkable preview with a route check) and `references/runtime/map-runtime.mjs` (mirrors forge_nav rules N1-N15).
+- HD-2D: `validate_stage.py`, `scene_layout_guide.py`, `extract_scene_lights.py`, `edit_locality_check.py`, `build_motion_mask.py`, `scene_motion.py` (`build`, `qa`).
+
+**codeart2d (new skill, the last-resort route)**
+- `render_pixelspec.py` (PixelSpec to exact-palette frames per palette variant, clips manifests), `svg_render.py` (`render`, `lint`, renderer `doctor`), `pixel_qa.py`.
+- `rig_animate.py`: SVG rigs with FK, two-bone IK and a ground constraint; 0 px planted-foot drift on the hero example.
+- `fx_build.py` (slash, sparks, ring, flash, dust, projectile; hit events; `--export-runtime` writes an fx.v1 module) and `fx_verify.mjs`.
+- `autotile_build.py`: Wang-16, three-material (81 tiles), blob-47, bevel and flat sets, each with an exhaustive seam proof.
+- `layout_build.py` (playable map_bundle.v2 with collision and a reachability gate), `parallax_build.py`, `ambient_bake.py`; examples for every tool.
+- `render_pixelspec` warns when a walk/run clip's half-cycle frames are near-duplicates (`half_cycle_duplicates`, silhouette IoU >= 0.95; override `--allow-duplicate-half-cycle`); the summary lists `warned_checks`.
+
+### Changed
+
+- Art routes (owner decision 2026-10-06): image generation is the default art source for characters, creatures, props, icons and FX; characters are animated from one master still with one image-to-video clip per action; sheets are for FX, icons and props. The five SKILL.md files and `agents/openai.yaml` files carry these rules, host notes for Claude Code, Codex and Grok, and a capability check. `codeart2d` and `generate2dmedia` are explicit-only in Codex.
+- No default spend caps: a configured API key is consent, local routes run on the user's subscription quota, and every call is a ledger line; caps are opt-in. `generate_media.py` run directly keeps its dry run until `--execute`.
+- The HD finish is the default everywhere; the pixel finish is chosen on request (`--finish pixel`, or a pixel master).
+- `render_pixelspec --strict-qc` refuses only a `fail` status; a `warn` still publishes and is reported verbatim.
+- Requirements: Python 3.10+, Pillow >= 10.1, numpy >= 1.26, scipy >= 1.11 (with a numpy fallback); `requirements-codeart.txt`; `requirements-dev.txt` adds jsonschema.
+- Every CLI writes a new output folder through staged, no-replace publication, prints one ASCII JSON line, exits 1 on failure with one `error:` line and 2 on usage errors, and runs under cp1252/cp950 consoles. QA envelopes record `tool.version` 0.4.0. Manifests store relative paths; JSON inputs may carry a UTF-8 BOM.
+- Speed: the legacy keyers are vectorised with identical bytes (2048^2 sheet: 22.0 s to 0.23 s); component labelling 2.5 s to 0.03-0.05 s per sheet; video keying 0.34 s per 960x960 frame on four threads.
+- `video2dsprite` decodes and encodes through forge_av (functional ffmpeg probes, BT.709 tags, bitexact WebM, edge bleed under alpha).
+- The package residue gate counts two-channel key spill only where the key channels stay balanced, so a deep crimson design colour no longer fails it while real magenta spill is still caught.
+- Terrain and platform manifests are v2 (relative paths, QA envelopes); terrain tiles are RGBA. `--edge-policy seamless` now changes processing and gates wrap seams.
+- `packed-alpha-runtime.js` wraps the WebGL compositor and keeps its API.
+- `generate_media.py` prints scrubbed provider errors; image submit timeout 300 s.
+
+### BREAKING
+
+Each new default has a legacy switch where one is possible; v1 documents remain readable.
+
+| Area | New default | Legacy switch |
+| --- | --- | --- |
+| sprite process | 8-connected components | `--connectivity 4` |
+| sprite process | anchor = bottom edge of the lowest stable row | `--anchor-mode legacy-p98` |
+| sprite process | alpha geometry threshold 16 | `--alpha-geometry-threshold 0` |
+| sprite process | alpha hygiene `both` for native-alpha input | `--alpha-hygiene none` |
+| sprite process | unknown `--mode` fails; `sheet` needs rows/cols | none (bug fix) |
+| sprite process | profile/flag conflict is an error | `--profile-override` |
+| sprite process | fractional nearest scales refused | `--legacy-fractional-nearest` |
+| sprite process | `--key-quality auto` (soft for chroma + lanczos) | `--key-quality hard` |
+| sprite process | pipeline-meta v2, scale profile v2 | v1 profiles still read |
+| sprite process | `--align bottom` is a deprecated alias of `feet` | none |
+| sprite process | `preserve` samples every cell on one shared grid (frames differ from 0.3) | none |
+| sprite process | opaque multi-cell grids refused (use `assemble_frames.py`); `build-godot-bundle` refuses existing output | none |
+| sprite build-prompt | no franchise style text | `--legacy-style` |
+| sprite build-prompt | `--write` / `--write-json` refuse an existing file | `--overwrite` |
+| assemble_frames | `--sheet` refuses cross-cell spill | `--allow-spill` (better: `--slice ownership`) |
+| assemble_frames | `--key chroma` needs a backdrop of the key colour on the border | pass `--key-color` or drop `--key chroma` |
+| clips tools | print one JSON line instead of the bare output path; relative paths | none |
+| video process | `--matte soft` + pockets + `--despill-mode auto` + alpha hysteresis | `--matte binary --despill-mode off` |
+| video process | `--dist` / `--despill` need `--matte binary` | none |
+| video (all verbs) | refuse an existing output folder | choose a new folder |
+| video frames | raw frames are `frame_000000.png` (0-based) | none |
+| video package | fails on key residue | `--allow-key-residue` |
+| video package | animation.json 3.0 (every 2.0 key kept); runtimes crop packed alpha at `halfWidth` | none |
+| prop pack | refuses an existing output dir; exit 1 when nothing is accepted | new folder |
+| prop pack | despill radius 1 for chroma | `--despill-radius 0` |
+| prop pack | 8-connected; manifest v2 with `anchor_px` | `--connectivity 4`; v1 readable |
+| prop pack | `--min-component-area` auto (scaled to the cell) | `--min-component-area 100` |
+| compose | ground-line sort + manifest anchors | `--sort raw-y`, `--anchor px` |
+| compose, parallax | refuse an existing output or report file | new path |
+| terrain | runtime 3D fields omitted unless given | `--emit-runtime-defaults` |
+| terrain | refuses an existing output dir; `--strict-qc` also fails drawn borders and art above a platform surface | new folder; `--max-border-delta 1`, `--surface-tolerance-px` |
+| parallax | coverage required for repeated and near layers | `--coverage sky-only` |
+| media | `generate_media.py` run directly refuses an identical successful request (`route_media.py` takes a new folder as a new take) | `--allow-duplicate` |
+| media | job.json v2; image submit timeout 300 s | v1 jobs resume; `--submit-timeout 180` |
+| repo | Python 3.10+, Pillow >= 10.1, scipy added, vendored `forge_*` in skills | none |
+
+### Fixed
+
+- Found by the second live run (2026-10-06, Aria HD set and fox pixel set): `sprite_set` passed the clip length as `6.0` where `route_media.py` takes whole seconds; it gave `finish_frames.py` both `--scale-ref` and `--target-height`; it had no per-character matte profile, so a crimson scarf on a magenta key left tinted boots and a package refused for spill; the old identity floor rejected 18 of 24 good takes; one-shots shipped at the generator's slow-motion speed (attack 4.1 s); the pixel finish kept 155-162 colours per frame and near-duplicate shades.
+- Windows: every Codex master-still edit failed with ARTIFACT_MISSING, because `tempfile.mkdtemp` (Python 3.12.4+, CVE-2024-4030) gave the run folder an owner-only ACL that the Codex sandbox users cannot read; `cli_media.py` now makes the run folder with a plain mkdir in the system temporary folder, and ARTIFACT_MISSING quotes Codex's scrubbed answer. `forge_av` retries a partial-file cleanup for up to 3 s instead of failing with WinError 32 on a briefly locked file. `sprite_set` reads `motion-prompts.md` from a CRLF checkout. `forge_doctor` reads the Windows architecture from the environment instead of spawning cmd.exe.
+- Grok renders 6 or 10 s only: other lengths failed as a bare GENERATION_FAILED. The `grok-acp` route snaps the request (`durationRequested`, `durationUsed`), and a failed ACP run carries the tool's own scrubbed message.
+- Found by the first live validation: `prepare_i2v_input` refused an opaque master; the image-to-video prompt contract took the last noun of `--subject` ("everything behind the scarf"); an agent summarised a WARN QA envelope as "all checks passed" (SKILL.md now requires WARN/FAIL to be reported verbatim).
+- Purple fringe and enclosed key pockets (report v2 P0-1, P0-2): on Ryo frames 57-87 visible fringe 8,504 to 0 px per frame, leak 15.3 to 0; frames with pockets 16 of 145 to 0; flicker 9.6 to 3.5 flips per frame pair.
+- Packages shipped key residue (P0-3): residue is now refused; the old forge-cycle packages (70-83% ring spill) fail the gate.
+- Invalid loop candidates (P0-4): six of eight old helper candidates on the report clip are listed as rejected with reasons.
+- Body-scale pumping from alpha-bound registration; motion-killing prompt words are linted.
+- Alpha haze drove geometry (S01, DOC-04: 67,907 faint pixels on the fox sheet removed); feet hung 2-3 px below the origin (S14); static-body shimmer (S05); uneven nearest pixels (S06); 16-bit grey turned white and animated input silently used frame 0 (S16); 22-29 s pure-Python keyer (S03).
+- Props floated 0-8 px (MAP-02); magenta fringe on props 2,419 to 111 tinted px (MAP-03); raw-y sort drew short bushes over trees (MAP-05); banker's rounding moved props (MAP-21); outputs could overwrite inputs (MAP-22); absolute paths in manifests (MAP-24); hidden terrain runtime defaults (MAP-16, DOC-14); gutters passed strict QC (MAP-10); iso atlases rejected (MAP-11); seam metric failed true joins (MAP-14).
+- No engine-usable map data (MAP-01, DOC-05, F-07): validated bundles, collision from data, reachability and Tiled/Godot/LDtk exports.
+- A paid image was deleted on volumes without hard links (F-04); a paid success crashed a cp1252 console (F-14); provider error reasons were hidden (F-05, issue #11); the 180 s submit timeout was too short (F-16).
+- Codex Desktop images that were not saved locally can be adopted (F-13, issue #4); stale skill installs are detected (F-11); an installed `grok.exe` is no longer mistaken for a video route.
+- WSL `/mnt/c` publishing (F-03); `--help` crashed under cp1252 (report v2 P1-1); Pillow 12.3 wrote a corrupt GIF after a blank frame; libwebp 1.6 dropped the alpha flag of cropped previews; ffmpeg 8 left packed MP4 colour tags unspecified; WebM bytes changed on every run.
+- Code-art probe findings: complex numbers and NaN in SVG geometry, clipPath id collisions between batched frames, outline gaps after finishing, 2.43 px foot slide, a 4 px shore colour jump between water tiles, and road-to-water sets that forced a grass strip.
+- Sprite Sprite3D contract paths did not resolve (S19); Aseprite/Godot timing had no tool (DOC-13); odd-width packed videos were cropped at the wrong half.
+
+## 0.3 and earlier
+
+Grok Build and API video routes, packed-alpha video packaging and the 2026-10-05 audit fixes are described in [docs/upgrade-audit-2026-10-05.zh-TW.md](./docs/upgrade-audit-2026-10-05.zh-TW.md) and [docs/validation-2026-10-05.md](./docs/validation-2026-10-05.md).
