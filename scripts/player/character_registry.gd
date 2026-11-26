@@ -63,7 +63,7 @@ const CHARACTERS: Array[Dictionary] = [
 		"id": "sylvara",
 		"name": "Sylvara",
 		"role": "ELF RANGER",
-		"subtitle": "Blonde Woodland Archer",
+		"subtitle": "Autumn Woodland Archer",
 		"scene_path": "res://scenes/player/Sylvara.tscn",
 		"sheet_path": "res://assets/textures/player_sylvara.png",
 		"portrait_path": "res://assets/textures/portrait_sylvara.png",
