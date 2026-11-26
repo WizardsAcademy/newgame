@@ -1,0 +1,146 @@
+{
+  "f00_idle": {
+    "body": [
+      46,
+      50
+    ],
+    "ground": 54,
+    "cx": 36,
+    "air": false
+  },
+  "f01_walk_a": {
+    "body": [
+      45,
+      49
+    ],
+    "ground": 54,
+    "cx": 36,
+    "air": false
+  },
+  "f02_walk_b": {
+    "body": [
+      45,
+      49
+    ],
+    "ground": 54,
+    "cx": 36,
+    "air": false
+  },
+  "f03_windup": {
+    "body": [
+      49,
+      53
+    ],
+    "ground": 54,
+    "cx": 27,
+    "air": false
+  },
+  "f04_sweep": {
+    "body": [
+      43,
+      47
+    ],
+    "ground": 54,
+    "cx": 32,
+    "air": false
+  },
+  "f05_spin": {
+    "body": [
+      43,
+      47
+    ],
+    "ground": 54,
+    "cx": 32,
+    "air": false
+  },
+  "f06_guard": {
+    "body": [
+      46,
+      50
+    ],
+    "ground": 54,
+    "cx": 31,
+    "air": false
+  },
+  "f07_charge": {
+    "body": [
+      46,
+      50
+    ],
+    "ground": 54,
+    "cx": 36,
+    "air": false
+  },
+  "f08_hurt": {
+    "body": [
+      46,
+      50
+    ],
+    "ground": 54,
+    "cx": 36,
+    "air": false
+  },
+  "f09_blink": {
+    "body": [
+      45,
+      49
+    ],
+    "ground": 54,
+    "cx": 36,
+    "air": false
+  },
+  "f10_idle_down": {
+    "body": [
+      46,
+      50
+    ],
+    "ground": 54,
+    "cx": 31,
+    "air": false
+  },
+  "f11_walk_down_a": {
+    "body": [
+      45,
+      49
+    ],
+    "ground": 54,
+    "cx": 31,
+    "air": false
+  },
+  "f12_walk_down_b": {
+    "body": [
+      45,
+      49
+    ],
+    "ground": 54,
+    "cx": 31,
+    "air": false
+  },
+  "f13_idle_up": {
+    "body": [
+      46,
+      50
+    ],
+    "ground": 54,
+    "cx": 35,
+    "air": false
+  },
+  "f14_walk_up_a": {
+    "body": [
+      45,
+      49
+    ],
+    "ground": 54,
+    "cx": 35,
+    "air": false
+  },
+  "f15_walk_up_b": {
+    "body": [
+      45,
+      49
+    ],
+    "ground": 54,
+    "cx": 35,
+    "air": false
+  }
+}
