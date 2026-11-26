@@ -1,0 +1,20 @@
+{
+  "name": "noa-gothic-v1",
+  "note": "24 colours = 6 ramps x 4 steps (step0 shadow/selout, step1 base, step2 light, step3 highlight). No #000000. Light from top-left. Sampled from the user's Noa reference.",
+  "ramps": {
+    "moon":    ["#3A2D44", "#8C82A6", "#CFCBE3", "#F4F2FC"],
+    "skin":    ["#6B4448", "#D8B0AC", "#EDD5CE", "#FAEFE8"],
+    "obsidian":["#161224", "#2E2647", "#524678", "#8072AB"],
+    "crimson": ["#380C1C", "#821832", "#CC2B4C", "#FA6E86"],
+    "gold":    ["#4A2F12", "#9C6820", "#DEB03C", "#FAE38C"],
+    "cream":   ["#8A7A62", "#D8C8A8", "#F4E8D4", "#FDF8EA"]
+  },
+  "assignment": {
+    "long wavy silver-white hair, eyebrows": "moon",
+    "pale skin, face, arms": "skin",
+    "black-lilac gothic dress, cape lining, hair shadow tones": "obsidian",
+    "crimson eyes, rose, bows, dress trim, gems, death pool": "crimson",
+    "gold crown, chains, buckles, cross pendants": "gold",
+    "white stockings, petticoat, fangs, necklace pearls": "cream"
+  }
+}
